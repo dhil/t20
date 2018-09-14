@@ -1,2 +1,2 @@
-# t20
-A domain specific language for kernel-to-kernel transformations.
+# Triple 20: A Kernel-to-Kernel Transformation Framework
+**Disclaimer** this is highly experimental. It's a very early stage prototype.

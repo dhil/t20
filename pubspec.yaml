@@ -1,0 +1,14 @@
+name: t20
+authors:
+  - Daniel Hillerström <hillerstrom@google.com>
+description: A domain specific language for kernel-to-kernel transformations
+version: 0.0.1-alpha
+environment:
+  sdk: '>=2.0.0 <3.0.0'
+executables:
+  t20:
+dependencies:
+  args: ^1.5.0
+  charcode: ^1.1.2
+  kernel: ^0.3.5
+
