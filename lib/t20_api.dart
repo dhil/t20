@@ -2,6 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-void sayHello() {
-  print("Hello World!");
-}
+library t20;
+
+export 'src/io/stream_io.dart';
+export 'src/syntax/parse_sexp.dart';
+
