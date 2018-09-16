@@ -8,6 +8,30 @@ build/
 # If you're building an application, you may want to check-in your pubspec.lock
 pubspec.lock
 
+# Haskell
+dist
+dist-*
+cabal-dev
+*.o
+*.hi
+*.chi
+*.chs.h
+*.dyn_o
+*.dyn_hi
+.hpc
+.hsenv
+.cabal-sandbox/
+cabal.sandbox.config
+*.prof
+*.aux
+*.hp
+*.eventlog
+.stack-work/
+cabal.project.local
+cabal.project.local~
+.HTF/
+.ghc.environment.*
+
 # Directory created by dartdoc
 # If you don't generate documentation locally you can remove this line.
 doc/api/
