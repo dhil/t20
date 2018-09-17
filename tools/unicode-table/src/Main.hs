@@ -15,14 +15,13 @@ data Exp = True          -- true
          | Hex String    -- 0xABCD
          | LE Exp Exp    -- E <= E'
          | GE Exp Exp    -- E >= E'
+         | EQ' Exp Exp    -- E == E'
          | And Exp Exp   -- E && E'
          | Or Exp Exp    -- E || E'
          deriving Show
 
-data Term = Let Ident Value      -- x = V
-          | Fun Ident Ident Term -- f x . M
-          | If Exp Term Term     -- if E then tt else ff
-          | Return Exp           -- return E
+data Term = Let Ident Exp        -- x = V
+          | Lam Ident Exp        -- \x . E
           deriving Show
 
 replace :: Eq a => a -> a -> [a] -> [a]
@@ -162,11 +161,132 @@ alternatives c = uName c : tail
                    else []
 
 -- | Functions
-between :: Char -> Char -> Ident -> Exp
-between l u v = And (GE (Var v) (Hex $ hexCode l)) (LE (Var v) (Hex $ hexCode u))
+(<=:) :: Exp -> Exp -> Exp
+e <=: e' = LE e e'
 
-isLetter :: Term
-isLetter = Fun "IS LETTER" "c" (Return (between 'A' 'Z' "c"))
+(>=:) :: Exp -> Exp -> Exp
+e >=: e' = GE e e'
+
+(===) :: Exp -> Exp -> Exp
+e === e' = EQ' e e'
+
+(&&&) :: Exp -> Exp -> Exp
+e &&& e' = And e e'
+
+(|||) :: Exp -> Exp -> Exp
+e ||| e' = Or e e'
+
+between :: Char -> Char -> Exp -> Exp
+between l u v = (v >=: l') &&& (v <=: u')
+  where l' = Hex $ hexCode l
+        u' = Hex $ hexCode u
+
+_isAsciiUppercase :: Exp -> Exp
+_isAsciiUppercase var = between 'A' 'Z' var
+
+isAsciiUpper' :: Term
+isAsciiUpper' = Lam "c" (_isAsciiUppercase c)
+  where c = Var "c"
+
+_isAsciiLowercase :: Exp -> Exp
+_isAsciiLowercase var = between 'a' 'z' var
+
+isAsciiLower' :: Term
+isAsciiLower' = Lam "c" (_isAsciiLowercase c)
+  where c = Var "c"
+
+_isAsciiLetter :: Exp -> Exp
+_isAsciiLetter var =  _isAsciiLowercase var ||| _isAsciiUppercase var
+
+isAsciiLetter' :: Term
+isAsciiLetter' = Lam "c" (_isAsciiLetter c)
+  where c = Var "c"
+
+_isLatin1Uppercase :: Exp -> Exp
+_isLatin1Uppercase var
+  = between '\x0041' '\x005A' var
+    ||| between '\x00C0' '\x00D6' var
+    ||| between '\x00D8' '\x00DE' var
+
+isLatin1Upper' :: Term
+isLatin1Upper' = Lam "c" (_isLatin1Uppercase c)
+  where c = Var "c"
+
+_isLatin1Lowercase :: Exp -> Exp
+_isLatin1Lowercase var
+  = between '\x0061' '\x007A' var
+    ||| between '\x00DF' '\x00F6' var
+    ||| between '\x00F8' '\x00FF' var
+
+isLatin1Lower' :: Term
+isLatin1Lower' = Lam "c" (_isLatin1Lowercase c)
+  where c = Var "c"
+
+_isLatin1Letter :: Exp -> Exp
+_isLatin1Letter var = _isLatin1Lowercase var ||| _isLatin1Uppercase var
+
+isLatin1Letter' :: Term
+isLatin1Letter' = Lam "c" (_isLatin1Letter c)
+  where c = Var "c"
+
+_isDigit :: Exp -> Exp
+_isDigit var = between '0' '9' var
+
+isDigit' :: Term
+isDigit' = Lam "c" (_isDigit c)
+  where c = Var "c"
+
+isLetter' :: Term
+isLetter' = Lam "c" ( _isAsciiLetter c ||| _isLatin1Letter c)
+  where c = Var "c"
+
+_isAsciiSpace :: Exp -> Exp
+_isAsciiSpace var
+  = var === space
+    ||| var === nl
+    ||| var === ht
+    ||| var === cr
+    ||| var === ff
+    ||| var === lt
+  where toHex c = Hex $ hexCode c
+        space = toHex ' '
+        nl = toHex '\n'
+        ht = toHex '\t'
+        cr = toHex '\r'
+        ff = toHex '\f'
+        lt = toHex '\v'
+
+isAsciiSpace' :: Term
+isAsciiSpace' = Lam "c" (_isAsciiSpace c)
+  where c = Var "c"
+
+_isSpaceChar :: Exp -> Exp
+_isSpaceChar var
+  = var === toHex '\x00A0'
+    ||| var === toHex '\x1680'
+    ||| var === toHex '\x180E'
+    ||| (between '\x2000' '\x200B' var)
+    ||| var === toHex '\x202F'
+    ||| var === toHex '\x205F'
+    ||| var === toHex '\x3000'
+    ||| var === toHex '\xFEFF'
+  where toHex c = Hex $ hexCode c
+
+isSpace' :: Term
+isSpace' = Lam "c" (_isAsciiSpace c ||| _isSpaceChar c)
+  where c = Var "c"
+
+functions :: [(String, Term)]
+functions = [ ("IS ASCII LOWER", isAsciiLower')
+            , ("IS ASCII UPPER", isAsciiUpper')
+            , ("IS ASCII LETTER", isAsciiLetter')
+            , ("IS ASCII SPACE", isAsciiSpace')
+            , ("IS DIGIT", isDigit')
+            , ("IS LATIN1 LOWER", isLatin1Lower')
+            , ("IS LATIN1 UPPER", isLatin1Upper')
+            , ("IS LATIN1 LETTER", isLatin1Letter')
+            , ("IS LETTER", isLetter')
+            , ("IS SPACE", isSpace') ]
 
 -- | Every unicode character.
 unicodes :: [Char]
