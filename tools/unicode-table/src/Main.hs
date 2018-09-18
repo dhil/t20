@@ -2,26 +2,27 @@ module Main where
 
 import Data.Char
 import Data.Char.Properties.Names (getCharacterName)
+import Data.List (groupBy, intersperse, sort)
+import Data.List.Split (splitOneOf)
+import Data.Time
 
 import Numeric (showHex)
+
+import System.IO
 
 type CharInfo = (Char, Int, String, GeneralCategory)
 
 type Ident = String
 type Value = String
-data Exp = True          -- true
-         | False         -- false
-         | Var Ident     -- x
+data Exp = Var Ident     -- x
          | Hex String    -- 0xABCD
          | LE Exp Exp    -- E <= E'
-         | GE Exp Exp    -- E >= E'
          | EQ' Exp Exp    -- E == E'
          | And Exp Exp   -- E && E'
          | Or Exp Exp    -- E || E'
          deriving Show
 
-data Term = Let Ident Exp        -- x = V
-          | Lam Ident Exp        -- \x . E
+data Term = Lam Ident Exp        -- \x . E
           deriving Show
 
 replace :: Eq a => a -> a -> [a] -> [a]
@@ -161,11 +162,11 @@ alternatives c = uName c : tail
                    else []
 
 -- | Functions
+toHex :: Char -> Exp
+toHex c = Hex $ hexCode c
+
 (<=:) :: Exp -> Exp -> Exp
 e <=: e' = LE e e'
-
-(>=:) :: Exp -> Exp -> Exp
-e >=: e' = GE e e'
 
 (===) :: Exp -> Exp -> Exp
 e === e' = EQ' e e'
@@ -177,7 +178,7 @@ e &&& e' = And e e'
 e ||| e' = Or e e'
 
 between :: Char -> Char -> Exp -> Exp
-between l u v = (v >=: l') &&& (v <=: u')
+between l u v = (l' <=: v) &&& (v <=: u')
   where l' = Hex $ hexCode l
         u' = Hex $ hexCode u
 
@@ -248,8 +249,7 @@ _isAsciiSpace var
     ||| var === cr
     ||| var === ff
     ||| var === lt
-  where toHex c = Hex $ hexCode c
-        space = toHex ' '
+  where space = toHex ' '
         nl = toHex '\n'
         ht = toHex '\t'
         cr = toHex '\r'
@@ -259,6 +259,13 @@ _isAsciiSpace var
 isAsciiSpace' :: Term
 isAsciiSpace' = Lam "c" (_isAsciiSpace c)
   where c = Var "c"
+
+isAscii' :: Term
+isAscii' = Lam "c" (Var "c" <=: toHex '\x0080')
+
+isLatin1' :: Term
+isLatin1' = Lam "c" (Var "c" <=: toHex '\x00FF')
+
 
 _isSpaceChar :: Exp -> Exp
 _isSpaceChar var
@@ -270,7 +277,6 @@ _isSpaceChar var
     ||| var === toHex '\x205F'
     ||| var === toHex '\x3000'
     ||| var === toHex '\xFEFF'
-  where toHex c = Hex $ hexCode c
 
 isSpace' :: Term
 isSpace' = Lam "c" (_isAsciiSpace c ||| _isSpaceChar c)
@@ -292,6 +298,19 @@ functions = [ ("IS ASCII LOWER", isAsciiLower')
 unicodes :: [Char]
 unicodes = [minBound..]
 
+-- | Category mapping
+categoriesMapping :: [(GeneralCategory, [Char])]
+categoriesMapping = hoistFst groups
+  where pairs = sort $ map (\c -> (generalCategory c, c)) unicodes
+        catEq (c, _) (c', _) = c == c'
+        groups = groupBy catEq pairs
+        hoistFst :: [[(a, b)]] -> [(a, [b])]
+        hoistFst [] = []
+        hoistFst (xs : xss) = (head . fst . unzip $ xs, snd . unzip $ xs) : hoistFst xss
+
+categories :: [GeneralCategory]
+categories = [minBound..]
+
 -- | Associates an ASCII compliant name with the integer code of each
 -- unicode character.
 namesAndCodes :: [(String, Int)]
@@ -302,6 +321,102 @@ info c = (c, ord c, getCharacterName c, generalCategory c)
 
 table :: [CharInfo]
 table = map info $ take 100 unicodes
+
+-- | Dart backend
+capitalise :: String -> String
+capitalise (x : xs) = toUpper x : map toLower xs
+
+camelCase :: String -> String
+camelCase name = normalise parts
+  where
+    parts = splitOneOf "-_ " name
+    normalise :: [String] -> String
+    normalise [] = []
+    normalise (x : xs) = concat $ (map toLower x : map capitalise xs)
+
+toIdent :: String -> String
+toIdent = camelCase
+
+
+emitEnum :: Handle -> String -> [String] -> IO ()
+emitEnum fh name members = do
+  emit ("enum " ++ name ++ " {")
+  emit (concat $ intersperse "," members)
+  emit "}"
+  where emit s = hPutStrLn fh s
+
+emitConstant :: Handle -> String -> String -> IO ()
+emitConstant fh name value
+  = hPutStrLn fh ("const int " ++ name ++ " = " ++ value ++ ";")
+
+emitTerm :: Handle -> String -> Term -> IO ()
+emitTerm fh name (Lam b e) = do
+  hPutStrLn fh ("bool " ++ name ++ "(" ++ b ++ ") {")
+  hPutStr fh "  return "
+  emitExp fh e
+  hPutStrLn fh ";"
+  hPutStrLn fh "}"
+
+emitFun :: Handle -> (String, Term) -> IO ()
+emitFun fh (name, def) = emitTerm fh (toIdent name) def
+
+emitExp :: Handle -> Exp -> IO ()
+emitExp fh (Var x) = hPutStr fh x
+emitExp fh (Hex h) = hPutStr fh h
+emitExp fh (LE lhs rhs) = emitBinaryOp fh lhs rhs "<="
+emitExp fh (EQ' lhs rhs) = emitBinaryOp fh lhs rhs "=="
+emitExp fh (And lhs rhs) = emitBinaryOp fh lhs rhs "&&"
+emitExp fh (Or lhs rhs) = emitBinaryOp fh lhs rhs "||"
+
+emitBinaryOp :: Handle -> Exp -> Exp -> String -> IO ()
+emitBinaryOp fh lhs rhs op = do
+  emitExp fh lhs
+  hPutStr fh op
+  emitExp fh rhs
+
+emitComment :: Handle -> String -> IO ()
+emitComment fh msg = hPutStrLn fh ("// " ++ msg)
+
+emitHeader :: Handle -> IO ()
+emitHeader fh = do
+  emitComment fh "NOTE: THIS FILE IS GENERATED. DO NOT EDIT."
+  time <- timestamp
+  emitComment fh time
+  where timestamp = do
+          time <- getZonedTime
+          return $ "Generated on " ++ (show time) ++ "."
+
+emitLibrary :: Handle -> String -> IO ()
+emitLibrary fh name = do
+  emitEnum fh "GeneralCategory" (map show categories)
+  emit ("class " ++ name ++ " { ")
+  -- emitConstant
+  iter emitFun functions
+  emit "}"
+  where
+    emit s = hPutStrLn fh s
+    iter :: (Handle -> a -> IO ()) -> [a] -> IO ()
+    iter _ [] = return ()
+    iter f (x : xs) = do
+      _ <- f fh x
+      iter f xs
+
+emitGetCategory :: Handle -> IO ()
+emitGetCategory fh = do
+  emit "GeneralCategory category(int c) {"
+  emit "  switch (c) {"
+  emitCases (take 2 categoriesMapping)
+  emit "  }"
+  where
+    emit s = hPutStrLn fh s
+    emitCase :: Char -> IO ()
+    emitCase c = emit ("  case " ++ hexCode c ++ ":")
+    emitCases :: [(GeneralCategory, [Char])] -> IO ()
+    emitCases [] = return ()
+    emitCases ((cat, cases) : rest) = do
+      mapM_ emitCase cases
+      emit ("return GeneralCategory." ++ show cat)
+      emitCases rest
 
 main :: IO ()
 main = do
