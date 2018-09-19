@@ -18,7 +18,7 @@ abstract class Stream<E> {
   bool get endOfStream;
   E next();
 
-  Stream<T> map<T>(T Function(E));
+  // Stream<T> map<T>(T Function(E));
 }
 
 /// An infinite stream.
@@ -160,11 +160,11 @@ class PushbackStream<E> implements Stream<E> {
     _pushbackBuffer.add(e);
   }
 
-  Option<E> peek([int lookAhead = 1]) {
-    if (lookAhead < 1) return Option.none();
+  E unsafePeek([int lookAhead = 1]) {
+    if (lookAhead < 1) return null;
 
     if (lookAhead < _pushbackBuffer.length) {
-      return Option.some(_pushbackBuffer.elementAt(lookAhead));
+      return _pushbackBuffer.elementAt(lookAhead);
     }
 
     int limit = lookAhead - _pushbackBuffer.length;
@@ -175,10 +175,16 @@ class PushbackStream<E> implements Stream<E> {
     if (limit == 0) {
       E elem = _pushbackBuffer.removeLast();
       _pushbackBuffer.addLast(elem);
-      return Option.some(elem);
+      return elem;
     } else {
-      return Option.none();
+      return null;
     }
+  }
+
+  Option<E> peek([int lookAhead = 1]) {
+    int e = unsafePeek(lookAhead);
+    if (e == null) return Option.none;
+    else return Option<E>.some(e);
   }
 
   bool get endOfStream => _stream.endOfStream && _pushbackBuffer.isEmpty;
