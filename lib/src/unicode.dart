@@ -3,7 +3,7 @@
 // BSD-style license that can be found in the LICENSE file.
 
 // NOTE: THIS FILE IS GENERATED. DO NOT EDIT.
-// Generated on 2018-09-19 09:59:00.393263365 CEST.
+// Generated on 2018-09-19 14:53:00.592651245 CEST.
 
 library t20.unicode;
 
@@ -167,57 +167,57 @@ class Unicode {
   static final int CIRCUMFLEX_ACCENT = 0x005e;
   static final int LOW_LINE = 0x005f;
   static final int GRAVE_ACCENT = 0x0060;
-  static final int A = 0x0061;
+  static final int a = 0x0061;
   static final int LATIN_SMALL_LETTER_A = 0x0061;
-  static final int B = 0x0062;
+  static final int b = 0x0062;
   static final int LATIN_SMALL_LETTER_B = 0x0062;
-  static final int C = 0x0063;
+  static final int c = 0x0063;
   static final int LATIN_SMALL_LETTER_C = 0x0063;
-  static final int D = 0x0064;
+  static final int d = 0x0064;
   static final int LATIN_SMALL_LETTER_D = 0x0064;
-  static final int E = 0x0065;
+  static final int e = 0x0065;
   static final int LATIN_SMALL_LETTER_E = 0x0065;
-  static final int F = 0x0066;
+  static final int f = 0x0066;
   static final int LATIN_SMALL_LETTER_F = 0x0066;
-  static final int G = 0x0067;
+  static final int g = 0x0067;
   static final int LATIN_SMALL_LETTER_G = 0x0067;
-  static final int H = 0x0068;
+  static final int h = 0x0068;
   static final int LATIN_SMALL_LETTER_H = 0x0068;
-  static final int I = 0x0069;
+  static final int i = 0x0069;
   static final int LATIN_SMALL_LETTER_I = 0x0069;
-  static final int J = 0x006a;
+  static final int j = 0x006a;
   static final int LATIN_SMALL_LETTER_J = 0x006a;
-  static final int K = 0x006b;
+  static final int k = 0x006b;
   static final int LATIN_SMALL_LETTER_K = 0x006b;
-  static final int L = 0x006c;
+  static final int l = 0x006c;
   static final int LATIN_SMALL_LETTER_L = 0x006c;
-  static final int M = 0x006d;
+  static final int m = 0x006d;
   static final int LATIN_SMALL_LETTER_M = 0x006d;
-  static final int N = 0x006e;
+  static final int n = 0x006e;
   static final int LATIN_SMALL_LETTER_N = 0x006e;
-  static final int O = 0x006f;
+  static final int o = 0x006f;
   static final int LATIN_SMALL_LETTER_O = 0x006f;
-  static final int P = 0x0070;
+  static final int p = 0x0070;
   static final int LATIN_SMALL_LETTER_P = 0x0070;
-  static final int Q = 0x0071;
+  static final int q = 0x0071;
   static final int LATIN_SMALL_LETTER_Q = 0x0071;
-  static final int R = 0x0072;
+  static final int r = 0x0072;
   static final int LATIN_SMALL_LETTER_R = 0x0072;
-  static final int S = 0x0073;
+  static final int s = 0x0073;
   static final int LATIN_SMALL_LETTER_S = 0x0073;
-  static final int T = 0x0074;
+  static final int t = 0x0074;
   static final int LATIN_SMALL_LETTER_T = 0x0074;
-  static final int U = 0x0075;
+  static final int u = 0x0075;
   static final int LATIN_SMALL_LETTER_U = 0x0075;
-  static final int V = 0x0076;
+  static final int v = 0x0076;
   static final int LATIN_SMALL_LETTER_V = 0x0076;
-  static final int W = 0x0077;
+  static final int w = 0x0077;
   static final int LATIN_SMALL_LETTER_W = 0x0077;
-  static final int X = 0x0078;
+  static final int x = 0x0078;
   static final int LATIN_SMALL_LETTER_X = 0x0078;
-  static final int Y = 0x0079;
+  static final int y = 0x0079;
   static final int LATIN_SMALL_LETTER_Y = 0x0079;
-  static final int Z = 0x007a;
+  static final int z = 0x007a;
   static final int LATIN_SMALL_LETTER_Z = 0x007a;
   static final int LBRACE = 0x007b;
   static final int LEFT_CURLY_BRACKET = 0x007b;

@@ -21,7 +21,7 @@ class FileSource {
     _sourceFile = sourceFile;
   }
 
-  String get sourceName => _sourecFile.path;
+  String get sourceName => _sourceFile.path;
 
   ByteStream openInputStream() {
     return new ByteStream.fromFile(_sourceFile);

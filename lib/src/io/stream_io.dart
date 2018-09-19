@@ -182,8 +182,8 @@ class PushbackStream<E> implements Stream<E> {
   }
 
   Option<E> peek([int lookAhead = 1]) {
-    int e = unsafePeek(lookAhead);
-    if (e == null) return Option.none;
+    E e = unsafePeek(lookAhead);
+    if (e == null) return Option.none();
     else return Option<E>.some(e);
   }
 
