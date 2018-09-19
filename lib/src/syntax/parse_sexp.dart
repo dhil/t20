@@ -47,6 +47,9 @@ class _StatefulSexpParser {
   int _start = 0;
   Queue<int> _brackets;
 
+  // Constructs an object that represents the current source location.
+  Location get _location => new Location(_src.sourceName, _line, _start);
+
   _StatefulSexpParser(this._src) {
     _stream = new PushbackStream(_src.openInputStream());
     _brackets = new Queue<int>();
