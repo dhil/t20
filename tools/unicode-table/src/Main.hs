@@ -8,6 +8,7 @@ import Data.Time
 
 import Numeric (showHex)
 
+import System.Environment
 import System.IO
 
 type CharInfo = (Char, Int, String, GeneralCategory)
@@ -110,13 +111,14 @@ uName c = capitalise ("U" ++ hexName)
 
 
 alternatives :: Char -> [String]
-alternatives c = uName c : tail
+alternatives c = alt c ++ human c
   where tail = alt c ++ human c
         human c = case getCharacterName c of
                   "<control>" ->
                     case getHumanCtrlName c of
                       Nothing -> []
                       Just x  -> pure x
+                  '<' : _ -> []
                   name -> pure name
         alt c = case c of
                  '\x0009' -> ["TAB", "HT"]
@@ -294,6 +296,10 @@ functions = [ ("IS ASCII LOWER", isAsciiLower')
             , ("IS LETTER", isLetter')
             , ("IS SPACE", isSpace') ]
 
+constants :: [(String, String)]
+constants = concat $ map (\c -> map (\name -> (name, hexCode c)) $ alternatives c) unicodes'
+  where unicodes' = filter (\c -> c <= '\x00FF') unicodes
+
 -- | Every unicode character.
 unicodes :: [Char]
 unicodes = [minBound..]
@@ -337,6 +343,8 @@ camelCase name = normalise parts
 toIdent :: String -> String
 toIdent = camelCase
 
+toConstantIdent :: String -> String
+toConstantIdent name = replace '-' '_' $ replace ' ' '_' $ map toUpper name
 
 emitEnum :: Handle -> String -> [String] -> IO ()
 emitEnum fh name members = do
@@ -347,7 +355,8 @@ emitEnum fh name members = do
 
 emitConstant :: Handle -> String -> String -> IO ()
 emitConstant fh name value
-  = hPutStrLn fh ("const int " ++ name ++ " = " ++ value ++ ";")
+  = hPutStrLn fh ("const int " ++ name' ++ " = " ++ value ++ ";")
+  where name' = toConstantIdent name
 
 emitTerm :: Handle -> String -> Term -> IO ()
 emitTerm fh name (Lam b e) = do
@@ -388,25 +397,24 @@ emitHeader fh = do
 
 emitLibrary :: Handle -> String -> IO ()
 emitLibrary fh name = do
-  emitEnum fh "GeneralCategory" (map show categories)
+  emitHeader fh
+  emit "" -- new line.
+  --emitEnum fh "GeneralCategory" (map show categories)
   emit ("class " ++ name ++ " { ")
-  -- emitConstant
-  iter emitFun functions
+  mapM_ (uncurry $ emitConstant fh) constants
+  mapM_ (emitFun fh) functions
+  --emitGetCategory fh
   emit "}"
   where
     emit s = hPutStrLn fh s
-    iter :: (Handle -> a -> IO ()) -> [a] -> IO ()
-    iter _ [] = return ()
-    iter f (x : xs) = do
-      _ <- f fh x
-      iter f xs
 
 emitGetCategory :: Handle -> IO ()
 emitGetCategory fh = do
   emit "GeneralCategory category(int c) {"
   emit "  switch (c) {"
-  emitCases (take 2 categoriesMapping)
+  emitCases categoriesMapping
   emit "  }"
+  emit "}"
   where
     emit s = hPutStrLn fh s
     emitCase :: Char -> IO ()
@@ -415,9 +423,18 @@ emitGetCategory fh = do
     emitCases [] = return ()
     emitCases ((cat, cases) : rest) = do
       mapM_ emitCase cases
-      emit ("return GeneralCategory." ++ show cat)
+      emit ("return GeneralCategory." ++ show cat ++ ";")
       emitCases rest
+
+dispatch :: [String] -> IO ()
+dispatch ["-b", "dart", target] = do
+  fh <- openFile target WriteMode
+  emitLibrary fh "Unicode"
+  hClose fh
+dispatch ["-b", backend, _] = hPutStrLn stderr ("Unsupported backend '" ++ backend ++ "'.")
+dispatch _ = hPutStrLn stderr "usage: unicode-table -b <backend> <output file>"
 
 main :: IO ()
 main = do
-  putStrLn "hello world"
+  args <- getArgs
+  dispatch args
