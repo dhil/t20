@@ -355,12 +355,12 @@ emitEnum fh name members = do
 
 emitConstant :: Handle -> String -> String -> IO ()
 emitConstant fh name value
-  = hPutStrLn fh ("const int " ++ name' ++ " = " ++ value ++ ";")
+  = hPutStrLn fh ("static final int " ++ name' ++ " = " ++ value ++ ";")
   where name' = toConstantIdent name
 
 emitTerm :: Handle -> String -> Term -> IO ()
 emitTerm fh name (Lam b e) = do
-  hPutStrLn fh ("bool " ++ name ++ "(" ++ b ++ ") {")
+  hPutStrLn fh ("static bool " ++ name ++ "(" ++ b ++ ") {")
   hPutStr fh "  return "
   emitExp fh e
   hPutStrLn fh ";"
