@@ -344,7 +344,7 @@ toIdent :: String -> String
 toIdent = camelCase
 
 toConstantIdent :: String -> String
-toConstantIdent name = replace '-' '_' $ replace ' ' '_' $ map toUpper name
+toConstantIdent name = replace '-' '_' $ replace ' ' '_' name
 
 emitEnum :: Handle -> String -> [String] -> IO ()
 emitEnum fh name members = do
