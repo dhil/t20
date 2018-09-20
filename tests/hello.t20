@@ -1,0 +1,6 @@
+;; A comment
+(print "Hello World!") ;; another comment
+
+(print_int 4234113) ;; printing an int.
+
+;;(fact 5) ;; computes 5!.
