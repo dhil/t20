@@ -17,6 +17,7 @@ class NamedOptions {
   static String get dump_dast => "dump-dast";
   static String get help => "help";
   static String get output => "output";
+  static String get trace => "trace";
   static String get type_check => "type-checking";
   static String get verbose => "verbose";
   static String get version => "version";
@@ -47,9 +48,11 @@ ArgParser _setupArgParser() {
       help: "Place the output into <file>.",
       valueHelp: "file",
       defaultsTo: "stdout");
+  parser.addMultiOption(NamedOptions.trace,
+      help: "Trace the operational behaviour of a component.",
+      valueHelp: "tokens,parser");
   parser.addFlag(NamedOptions.type_check,
-      help: "Enable or disable type checking.",
-      defaultsTo: true);
+      help: "Enable or disable type checking.", defaultsTo: true);
   parser.addFlag(NamedOptions.verbose,
       abbr: 'v',
       negatable: false,
@@ -76,6 +79,7 @@ class Settings {
   final bool dumpDast;
   final bool showHelp;
   final bool showVersion;
+  final MultiOption trace;
   final bool verbose;
 
   // Other settings.
@@ -87,6 +91,7 @@ class Settings {
     var dumpDast = results[NamedOptions.dump_dast];
     var showHelp = results[NamedOptions.help];
     var showVersion = results[NamedOptions.version];
+    var trace = new MultiOption(results[NamedOptions.trace]);
     var verbose = results[NamedOptions.verbose];
 
     var sourceFile;
@@ -95,12 +100,12 @@ class Settings {
     } else if (!showHelp && !showVersion) {
       throw new UsageError();
     }
-    return Settings._(
-        dumpAst, dumpDast, showHelp, showVersion, verbose, sourceFile);
+    return Settings._(dumpAst, dumpDast, showHelp, showVersion, sourceFile,
+                      trace, verbose);
   }
 
   const Settings._(this.dumpAst, this.dumpDast, this.showHelp, this.showVersion,
-      this.verbose, this.sourceFile);
+                   this.sourceFile, this.trace, this.verbose);
 
   static String usage() {
     ArgParser parser = _setupArgParser();
@@ -108,4 +113,12 @@ class Settings {
     String header = "usage: t20 [OPTION]... <file.t20>";
     return "$header\n\nOptions are:\n${parser.usage}";
   }
+}
+
+class MultiOption {
+  final List<String> values;
+
+  MultiOption(this.values);
+
+  bool operator [](value) => values.contains(value);
 }

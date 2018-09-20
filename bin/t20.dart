@@ -51,8 +51,9 @@ void main(List<String> args) {
       throw new _SourceDoesNotExistsError(settings.sourceFile);
     fileHandle = sourceFile.openSync(mode: FileMode.read);
     Source source = new FileSource(fileHandle);
+    TokenStream tokens = new TokenStream(source, trace: settings.trace["tokens"] || settings.verbose);
     Parser parser = Parser.sexp();
-    parser.parse(source, trace:settings.verbose);
+    parser.parse(tokens, trace:settings.trace["parser"] || settings.verbose);
   } on UsageError {
     stdout.writeln(Settings.usage());
   } on UnknownOptionError catch (err) {

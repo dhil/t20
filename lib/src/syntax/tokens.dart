@@ -4,6 +4,8 @@
 
 library t20.syntax.tokens;
 
+import 'dart:io';
+
 import '../compilation_unit.dart';
 import '../io/stream_io.dart';
 import '../location.dart';
@@ -53,7 +55,12 @@ class TokenStream implements Stream<Token> {
   int _col = 0;
   int _line = 1;
 
-  TokenStream(Source source) {
+  factory TokenStream(Source source, {bool trace = false}) {
+    if (trace) return new _TracingTokenStream(source);
+    else return new TokenStream._(source);
+  }
+
+  TokenStream._(Source source) {
     if (source == null) throw new ArgumentError.notNull("source");
     _src = source;
     _stream = new PushbackStream<int>(source.openInputStream());
@@ -180,6 +187,16 @@ class TokenStream implements Stream<Token> {
 
   Token _token(TokenKind kind, String lexeme, {Object value = null}) {
     Token token = new Token(kind, lexeme, _location(_line, _col), value);
+    return token;
+  }
+}
+
+class _TracingTokenStream extends TokenStream {
+  _TracingTokenStream(Source source) : super._(source);
+
+  Token next() {
+    Token token = super.next();
+    stderr.writeln("$token");
     return token;
   }
 }

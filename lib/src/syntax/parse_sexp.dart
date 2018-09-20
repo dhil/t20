@@ -9,7 +9,6 @@ import 'dart:io';
 
 import '../compilation_unit.dart';
 import '../io/stream_io.dart';
-import '../location.dart';
 import '../unicode.dart' as Unicode;
 
 import 'sexp.dart';
@@ -33,18 +32,18 @@ class Result<TAst, TErr> {
 
 abstract class Parser {
   const factory Parser.sexp() = SexpParser;
-  Result<Sexp, Object> parse(Source source, {bool trace = false});
+  Result<Sexp, Object> parse(TokenStream stream, {bool trace = false});
 }
 
 class SexpParser implements Parser {
   const SexpParser();
 
-  Result<Sexp, Object> parse(Source source, {bool trace = false}) {
+  Result<Sexp, Object> parse(TokenStream stream, {bool trace = false}) {
     _StatefulSexpParser parser;
     if (trace) {
-      parser = new _TracingSexpParser(source);
+      parser = new _TracingSexpParser(stream);
     } else {
-      parser = new _StatefulSexpParserImpl(source);
+      parser = new _StatefulSexpParserImpl(stream);
     }
     return parser.parse();
   }
@@ -61,7 +60,6 @@ abstract class _StatefulSexpParser {
 }
 
 class _StatefulSexpParserImpl implements _StatefulSexpParser {
-  final Source _src;
   PushbackStream<Token> _stream;
 
   // Book keeping.
@@ -69,13 +67,8 @@ class _StatefulSexpParserImpl implements _StatefulSexpParser {
   int _line = 1;
   Queue<int> _brackets;
 
-  // Constructs an object that represents the current source location.
-  Location _location(int start) {
-    return new Location(_src.sourceName, _line, start);
-  }
-
-  _StatefulSexpParserImpl(this._src) {
-    _stream = new PushbackStream(new TokenStream(_src));
+  _StatefulSexpParserImpl(TokenStream stream) {
+    _stream = new PushbackStream(stream);
     _brackets = new Queue<int>();
   }
 
@@ -232,10 +225,10 @@ class _TracingSexpParser extends _StatefulSexpParserImpl {
   final StringBuffer _pb;
   int _indent = 0;
 
-  _TracingSexpParser(Source src)
+  _TracingSexpParser(TokenStream stream)
       : _pb = new StringBuffer(),
         _sb = new StringBuffer(),
-        super(src);
+        super(stream);
 
   Result<Sexp, Object> parse() {
     stderr.writeln("parse");

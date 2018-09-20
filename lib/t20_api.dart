@@ -8,3 +8,4 @@ export 'src/compilation_unit.dart';
 export 'src/location.dart';
 export 'src/io/stream_io.dart';
 export 'src/syntax/parse_sexp.dart';
+export 'src/syntax/tokens.dart';

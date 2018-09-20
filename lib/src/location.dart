@@ -10,4 +10,8 @@ class Location {
   final int column;
 
   const Location(this.fileName, this.line, this.column);
+
+  String toString() {
+    return "<$fileName:$line:$column>";
+  }
 }
