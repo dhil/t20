@@ -15,8 +15,6 @@ abstract class SexpVisitor<T> {
 }
 
 abstract class Sexp {
-  Location get location;
-
   T visit<T>(SexpVisitor<T> visitor);
 }
 
@@ -87,8 +85,9 @@ class StringLiteral implements Sexp {
   }
 }
 
-class Toplevel extends SList {
-  const Toplevel(List<Sexp> sexps, Location location) : super(sexps, location);
+class Toplevel implements Sexp {
+  final List<Sexp> sexps;
+  const Toplevel(this.sexps);
 
   T visit<T>(SexpVisitor<T> visitor) {
     return visitor.visitToplevel(this);

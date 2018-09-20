@@ -66,6 +66,7 @@ class _StatefulSexpParserImpl implements _StatefulSexpParser {
   int _col = 0;
   int _line = 1;
   Queue<int> _brackets;
+  int _errors = 0;
 
   _StatefulSexpParserImpl(TokenStream stream) {
     _stream = new PushbackStream(stream);
@@ -73,12 +74,11 @@ class _StatefulSexpParserImpl implements _StatefulSexpParser {
   }
 
   Result<Sexp, Object> parse() {
-    List<Sexp> sexps = new List<Sexp>();
-    Object sexp;
+    final List<Sexp> sexps = new List<Sexp>();
     while (!_match(TokenKind.EOF)) {
       sexps.add(expression());
     }
-    return null;
+    return new Result<Sexp, Object>(new Toplevel(sexps), null);
   }
 
   bool _match(TokenKind kind) {
@@ -107,7 +107,9 @@ class _StatefulSexpParserImpl implements _StatefulSexpParser {
         return list();
       default:
         // error
-        print("Unexpected token error");
+        _advance();
+        _errors++;
+        print("Unexpected token error $token");
     }
     return null;
   }
@@ -131,7 +133,8 @@ class _StatefulSexpParserImpl implements _StatefulSexpParser {
   }
 
   SList list() {
-    assert(_matchEither(<TokenKind>[TokenKind.LBRACE, TokenKind.LBRACKET, TokenKind.LPAREN]));
+    assert(_matchEither(
+        <TokenKind>[TokenKind.LBRACE, TokenKind.LBRACKET, TokenKind.LPAREN]));
     Token beginBracket = _advance();
     TokenKind endBracketKind = _correspondingClosingBracket(beginBracket.kind);
 
@@ -210,88 +213,164 @@ class _StatefulSexpParserImpl implements _StatefulSexpParser {
   }
 }
 
-class _Symbols {
-  static final String branch = String.fromCharCode(0x251C);
-  static final String finalBranch = String.fromCharCode(0x2514);
-  static final String verticalLine = String.fromCharCode(0x2502);
-  static final String horizontalLine = String.fromCharCode(0x2500);
-  static final String tDown = String.fromCharCode(0x252C);
-  static final String end = String.fromCharCode(0x25B8);
-  static final String ePrint = String.fromCharCode(0x2639);
-}
-
 class _TracingSexpParser extends _StatefulSexpParserImpl {
-  final StringBuffer _sb;
-  final StringBuffer _pb;
-  int _indent = 0;
-
-  _TracingSexpParser(TokenStream stream)
-      : _pb = new StringBuffer(),
-        _sb = new StringBuffer(),
-        super(stream);
+  ParseTreeInteriorNode tree;
+  _TracingSexpParser(TokenStream stream) : super(stream);
 
   Result<Sexp, Object> parse() {
-    stderr.writeln("parse");
-    return super.parse();
+    tree = new ParseTreeInteriorNode("parse");
+    var result = super.parse();
+    tree.visit(new PrintParseTree());
+    return result;
   }
 
   Atom atom() {
-    _finalDive();
     var node = super.atom();
-    _sb.write("${_Symbols.end} atom [$node]");
-    stderr.writeln(_sb.toString());
+    tree.add(new ParseTreeLeaf("atom", node.value));
     return node;
   }
 
   Sexp expression() {
-    _dive();
-    _sb.write("${_Symbols.tDown} expression");
-    stderr.writeln(_sb.toString());
+    var parent = tree;
+    tree = new ParseTreeInteriorNode("expression");
+    parent.add(tree);
     var node = super.expression();
-    _surface();
+    tree = parent;
     return node;
   }
 
   IntLiteral integer() {
-    _finalDive();
     var node = super.integer();
-    _sb.write("${_Symbols.end} int [$node]");
-    stderr.writeln(_sb.toString());
+    tree.add(new ParseTreeLeaf("integer", node.value.toString()));
     return node;
   }
 
   SList list() {
-    _dive();
-    _sb.write("${_Symbols.tDown} list");
-    stderr.writeln(_sb.toString());
+    var parent = tree;
+    tree = new ParseTreeInteriorNode("list");
+    parent.add(tree);
     var node = super.list();
-    _surface();
+    tree = parent;
     return node;
   }
 
   StringLiteral string() {
-    _finalDive();
     var node = super.string();
-    _sb.write("${_Symbols.end} string [$node]");
-    stderr.writeln(_sb.toString());
+    tree.add(new ParseTreeLeaf("string", node.value));
     return node;
+  }
+}
+
+abstract class ParseTreeNode {
+  String name;
+
+  void visit(ParseTreeVisitor visitor);
+}
+
+class ParseTreeInteriorNode implements ParseTreeNode {
+  String name;
+  List<ParseTreeNode> children;
+
+  ParseTreeInteriorNode(this.name) : children = new List<ParseTreeNode>();
+
+  void visit(ParseTreeVisitor visitor) {
+    visitor.visitInteriorNode(this);
+  }
+
+  String toString() {
+    return "$name [children: ${children.length}]";
+  }
+
+  void add(ParseTreeNode node) {
+    children.add(node);
+  }
+}
+
+class ParseTreeLeaf implements ParseTreeNode {
+  String name;
+  String value;
+
+  ParseTreeLeaf(this.name, this.value);
+
+  void visit(ParseTreeVisitor visitor) {
+    visitor.visitLeaf(this);
+  }
+
+  String toString() {
+    return "$name [$value]";
+  }
+}
+
+abstract class ParseTreeVisitor {
+  void visitInteriorNode(ParseTreeInteriorNode node);
+  void visitLeaf(ParseTreeLeaf leaf);
+}
+
+class PrintParseTree implements ParseTreeVisitor {
+  // Symbols used to depict the tree.
+  final String BRANCH = String.fromCharCode(0x251C);
+  final String FINAL_BRANCH = String.fromCharCode(0x2514);
+  final String VL = String.fromCharCode(0x2502);
+  final String HL = String.fromCharCode(0x2500);
+  final String T_DOWN = String.fromCharCode(0x252C);
+  final String END = String.fromCharCode(0x25B8);
+  final StringBuffer _sb;
+  final StringBuffer _pb;
+  bool _toplevel = true;
+
+  PrintParseTree()
+      : _sb = new StringBuffer(),
+        _pb = new StringBuffer();
+
+  void visitInteriorNode(ParseTreeInteriorNode node) {
+    if (_toplevel) {
+      _toplevel = false;
+      _sb.write("$node");
+    } else {
+      _sb.write("$T_DOWN $node");
+    }
+
+    stderr.writeln(_sb.toString());
+
+    for (int i = 0; i < node.children.length; i++) {
+      if (i + 1 == node.children.length)
+        _finalDive();
+      else
+        _dive();
+      node.children[i].visit(this);
+      _surface();
+    }
+  }
+
+  void visitLeaf(ParseTreeLeaf leaf) {
+    _sb.write("$END $leaf");
+    stderr.writeln(_sb.toString());
   }
 
   void _finalDive() {
-     _sb.clear();
-     _sb.write("$_pb${_Symbols.finalBranch}${_Symbols.horizontalLine}${_Symbols.horizontalLine}");
-     _pb.write("   ");
+    _sb.clear();
+    _sb.write("$_pb$FINAL_BRANCH$HL$HL");
+    _pb.write("   ");
   }
 
   void _dive() {
     _sb.clear();
-    _sb.write("$_pb${_Symbols.branch}${_Symbols.horizontalLine}${_Symbols.horizontalLine}");
-    _pb.write("${_Symbols.verticalLine}  ");
+    _sb.write("$_pb$BRANCH$HL$HL");
+    _pb.write("$VL  ");
   }
 
   void _surface() {
     String prefix = _pb.toString();
     _pb.clear();
-    _pb.write(prefix.substring(prefix.length - 6));
+    _pb.write(delete(prefix, prefix.length - 3, prefix.length - 1));
+  }
+
+  String delete(String s, int start, int end) {
+    StringBuffer buf = new StringBuffer();
+    if (start > 0)
+      buf.write(s.substring(0, start));
+    if (end - s.length > 0)
+      buf.write(s.substring(end, s.length - 1));
+    return buf.toString();
   }
 }
