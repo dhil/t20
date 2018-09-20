@@ -355,12 +355,12 @@ emitEnum fh name members = do
 
 emitConstant :: Handle -> String -> String -> IO ()
 emitConstant fh name value
-  = hPutStrLn fh ("static final int " ++ name' ++ " = " ++ value ++ ";")
+  = hPutStrLn fh ("const int " ++ name' ++ " = " ++ value ++ ";")
   where name' = toConstantIdent name
 
 emitTerm :: Handle -> String -> Term -> IO ()
 emitTerm fh name (Lam b e) = do
-  hPutStrLn fh ("static bool " ++ name ++ "(" ++ b ++ ") {")
+  hPutStrLn fh ("bool " ++ name ++ "(" ++ b ++ ") {")
   hPutStr fh "  return "
   emitExp fh e
   hPutStrLn fh ";"
@@ -400,11 +400,11 @@ emitLibrary fh name = do
   emitHeader fh
   emit "" -- new line.
   --emitEnum fh "GeneralCategory" (map show categories)
-  emit ("class " ++ name ++ " { ")
+ -- emit ("class " ++ name ++ " { ")
   mapM_ (uncurry $ emitConstant fh) constants
   mapM_ (emitFun fh) functions
   --emitGetCategory fh
-  emit "}"
+  --emit "}"
   where
     emit s = hPutStrLn fh s
 
