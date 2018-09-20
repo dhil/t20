@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#
+# Executable wrapper for the t20 main script.
+#
+pub run t20 $@
