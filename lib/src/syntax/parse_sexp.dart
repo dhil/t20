@@ -57,6 +57,7 @@ abstract class _StatefulSexpParser {
   Sexp integer();
   Sexp list();
   Sexp string();
+  //Sexp error();
 }
 
 class _StatefulSexpParserImpl implements _StatefulSexpParser {
@@ -149,7 +150,7 @@ class _StatefulSexpParserImpl implements _StatefulSexpParser {
     }
     Token endBracket = _advance();
 
-    return SList(sexps, beginBracket.location);
+    return SList(sexps, _bracketsKind(endBracketKind), beginBracket.location);
   }
 
   Token _peek() {
@@ -209,6 +210,22 @@ class _StatefulSexpParserImpl implements _StatefulSexpParser {
         return true;
       default:
         return false;
+    }
+  }
+
+  ListBrackets _bracketsKind(TokenKind kind) {
+    switch (kind) {
+      case TokenKind.LBRACE:
+      case TokenKind.RBRACE:
+        return ListBrackets.BRACES;
+      case TokenKind.LBRACKET:
+      case TokenKind.RBRACKET:
+        return ListBrackets.BRACKETS;
+      case TokenKind.LPAREN:
+      case TokenKind.RPAREN:
+        return ListBrackets.PARENS;
+      default:
+        throw new ArgumentError(kind);
     }
   }
 }
@@ -297,7 +314,7 @@ class ParseTreeLeaf implements ParseTreeNode {
   }
 
   String toString() {
-    return "$name [$value]";
+    return "$name: $value";
   }
 }
 
@@ -367,10 +384,8 @@ class PrintParseTree implements ParseTreeVisitor {
 
   String delete(String s, int start, int end) {
     StringBuffer buf = new StringBuffer();
-    if (start > 0)
-      buf.write(s.substring(0, start));
-    if (end - s.length > 0)
-      buf.write(s.substring(end, s.length - 1));
+    if (start > 0) buf.write(s.substring(0, start));
+    if (end - s.length > 0) buf.write(s.substring(end, s.length - 1));
     return buf.toString();
   }
 }

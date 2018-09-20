@@ -48,11 +48,18 @@ class IntLiteral implements Sexp {
   }
 }
 
+enum ListBrackets {
+  BRACES,
+  BRACKETS,
+  PARENS
+}
+
 class SList implements Sexp {
   final Location location;
   final List<Sexp> sexps;
+  final ListBrackets brackets;
 
-  const SList(List<Sexp> sexps, this.location)
+  const SList(List<Sexp> sexps, this.brackets, this.location)
       : this.sexps = sexps == null ? <Sexp>[] : sexps;
 
   int get length => sexps.length;
