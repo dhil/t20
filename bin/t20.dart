@@ -46,28 +46,13 @@ void main(List<String> args) {
     if (settings.sourceFile == null) throw new UsageError();
 
     // Parse source.
-    File source = new File(settings.sourceFile);
-    if (!source.existsSync())
+    File sourceFile = new File(settings.sourceFile);
+    if (!sourceFile.existsSync())
       throw new _SourceDoesNotExistsError(settings.sourceFile);
-    fileHandle = source.openSync(mode: FileMode.read);
-    // Stream s = new ByteStream.fromString("Hello");
-    Stream s = new ByteStream.fromFile(fileHandle);
-    PushbackStream<String> s0 =
-        new PushbackStream<int>(new BufferedStream<int>(s))
-            .map((e) => String.fromCharCode(e));
-    int count = 0;
-    while (!s0.endOfStream) {
-      // if (count == 10) {
-      //   print("peek: ${s0.peek().map((e) => e + 1)}");
-      // }
-      var byte = s0.next();
-      print("$count: $byte");
-      count++;
-      if (count == 10) {
-        s0.unread(byte);
-      }
-    }
-    print("${s0.peek().map((e) => e.toString())}");
+    fileHandle = sourceFile.openSync(mode: FileMode.read);
+    Source source = new FileSource(fileHandle);
+    Parser parser = Parser.sexp();
+    parser.parse(source, trace:settings.verbose);
   } on UsageError {
     stdout.writeln(Settings.usage());
   } on UnknownOptionError catch (err) {

@@ -13,7 +13,7 @@ abstract class Source {
   ByteStream openInputStream();
 }
 
-class FileSource {
+class FileSource implements Source {
   RandomAccessFile _sourceFile;
 
   FileSource(RandomAccessFile sourceFile) {
