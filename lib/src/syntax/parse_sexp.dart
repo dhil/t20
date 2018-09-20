@@ -5,11 +5,15 @@
 library t20.syntax.parser;
 
 import 'dart:collection';
+import 'dart:io';
 
 import '../compilation_unit.dart';
 import '../io/stream_io.dart';
 import '../location.dart';
 import '../unicode.dart' as Unicode;
+
+import 'sexp.dart';
+import 'tokens.dart';
 
 class ExpectationError {
   final String actual;
@@ -29,13 +33,13 @@ class Result<TAst, TErr> {
 
 abstract class Parser {
   const factory Parser.sexp() = SexpParser;
-  Result<Object, Object> parse(Source source, {bool trace = false});
+  Result<Sexp, Object> parse(Source source, {bool trace = false});
 }
 
 class SexpParser implements Parser {
   const SexpParser();
 
-  Result<Object, Object> parse(Source source, {bool trace = false}) {
+  Result<Sexp, Object> parse(Source source, {bool trace = false}) {
     _StatefulSexpParser parser;
     if (trace) {
       parser = new _TracingSexpParser(source);
@@ -47,18 +51,18 @@ class SexpParser implements Parser {
 }
 
 abstract class _StatefulSexpParser {
-  Result<Object, Object> parse();
+  Result<Sexp, Object> parse();
 
-  Object atom();
-  Object expression();
-  Object integer();
-  Object list();
-  Object string();
+  Sexp atom();
+  Sexp expression();
+  Sexp integer();
+  Sexp list();
+  Sexp string();
 }
 
 class _StatefulSexpParserImpl implements _StatefulSexpParser {
   final Source _src;
-  PushbackStream<int> _stream;
+  PushbackStream<Token> _stream;
 
   // Book keeping.
   int _col = 0;
@@ -70,134 +74,107 @@ class _StatefulSexpParserImpl implements _StatefulSexpParser {
     return new Location(_src.sourceName, _line, start);
   }
 
-  bool get _atEnd => _stream.endOfStream;
-
   _StatefulSexpParserImpl(this._src) {
-    _stream = new PushbackStream(_src.openInputStream());
+    _stream = new PushbackStream(new TokenStream(_src));
     _brackets = new Queue<int>();
   }
 
-  Result<Object, Object> parse() {
-    List<Object> sexps = new List<Object>();
+  Result<Sexp, Object> parse() {
+    List<Sexp> sexps = new List<Sexp>();
     Object sexp;
-    while (!_atEnd) {
-      sexp = expression();
-      if (sexp != null) sexps.add(sexp);
+    while (!_match(TokenKind.EOF)) {
+      sexps.add(expression());
     }
     return null;
   }
 
-  bool _match(int c) {
-    return !_atEnd && _peek() == c;
+  bool _match(TokenKind kind) {
+    return _peek().kind == kind;
   }
 
-  void _expect(int c) {
-    int k = _advance();
-    if (c != k)
-      throw new ExpectationError(
-          String.fromCharCode(c), String.fromCharCode(k));
+  bool _matchEither(List<TokenKind> kinds) {
+    for (TokenKind kind in kinds) {
+      if (_peek().kind == kind) return true;
+    }
+    return false;
   }
 
-  Object expression() {
-    while (!_atEnd) {
-      int c = _peek();
-      switch (c) {
-        case Unicode.SEMICOLON: // Consume comment.
-          while (!_atEnd && !_match(Unicode.NL)) {
-            _advance();
-          }
-          break;
-        case Unicode.LBRACE:
-        case Unicode.LBRACKET:
-        case Unicode.LPAREN: // Generate LBRACKET.
-          return list();
-          break;
-        case Unicode.QUOTE: // String literal.
-          return string();
-          break;
-        case Unicode.HT:
-        case Unicode.NL:
-        case Unicode.SPACE:
-          _advance();
-          break;
-        default: // Atom or int literal.
-          if (Unicode.isLetter(c)) {
-            return atom();
-          } else if (Unicode.isDigit(c)) {
-            return integer();
-          } else {
-            // error
-          }
-      }
+  Sexp expression() {
+    Token token = _peek();
+    switch (token.kind) {
+      case TokenKind.ATOM:
+        return atom();
+      case TokenKind.INT:
+        return integer();
+      case TokenKind.STRING:
+        return string();
+      case TokenKind.LBRACE:
+      case TokenKind.LBRACKET:
+      case TokenKind.LPAREN:
+        return list();
+      default:
+        // error
+        print("Unexpected token error");
     }
     return null;
   }
 
-  Object string() {
-    final List<int> bytes = new List<int>();
-    while (!_match(Unicode.QUOTE)) {
-      bytes.add(_advance());
-    }
-    if (_atEnd) return null; // unterminated string.
-    _expect(Unicode.QUOTE);
-    return null;
+  StringLiteral string() {
+    assert(_match(TokenKind.STRING));
+    Token token = _advance();
+    return StringLiteral(token.value, token.location);
   }
 
-  Object integer() {
-    assert(Unicode.isDigit(_peek()));
-    final int start = _col + 1;
-    final List<int> bytes = new List<int>();
-    while (!_atEnd && Unicode.isDigit(_peek())) {
-      bytes.add(_advance());
-    }
-    // construct integer node.
-    return null;
+  IntLiteral integer() {
+    assert(_match(TokenKind.INT));
+    Token token = _advance();
+    return IntLiteral(token.value, token.location);
   }
 
-  Object atom() {
-    assert(Unicode.isLetter(_peek()));
-    final int start = _col + 1;
-    final List<int> bytes = new List<int>();
-    while (!_atEnd && !Unicode.isSpace(_peek())) {
-      bytes.add(_advance());
-    }
-    // construct new atom
-    return null;
+  Atom atom() {
+    assert(_match(TokenKind.ATOM));
+    Token token = _advance();
+    return Atom(token.lexeme, token.location);
   }
 
-  Object list() {
-    int beginBracket = _advance();
-    final int start = _col;
-    if (!_expectOpeningBracket(beginBracket))
-      return null; // error, expected opening bracket.
+  SList list() {
+    assert(_matchEither(<TokenKind>[TokenKind.LBRACE, TokenKind.LBRACKET, TokenKind.LPAREN]));
+    Token beginBracket = _advance();
+    TokenKind endBracketKind = _correspondingClosingBracket(beginBracket.kind);
 
-    List<Object> sexps = new List<Object>();
-    while (!_atEnd && !_isClosingBracket(_peek())) {
-      Object sexp = expression();
-      if (sexp != null) sexps.add(sexp);
+    List<Sexp> sexps = new List<Sexp>();
+    while (!_match(endBracketKind) && !_match(TokenKind.EOF)) {
+      sexps.add(expression());
     }
 
-    if (_atEnd) return null; // error, unmatched bracket.
-    int endBracket = _advance();
-    if (_expectMatchingClosingBracket(endBracket))
-      return null; // error, unmatched bracket.
+    // Unterminated list.
+    if (!_match(endBracketKind)) {
+      print("error unterminated list");
+    }
+    Token endBracket = _advance();
 
-    return null;
+    return SList(sexps, beginBracket.location);
   }
 
-  int _peek() {
+  Token _peek() {
     return _stream.unsafePeek();
   }
 
-  int _advance() {
-    int c = _stream.next();
-    if (c == Unicode.NL) {
-      _line++;
-      _col = 0;
-    } else {
-      _col++;
+  Token _advance() {
+    return _stream.next();
+  }
+
+  TokenKind _correspondingClosingBracket(TokenKind bracket) {
+    switch (bracket) {
+      case TokenKind.LBRACE:
+        return TokenKind.RBRACE;
+      case TokenKind.LBRACKET:
+        return TokenKind.RBRACKET;
+      case TokenKind.LPAREN:
+        return TokenKind.RPAREN;
+      default:
+        throw new ArgumentError();
     }
-    return c;
   }
 
   bool _expectOpeningBracket(int c) {
@@ -260,40 +237,50 @@ class _TracingSexpParser extends _StatefulSexpParserImpl {
         _sb = new StringBuffer(),
         super(src);
 
-  Result<Object, Object> parse() {
-    print("parse");
+  Result<Sexp, Object> parse() {
+    stderr.writeln("parse");
     return super.parse();
   }
 
-  Object atom() {
+  Atom atom() {
     _finalDive();
     var node = super.atom();
     _sb.write("${_Symbols.end} atom [$node]");
-    print("$_sb");
-    _surface();
+    stderr.writeln(_sb.toString());
     return node;
   }
 
-  Object expression() {
+  Sexp expression() {
     _dive();
     _sb.write("${_Symbols.tDown} expression");
-    print("$_sb");
+    stderr.writeln(_sb.toString());
     var node = super.expression();
     _surface();
     return node;
   }
 
-  Object integer() {
+  IntLiteral integer() {
+    _finalDive();
     var node = super.integer();
+    _sb.write("${_Symbols.end} int [$node]");
+    stderr.writeln(_sb.toString());
     return node;
   }
 
-  Object string() {
+  SList list() {
+    _dive();
+    _sb.write("${_Symbols.tDown} list");
+    stderr.writeln(_sb.toString());
+    var node = super.list();
+    _surface();
+    return node;
+  }
+
+  StringLiteral string() {
     _finalDive();
     var node = super.string();
     _sb.write("${_Symbols.end} string [$node]");
-    print("$_sb");
-    _surface();
+    stderr.writeln(_sb.toString());
     return node;
   }
 
@@ -312,8 +299,6 @@ class _TracingSexpParser extends _StatefulSexpParserImpl {
   void _surface() {
     String prefix = _pb.toString();
     _pb.clear();
-    //    print("$prefix ${prefix.length}");
-    if (prefix.length > 3)
-      _pb.write(prefix.substring(prefix.length - 4, prefix.length - 1));
+    _pb.write(prefix.substring(prefix.length - 6));
   }
 }
