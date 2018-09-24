@@ -8,7 +8,8 @@ import 'dart:io';
 
 abstract class ByteStream {
   static const END_OF_STREAM = -1;
-  factory ByteStream.fromFile(RandomAccessFile handle) = FileStream;
+  factory ByteStream.fromFile(RandomAccessFile handle, {int bufferSize}) =
+      FileStream;
   factory ByteStream.fromString(String string) = StringStream;
   bool get atEnd;
   int peek();
@@ -35,6 +36,7 @@ class StringStream implements ByteStream {
 }
 
 class FileStream implements ByteStream {
+  static const int DEFAULT_BUFFER_SIZE = 4096;
   final RandomAccessFile _handle;
   final List<int> _buffer;
   int _bufferPtr = 0;
@@ -62,6 +64,6 @@ class FileStream implements ByteStream {
     _bufferPtr = 0;
   }
 
-  FileStream(this._handle, {int bufferSize = 256})
+  FileStream(this._handle, {int bufferSize = FileStream.DEFAULT_BUFFER_SIZE})
       : _buffer = new List<int>(bufferSize);
 }
