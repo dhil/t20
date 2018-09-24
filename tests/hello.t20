@@ -1,7 +1,12 @@
 ;; A comment
-;;(print "Hello World!") ;; another comment
-;;(print_int 4234113) ;; printing an int.
+(print "Hello World!") ;; another comment
+(print_int 4234113) ;; printing an int.
 "asdasdadasdas"
 [fact 5] ;; computes 5!.
 ({fib 10})
-()
+(a . b . d)
+(let fact
+    (lambda (n)
+      (if (zero? n) 1
+          (* n (fact (- n 1))))))
+-3

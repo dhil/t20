@@ -241,8 +241,10 @@ class SexpParser implements Parser {
 
   Result<Sexp, SyntaxError> parse(ByteStream source, {bool trace = false}) {
     if (source == null) throw new ArgumentError.notNull("source");
-    if (trace) return new _TracingSexpParser(source).parse();
-    else return new _StatefulSexpParser(source).parse();
+    if (trace)
+      return new _TracingSexpParser(source).parse();
+    else
+      return new _StatefulSexpParser(source).parse();
   }
 }
 
@@ -262,13 +264,25 @@ class SexpParser implements Parser {
 //     | epsilon
 //
 class _StatefulSexpParser {
-  final List<int> _EOL = const <int>[
-    Unicode.NL
-  ];
-  final List<int> _spaces = const <int>[
+  final Set<int> _validAtomSymbols = Set.of(<int>[
+    Unicode.AT,
+    Unicode.LOW_LINE,
+    Unicode.HYPHEN_MINUS,
+    Unicode.PLUS_SIGN,
+    Unicode.ASTERISK,
+    Unicode.SLASH,
+    Unicode.DOLLAR_SIGN,
+    Unicode.BANG,
+    Unicode.QUESTION_MARK,
+    Unicode.EQUALS_SIGN,
+    Unicode.LESS_THAN_SIGN,
+    Unicode.GREATER_THAN_SIGN
+  ]);
+  final List<int> _whitespaces = const <int>[
     // Sorted after "likelihood".
     Unicode.SPACE,
     Unicode.NL,
+    Unicode.SEMICOLON,
     Unicode.HT,
     Unicode.CR,
     Unicode.FF
@@ -315,28 +329,33 @@ class _StatefulSexpParser {
 
   void spaces() {
     // Consume white space.
-    while (_matchEither(_spaces) || _match(Unicode.SEMICOLON)) {
+    while (_matchEither(_whitespaces)) {
       if (_match(Unicode.SEMICOLON)) {
         // Consume comment.
-        while (!_matchEither(_EOL)) _advance();
-      } else {
-        _advance();
+        while (!_match(Unicode.NL)) _advance();
       }
+      _advance();
     }
   }
 
   Sexp atom() {
-    assert(Unicode.isAsciiLetter(_peek()));
-    List<int> bytes = new List<int>();
-    while (!_atEnd && Unicode.isAsciiLetter(_peek())) {
-      bytes.add(_advance());
+    int c = _advance();
+    assert(isValidAtomStart(c));
+    if (c == Unicode.HYPHEN_MINUS && Unicode.isDigit(_peek())) {
+      return number(sign: Unicode.HYPHEN_MINUS);
+    } else {
+      List<int> bytes = new List<int>()..add(c);
+      while (!_atEnd && isValidAtomContinuation(_peek())) {
+        bytes.add(_advance());
+      }
+      String value = String.fromCharCodes(bytes);
+      return new Atom(value, null);
     }
-    return new Atom(String.fromCharCodes(bytes), null);
   }
 
-  Sexp number() {
+  Sexp number({int sign = Unicode.PLUS_SIGN}) {
     assert(Unicode.isDigit(_peek()));
-    List<int> bytes = new List<int>();
+    List<int> bytes = new List<int>()..add(sign);
     while (!_atEnd && Unicode.isDigit(_peek())) {
       bytes.add(_advance());
     }
@@ -368,14 +387,14 @@ class _StatefulSexpParser {
         sexp = string();
         break;
       default:
-        if (Unicode.isAsciiLetter(c)) {
+        if (isValidAtomStart(c)) {
           sexp = atom();
         } else {
           // Error: Invalid character.
           sexp = error(InvalidCharacterError(_advance(), null));
         }
     }
-    spaces();
+    spaces(); // Consume trailing white space.
     if (_match(Unicode.DOT))
       return pair(sexp);
     else
@@ -398,20 +417,16 @@ class _StatefulSexpParser {
       _advance(); // Consume end bracket.
       sexp = new SList(sexps, _bracketsKind(beginBracket), null);
     }
-    spaces(); // Consume trailing white space.
     return sexp;
   }
 
   Sexp pair(Sexp first) {
-    Sexp product;
-    if (_peek() == Unicode.DOT) {
-      Sexp second = expression();
-      product = new Pair(first, second, null);
-    } else {
-      product = first;
-    }
-    spaces(); // Consume trailing white space.
-    return product;
+    assert(_match(Unicode.DOT));
+    _advance();
+    spaces(); // Consume any white space after the dot.
+    Sexp second = expression(); // As a side-effect [expression] consumes
+    // trailing white space.
+    return new Pair(first, second, null);
   }
 
   Sexp string() {
@@ -478,11 +493,11 @@ class _StatefulSexpParser {
   }
 
   bool isValidAtomStart(int c) {
-    return Unicode.isAsciiLetter(c);
+    return Unicode.isAsciiLetter(c) || _validAtomSymbols.contains(c);
   }
 
   bool isValidAtomContinuation(int c) {
-    return isValidAtomStart(c);
+    return isValidAtomStart(c) || Unicode.isDigit(c);
   }
 }
 
@@ -499,7 +514,8 @@ class _TracingSexpParser extends _StatefulSexpParser {
 
   Sexp atom() {
     var node = super.atom();
-    tree.add(new ParseTreeLeaf("atom", node.toString()));
+    if (node is Atom)
+      tree.add(new ParseTreeLeaf("atom", node.toString()));
     return node;
   }
 
@@ -512,8 +528,8 @@ class _TracingSexpParser extends _StatefulSexpParser {
     return node;
   }
 
-  Sexp number() {
-    var node = super.number();
+  Sexp number({int sign = Unicode.PLUS_SIGN}) {
+    var node = super.number(sign: sign);
     tree.add(new ParseTreeLeaf("number", node.toString()));
     return node;
   }
