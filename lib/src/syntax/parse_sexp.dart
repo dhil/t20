@@ -263,8 +263,7 @@ class SexpParser implements Parser {
 //
 class _StatefulSexpParser {
   final List<int> _EOL = const <int>[
-    Unicode.NL,
-    ByteStream.END_OF_STREAM
+    Unicode.NL
   ];
   final List<int> _spaces = const <int>[
     // Sorted after "likelihood".
@@ -272,8 +271,7 @@ class _StatefulSexpParser {
     Unicode.NL,
     Unicode.HT,
     Unicode.CR,
-    Unicode.FF,
-    ByteStream.END_OF_STREAM
+    Unicode.FF
   ];
   final List<int> _closingBrackets = const <int>[
     Unicode.RPAREN,
@@ -289,7 +287,7 @@ class _StatefulSexpParser {
 
   _StatefulSexpParser(this._stream);
 
-  Result<Sexp, Object> parse() {
+  Result<Sexp, SyntaxError> parse() {
     spaces(); // Consume any initial white space.
     List<Sexp> sexps = new List<Sexp>();
     while (!_atEnd) {
@@ -300,7 +298,7 @@ class _StatefulSexpParser {
   }
 
   bool _match(int c) {
-    return _stream.peek() == c;
+    return c == _peek();
   }
 
   bool _matchEither(List<int> cs) {
@@ -317,45 +315,18 @@ class _StatefulSexpParser {
 
   void spaces() {
     // Consume white space.
-    while (_matchEither(_spaces)) _advance();
-    if (_match(Unicode.SEMICOLON)) {
-      // Consume comment.
-      while (!_matchEither(_EOL)) _advance();
-      _advance(); // Consume EOL.
+    while (_matchEither(_spaces) || _match(Unicode.SEMICOLON)) {
+      if (_match(Unicode.SEMICOLON)) {
+        // Consume comment.
+        while (!_matchEither(_EOL)) _advance();
+      } else {
+        _advance();
+      }
     }
   }
 
   Sexp atom() {
-    int c = _peek();
-    Sexp sexp;
-    switch (c) {
-      case Unicode.ONE:
-      case Unicode.TWO:
-      case Unicode.THREE:
-      case Unicode.FOUR:
-      case Unicode.FIVE:
-      case Unicode.SIX:
-      case Unicode.SEVEN:
-      case Unicode.EIGHT:
-      case Unicode.NINE:
-        sexp = number();
-        break;
-      case Unicode.QUOTE:
-        sexp = string();
-        break;
-      default:
-        if (Unicode.isAsciiLetter(c)) {
-          sexp = identifier();
-        } else {
-          // Error: Invalid character.
-          sexp = error(InvalidCharacterError(_advance(), null));
-        }
-    }
-    spaces(); // Consume trailing white space.
-    return pair(sexp);
-  }
-
-  Sexp identifier() {
+    assert(Unicode.isAsciiLetter(_peek()));
     List<int> bytes = new List<int>();
     while (!_atEnd && Unicode.isAsciiLetter(_peek())) {
       bytes.add(_advance());
@@ -374,34 +345,61 @@ class _StatefulSexpParser {
   }
 
   Sexp expression() {
+    Sexp sexp;
     int c = _peek();
     switch (c) {
       case Unicode.LPAREN:
       case Unicode.LBRACKET:
       case Unicode.LBRACE:
-        return list();
+        sexp = list();
+        break;
+      case Unicode.ONE:
+      case Unicode.TWO:
+      case Unicode.THREE:
+      case Unicode.FOUR:
+      case Unicode.FIVE:
+      case Unicode.SIX:
+      case Unicode.SEVEN:
+      case Unicode.EIGHT:
+      case Unicode.NINE:
+        sexp = number();
+        break;
+      case Unicode.QUOTE:
+        sexp = string();
+        break;
       default:
-        return atom();
+        if (Unicode.isAsciiLetter(c)) {
+          sexp = atom();
+        } else {
+          // Error: Invalid character.
+          sexp = error(InvalidCharacterError(_advance(), null));
+        }
     }
+    spaces();
+    if (_match(Unicode.DOT))
+      return pair(sexp);
+    else
+      return sexp;
   }
 
   Sexp list() {
     assert(_matchEither(const <int>[0x0028, 0x005b, 0x007b]));
     int beginBracket = _advance();
+    spaces(); // Consume any white space after the bracket.
     List<Sexp> sexps = new List<Sexp>();
     while (!_atEnd && !_matchEither(_closingBrackets)) {
       sexps.add(expression());
     }
-    Sexp list;
+    Sexp sexp;
     if (_peek() != getMatchingBracket(beginBracket)) {
       // Error: Unmatched bracket.
-      list = error(UnmatchedBracketError(beginBracket, null));
+      sexp = error(UnmatchedBracketError(beginBracket, null));
     } else {
       _advance(); // Consume end bracket.
-      list = new SList(sexps, _bracketsKind(beginBracket), null);
+      sexp = new SList(sexps, _bracketsKind(beginBracket), null);
     }
     spaces(); // Consume trailing white space.
-    return pair(list);
+    return sexp;
   }
 
   Sexp pair(Sexp first) {
@@ -525,13 +523,11 @@ class _TracingSexpParser extends _StatefulSexpParser {
     tree = new ParseTreeInteriorNode("list");
     parent.add(tree);
     var node = super.list();
+    if (node is SList && node.sexps.length == 0) {
+      parent.remove(tree);
+      parent.add(new ParseTreeLeaf("list", "(nil)"));
+    }
     tree = parent;
-    return node;
-  }
-
-  Sexp identifier() {
-    var node = super.identifier();
-    tree.add(new ParseTreeLeaf("identifier", node.toString()));
     return node;
   }
 

@@ -48,7 +48,7 @@ class FileStream implements ByteStream {
   int peek() {
     if (_bufferPtr == _bufferEnd) _fill();
     if (_bufferPtr == _bufferEnd) return ByteStream.END_OF_STREAM;
-    return _buffer[_bufferPtr + 1];
+    return _buffer[_bufferPtr];
   }
 
   int read() {
