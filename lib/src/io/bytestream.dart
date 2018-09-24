@@ -4,6 +4,8 @@
 
 library t20.io;
 
+import 'dart:io';
+
 abstract class ByteStream {
   static const END_OF_STREAM = -1;
   factory ByteStream.fromFile(RandomAccessFile handle) = FileStream;

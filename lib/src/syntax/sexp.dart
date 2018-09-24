@@ -4,10 +4,12 @@
 
 library t20.syntax.sexp;
 
+import '../errors/errors.dart';
 import '../location.dart';
 
 abstract class SexpVisitor<T> {
   T visitAtom<T>(Atom atom);
+  T visitError<T>(Error error);
   T visitInt<T>(IntLiteral integer);
   T visitList<T>(SList list);
   T visitPair(Pair pair);
@@ -111,5 +113,19 @@ class Toplevel implements Sexp {
 
   T visit<T>(SexpVisitor<T> visitor) {
     return visitor.visitToplevel(this);
+  }
+}
+
+class Error implements Sexp {
+  final SyntaxError error;
+
+  const Error(this.error);
+
+  T visit<T>(SexpVisitor visitor) {
+    return visitor.visitError(this);
+  }
+
+  String toString() {
+    return error.toString();
   }
 }

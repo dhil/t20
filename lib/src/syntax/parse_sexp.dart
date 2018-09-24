@@ -8,6 +8,7 @@ import 'dart:collection';
 import 'dart:io';
 
 import '../compilation_unit.dart';
+import '../errors/errors.dart';
 import '../io/bytestream.dart';
 import '../unicode.dart' as Unicode;
 
@@ -232,15 +233,16 @@ class Result<TAst, TErr> {
 
 abstract class Parser {
   const factory Parser.sexp() = SexpParser;
-  void parse(ByteStream source);
+  Result<Sexp, SyntaxError> parse(ByteStream source, {bool trace = false});
 }
 
 class SexpParser implements Parser {
   const SexpParser();
 
-  Object parse(ByteStream source) {
+  Result<Sexp, SyntaxError> parse(ByteStream source, {bool trace = false}) {
     if (source == null) throw new ArgumentError.notNull("source");
-    return new _StatefulSexpParser(source);
+    if (trace) return new _TracingSexpParser(source).parse();
+    else return new _StatefulSexpParser(source).parse();
   }
 }
 
@@ -266,10 +268,10 @@ class _StatefulSexpParser {
   ];
   final List<int> _spaces = const <int>[
     // Sorted after "likelihood".
-    Unispace.SPACE,
+    Unicode.SPACE,
     Unicode.NL,
     Unicode.HT,
-    Unitcode.CR,
+    Unicode.CR,
     Unicode.FF,
     ByteStream.END_OF_STREAM
   ];
@@ -283,7 +285,7 @@ class _StatefulSexpParser {
 
   // Book keeping.
   int _offset = 0;
-  List<Object> _errors;
+  List<SyntaxError> _errors;
 
   _StatefulSexpParser(this._stream);
 
@@ -294,7 +296,7 @@ class _StatefulSexpParser {
       sexps.add(expression());
     }
 
-    return null;
+    return new Result<Sexp, SyntaxError>(new Toplevel(sexps), _errors);
   }
 
   bool _match(int c) {
@@ -303,8 +305,8 @@ class _StatefulSexpParser {
 
   bool _matchEither(List<int> cs) {
     int c = _peek();
-    for (int i = 0; i < cs.length; ++i) {
-      if (cs[i] == c) return true;
+    for (int i = 0; i < cs.length; i++) {
+      if (c == cs[i]) return true;
     }
     return false;
   }
@@ -314,12 +316,12 @@ class _StatefulSexpParser {
   }
 
   void spaces() {
-    if (_match(Unicode.SEMI_COLON)) {
+    // Consume white space.
+    while (_matchEither(_spaces)) _advance();
+    if (_match(Unicode.SEMICOLON)) {
       // Consume comment.
       while (!_matchEither(_EOL)) _advance();
-    } else {
-      // Consume white space.
-      while (!_matchEither(_spaces)) _advance();
+      _advance(); // Consume EOL.
     }
   }
 
@@ -345,8 +347,8 @@ class _StatefulSexpParser {
         if (Unicode.isAsciiLetter(c)) {
           sexp = identifier();
         } else {
-          // error.
-          sexp = null;
+          // Error: Invalid character.
+          sexp = error(InvalidCharacterError(_advance(), null));
         }
     }
     spaces(); // Consume trailing white space.
@@ -355,7 +357,7 @@ class _StatefulSexpParser {
 
   Sexp identifier() {
     List<int> bytes = new List<int>();
-    while (!_atEnd && isAsciiLetter(_peek())) {
+    while (!_atEnd && Unicode.isAsciiLetter(_peek())) {
       bytes.add(_advance());
     }
     return new Atom(String.fromCharCodes(bytes), null);
@@ -375,7 +377,7 @@ class _StatefulSexpParser {
     int c = _peek();
     switch (c) {
       case Unicode.LPAREN:
-      case Unicode.LBRACKET
+      case Unicode.LBRACKET:
       case Unicode.LBRACE:
         return list();
       default:
@@ -390,20 +392,21 @@ class _StatefulSexpParser {
     while (!_atEnd && !_matchEither(_closingBrackets)) {
       sexps.add(expression());
     }
-    int endBracket = _advance();
-    SList list;
-    if (endBracket != getMatchingBracket(beginBracket)) {
-      list = null; // error.
+    Sexp list;
+    if (_peek() != getMatchingBracket(beginBracket)) {
+      // Error: Unmatched bracket.
+      list = error(UnmatchedBracketError(beginBracket, null));
     } else {
-      list = new SList(sexps, null);
+      _advance(); // Consume end bracket.
+      list = new SList(sexps, _bracketsKind(beginBracket), null);
     }
     spaces(); // Consume trailing white space.
     return pair(list);
   }
 
-  Sexp pair(Object first) {
+  Sexp pair(Sexp first) {
     Sexp product;
-    if (_peek() == Unicode.DOT /* Full stop. */) {
+    if (_peek() == Unicode.DOT) {
       Sexp second = expression();
       product = new Pair(first, second, null);
     } else {
@@ -422,8 +425,8 @@ class _StatefulSexpParser {
     }
     Sexp stringLit;
     if (!_match(Unicode.QUOTE)) {
-      // Unterminated string.
-      stringLit = null;
+      // Error: Unterminated string.
+      stringLit = error(UnterminatedStringError(bytes, null));
     } else {
       _advance(); // Consume the final quotation mark.
       String denotation = String.fromCharCodes(bytes);
@@ -432,10 +435,10 @@ class _StatefulSexpParser {
     return stringLit;
   }
 
-  Object error(Object error) {
-    _errors ??= new List<Object>();
+  Sexp error(SyntaxError error) {
+    _errors ??= new List<SyntaxError>();
     _errors.add(error);
-    return null;
+    return Error(error);
   }
 
   int _peek() {
@@ -449,14 +452,30 @@ class _StatefulSexpParser {
 
   int getMatchingBracket(int beginBracket) {
     switch (beginBracket) {
-      case Unicode.LPAREN: // Parentheses.
+      case Unicode.LPAREN:
         return Unicode.RPAREN;
-      case Unicode.LBRACKET: // Square brackets.
+      case Unicode.LBRACKET:
         return Unicode.RBRACKET;
-      case Unicode.LBRACE: // Curly braces.
+      case Unicode.LBRACE:
         return Unicode.RBRACE;
       default:
         throw new ArgumentError(beginBracket);
+    }
+  }
+
+  ListBrackets _bracketsKind(int kind) {
+    switch (kind) {
+      case Unicode.LBRACE:
+      case Unicode.RBRACE:
+        return ListBrackets.BRACES;
+      case Unicode.LBRACKET:
+      case Unicode.RBRACKET:
+        return ListBrackets.BRACKETS;
+      case Unicode.LPAREN:
+      case Unicode.RPAREN:
+        return ListBrackets.PARENS;
+      default:
+        throw new ArgumentError(kind);
     }
   }
 
@@ -469,11 +488,11 @@ class _StatefulSexpParser {
   }
 }
 
-class _TracingSexpParser extends _StatefulSexpParserImpl {
+class _TracingSexpParser extends _StatefulSexpParser {
   ParseTreeInteriorNode tree;
   _TracingSexpParser(ByteStream stream) : super(stream);
 
-  Result<Sexp, Object> parse() {
+  Result<Sexp, SyntaxError> parse() {
     tree = new ParseTreeInteriorNode("parse");
     var result = super.parse();
     tree.visit(new PrintParseTree());
@@ -482,7 +501,7 @@ class _TracingSexpParser extends _StatefulSexpParserImpl {
 
   Sexp atom() {
     var node = super.atom();
-    tree.add(new ParseTreeLeaf("atom", node.value));
+    tree.add(new ParseTreeLeaf("atom", node.toString()));
     return node;
   }
 
@@ -495,9 +514,9 @@ class _TracingSexpParser extends _StatefulSexpParserImpl {
     return node;
   }
 
-  Sexp integer() {
-    var node = super.integer();
-    tree.add(new ParseTreeLeaf("integer", node.value.toString()));
+  Sexp number() {
+    var node = super.number();
+    tree.add(new ParseTreeLeaf("number", node.toString()));
     return node;
   }
 
@@ -510,9 +529,31 @@ class _TracingSexpParser extends _StatefulSexpParserImpl {
     return node;
   }
 
+  Sexp identifier() {
+    var node = super.identifier();
+    tree.add(new ParseTreeLeaf("identifier", node.toString()));
+    return node;
+  }
+
+  Sexp pair(Sexp first) {
+    var parent = tree;
+    tree = new ParseTreeInteriorNode("pair");
+    parent.add(tree);
+    var node = super.pair(first);
+    if (node == first) parent.remove(tree);
+    tree = parent;
+    return node;
+  }
+
+  Sexp error(SyntaxError err) {
+    var node = super.error(err);
+    tree.add(new ParseTreeLeaf("error", err.toString()));
+    return node;
+  }
+
   Sexp string() {
     var node = super.string();
-    tree.add(new ParseTreeLeaf("string", node.value));
+    tree.add(new ParseTreeLeaf("string", node.toString()));
     return node;
   }
 }
@@ -539,6 +580,10 @@ class ParseTreeInteriorNode implements ParseTreeNode {
 
   void add(ParseTreeNode node) {
     children.add(node);
+  }
+
+  void remove(ParseTreeNode node) {
+    children.remove(node);
   }
 }
 

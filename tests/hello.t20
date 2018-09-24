@@ -1,6 +1,9 @@
 ;; A comment
-(print "Hello World!") ;; another comment
+;;(print "Hello World!") ;; another comment
 
-(print_int 4234113) ;; printing an int.
+;;(print_int 4234113) ;; printing an int.
+;;"asdasdadasdas"
 
-;;(fact 5) ;; computes 5!.
+;;[fact 5] ;; computes 5!.
+
+[{fib 10}]
