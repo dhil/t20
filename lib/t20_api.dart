@@ -5,6 +5,7 @@
 library t20;
 
 export 'src/compilation_unit.dart';
+export 'src/errors/errors.dart';
 export 'src/location.dart';
 export 'src/io/stream_io.dart';
 export 'src/syntax/parse_sexp.dart';

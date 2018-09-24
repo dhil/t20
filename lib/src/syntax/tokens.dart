@@ -7,6 +7,7 @@ library t20.syntax.tokens;
 import 'dart:io';
 
 import '../compilation_unit.dart';
+import '../errors/errors.dart';
 import '../io/stream_io.dart';
 import '../location.dart';
 import '../unicode.dart' as Unicode;
@@ -87,30 +88,12 @@ class Token {
   }
 }
 
-abstract class ErrorCause {}
-
-class InvalidCharacterError implements ErrorCause {
-  final String char;
-  const InvalidCharacterError(this.char);
-
-  String toString() {
-    return "InvalidCharacterError($char)";
-  }
-}
-
-class UnterminatedStringError implements ErrorCause {
-  String toString() {
-    return "UnterminatedStringError";
-  }
-}
-
 class ErrorToken extends Token {
-  final ErrorCause errorCause;
+  final LexicalError errorCause;
 
-  const ErrorToken(
-      this.errorCause, TokenKind kind, String lexeme, Location location,
-      [Object value = null])
-      : super(kind, lexeme, location, value);
+  const ErrorToken(this.errorCause) : super(TokenKind.ERROR, null, null, null);
+
+  Location get location => errorCause.location;
 }
 
 // An infinite stream of tokens.
@@ -208,14 +191,13 @@ class TokenStream implements Stream<Token> {
   }
 
   Token _invalidCharacter(int c) {
-    String lexeme = String.fromCharCode(c);
-    return ErrorToken(InvalidCharacterError(lexeme), TokenKind.ERROR, lexeme,
-        _location(_line, _col));
+    Location location = _location(_line, _col);
+    return ErrorToken(InvalidCharacterError(c, location));
   }
 
   Token _unterminatedString(List<int> bytes) {
-    String lexeme = String.fromCharCodes(bytes);
-    return ErrorToken(UnterminatedStringError(), TokenKind.ERROR, lexeme, _location(_line, _start));
+    Location location = _location(_line, _start);
+    return ErrorToken(UnterminatedStringError(bytes, location));
   }
 
   void _comment() {
@@ -260,7 +242,8 @@ class TokenStream implements Stream<Token> {
   Token _atom() {
     assert(Unicode.isLetter(_peek()));
     List<int> bytes = new List<int>();
-    while (!endOfStream && !Unicode.isSpace(_peek())) {
+    int next;
+    while (!endOfStream && !Unicode.isSpace(next = _peek()) && !_isBracket(next)) {
       bytes.add(_advance());
     }
 

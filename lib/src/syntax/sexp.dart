@@ -10,6 +10,7 @@ abstract class SexpVisitor<T> {
   T visitAtom<T>(Atom atom);
   T visitInt<T>(IntLiteral integer);
   T visitList<T>(SList list);
+  T visitPair(Pair pair);
   T visitString<T>(StringLiteral string);
   T visitToplevel<T>(Toplevel toplevel);
 }
@@ -75,6 +76,18 @@ class SList implements Sexp {
   //   }
   //   return transform(this, children);
   // }
+}
+
+class Pair implements Sexp {
+  final Location location;
+  final Sexp first;
+  final Sexp second;
+
+  const Pair(this.first, this.second, this.location);
+
+  T visit<T>(SexpVisitor<T> visitor) {
+    return visitor.visitPair(this);
+  }
 }
 
 class StringLiteral implements Sexp {
