@@ -27,12 +27,16 @@ void report(List<LocatedError> errors) {
   }
 }
 
+// Naïve implementation of error reporting.
 class _ErrorReporter {
   _ErrorReporter();
 
   void report(LocatedError error) {
-    LocatedSourceString lss = getLineText(error.location.uri, error.location.startOffset);
-    stderr.writeln("${lss.fileName}:${lss.line}:${lss.column}: ${error.toString()}.");
+    LocatedSourceString lss =
+        getLineText(error.location.uri, error.location.startOffset);
+    String errorKind = getErrorKind(error);
+    stderr.writeln(
+        "\u001B[31m\u001B[1m${lss.fileName}:${lss.line}:${lss.column} $errorKind: ${error.toString()}.\u001B[0m");
     stderr.writeln("${lss.sourceText}");
     int length = 1;
     if (error is UnterminatedStringError) {
@@ -50,6 +54,11 @@ class _ErrorReporter {
       bytes.add(unicode.HAT);
     }
     stderr.writeln(String.fromCharCodes(bytes));
+  }
+
+  String getErrorKind(LocatedError error) {
+    if (error is SyntaxError) return "syntax error";
+    return "error";
   }
 
   String getFileName(Uri uri) {
@@ -72,6 +81,7 @@ class _ErrorReporter {
       int line = 1;
       int column = 0;
 
+      // Open the stream.
       if (source.scheme == "data") {
         stream = ByteStream.fromString(source.data.contentText);
       } else {
@@ -79,6 +89,8 @@ class _ErrorReporter {
         stream = ByteStream.fromFile(file);
       }
 
+      // Move the file pointer up to [startOffset]. Remember everything up to a
+      // newline in [bytes].
       List<int> bytes = new List<int>();
       for (int offset = 0; offset < startOffset; offset++) {
         c = stream.read();
@@ -92,7 +104,9 @@ class _ErrorReporter {
         }
       }
 
-      while ( (c = stream.read()) != unicode.NL && c != ByteStream.END_OF_STREAM) {
+      // Read the remainder of the line.
+      while (
+          (c = stream.read()) != unicode.NL && c != ByteStream.END_OF_STREAM) {
         bytes.add(c);
       }
 
@@ -115,6 +129,6 @@ class LocatedSourceString {
   final int column;
   final String sourceText;
 
-  const LocatedSourceString(this.sourceText, this.fileName, this.line, this.column);
+  const LocatedSourceString(
+      this.sourceText, this.fileName, this.line, this.column);
 }
-
