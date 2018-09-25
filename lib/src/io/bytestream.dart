@@ -8,6 +8,7 @@ import 'dart:io';
 
 abstract class ByteStream {
   static const END_OF_STREAM = -1;
+  factory ByteStream.fromFilePath(String path) = AutoClosingFileStream;
   factory ByteStream.fromFile(RandomAccessFile handle, {int bufferSize}) =
       FileStream;
   factory ByteStream.fromString(String string) = StringStream;
@@ -66,4 +67,26 @@ class FileStream implements ByteStream {
 
   FileStream(this._handle, {int bufferSize = FileStream.DEFAULT_BUFFER_SIZE})
       : _buffer = new List<int>(bufferSize);
+}
+
+class AutoClosingFileStream extends FileStream {
+  bool _closed = false;
+
+  AutoClosingFileStream(String path)
+      : super(new File(path).openSync(mode: FileMode.read));
+
+  void _fill() {
+    if (_closed) return;
+    super._fill();
+  }
+
+  int read() {
+    if (_closed) return ByteStream.END_OF_STREAM;
+
+    int c = super.read();
+    if (c == ByteStream.END_OF_STREAM) {
+      _handle.closeSync();
+      _closed = true;
+    }
+  }
 }
