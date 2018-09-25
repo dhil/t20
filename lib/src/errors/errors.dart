@@ -5,6 +5,7 @@
 library t20.errors;
 
 import '../location.dart';
+import '../unicode.dart' as unicode;
 
 abstract class T20Error {}
 
@@ -23,6 +24,19 @@ class UnmatchedBracketError extends LocatedError implements SyntaxError {
   UnmatchedBracketError(this._unmatched, Location location) : super(location);
 
   String get unmatchedBracket => String.fromCharCode(_unmatched);
+
+  String toString() {
+    switch (_unmatched) {
+      case unicode.LPAREN:
+        return "Unmatched parenthesis";
+      case unicode.LBRACE:
+        return "Unmatched curly brace";
+      case unicode.LBRACKET:
+        return "Unmatched square bracket";
+      default:
+        throw ArgumentError(_unmatched.toString());
+    }
+  }
 }
 
 // Lexical errors.
@@ -33,6 +47,10 @@ class InvalidCharacterError extends LocatedError implements LexicalError {
   InvalidCharacterError(this.char, Location location) : super(location);
 
   String get character => String.fromCharCode(char);
+
+  String toString() {
+    return "Invalid character";
+  }
 }
 
 class UnterminatedStringError extends LocatedError implements LexicalError {
@@ -42,4 +60,8 @@ class UnterminatedStringError extends LocatedError implements LexicalError {
       : super(location);
 
   String get unterminatedString => String.fromCharCodes(_partialString);
+
+  String toString() {
+    return "Unterminated string";
+  }
 }

@@ -14,7 +14,6 @@ import '../location.dart';
 import '../unicode.dart' as unicode;
 
 import 'sexp.dart';
-//import 'tokens.dart';
 export 'sexp.dart';
 
 class Result<TAst, TErr> {
@@ -335,8 +334,15 @@ class _TracingSexpParser extends _StatefulSexpParser {
   }
 
   Sexp atom() {
+    var parent = tree;
+    tree = new ParseTreeInteriorNode("atom");
     var node = super.atom();
-    if (node is Atom) tree.add(new ParseTreeLeaf("atom", node.toString()));
+    if (node is Atom) {
+      parent.add(new ParseTreeLeaf("atom", node.toString()));
+    } else {
+      parent.add(tree);
+    }
+    tree = parent;
     return node;
   }
 
@@ -350,8 +356,15 @@ class _TracingSexpParser extends _StatefulSexpParser {
   }
 
   Sexp number({int sign = unicode.PLUS_SIGN}) {
+    var parent = tree;
+    tree = new ParseTreeInteriorNode("number");
     var node = super.number(sign: sign);
-    tree.add(new ParseTreeLeaf("number", node.toString()));
+    if (node is IntLiteral) {
+      parent.add(new ParseTreeLeaf("number", node.toString()));
+    } else {
+      parent.add(tree);
+    }
+    tree = parent;
     return node;
   }
 
@@ -385,8 +398,15 @@ class _TracingSexpParser extends _StatefulSexpParser {
   }
 
   Sexp string() {
+    var parent = tree;
+    tree = new ParseTreeInteriorNode("string");
     var node = super.string();
-    tree.add(new ParseTreeLeaf("string", node.toString()));
+    if (node is StringLiteral) {
+      parent.add(new ParseTreeLeaf("string", node.toString()));
+    } else {
+      parent.add(tree);
+    }
+    tree = parent;
     return node;
   }
 }

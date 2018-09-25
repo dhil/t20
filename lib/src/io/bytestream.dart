@@ -88,5 +88,6 @@ class AutoClosingFileStream extends FileStream {
       _handle.closeSync();
       _closed = true;
     }
+    return c;
   }
 }

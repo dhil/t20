@@ -8,12 +8,13 @@ import 'dart:io';
 
 import '../settings.dart';
 
+import 'errors/error_reporting.dart';
 import 'errors/errors.dart';
 import 'io/bytestream.dart';
 import 'compilation_unit.dart';
 import 'syntax/parse_sexp.dart';
 
-void compile(List<String> filePaths, Settings settings) {
+bool compile(List<String> filePaths, Settings settings) {
   RandomAccessFile currentFile;
   try {
     for (String path in filePaths) {
@@ -25,6 +26,11 @@ void compile(List<String> filePaths, Settings settings) {
       Result<Sexp, SyntaxError> result = parser.parse(
           new FileSource(currentFile),
           trace: settings.trace["parser"] || settings.verbose);
+
+      if (!result.wasSuccessful) {
+        report(result.errors);
+        return false;
+      }
     }
   } catch (err, stack) {
     stderr.writeln("Fatal error: $err");
@@ -32,4 +38,5 @@ void compile(List<String> filePaths, Settings settings) {
   } finally {
     if (currentFile != null) currentFile.closeSync();
   }
+  return true;
 }

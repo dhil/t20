@@ -46,15 +46,7 @@ void main(List<String> args) {
     if (settings.sourceFile == null) throw new UsageError();
 
     // Run compilation pipeline.
-    compile(<String>[settings.sourceFile], settings);
-    // File sourceFile = new File(settings.sourceFile);
-    // if (!sourceFile.existsSync())
-    //   throw new _SourceDoesNotExistsError(settings.sourceFile);
-    // fileHandle = sourceFile.openSync(mode: FileMode.read);
-    // Source source = new FileSource(fileHandle);
-    // TokenStream tokens = new TokenStream(source, trace: settings.trace["tokens"] || settings.verbose);
-    // Parser parser = Parser.sexp();
-    // parser.parse(ByteStream.fromFile(fileHandle), trace:settings.trace["parser"] || settings.verbose);
+    if (!compile(<String>[settings.sourceFile], settings)) exitCode = 1;
   } on UsageError {
     stdout.writeln(Settings.usage());
   } on UnknownOptionError catch (err) {

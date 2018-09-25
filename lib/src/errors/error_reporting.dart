@@ -9,7 +9,7 @@ import 'dart:io';
 import 'errors.dart';
 import '../io/bytestream.dart';
 import '../location.dart';
-import 'unicode.dart' as unicode;
+import '../unicode.dart' as unicode;
 
 void reportInternal(dynamic error, StackTrace stack) {
   stderr.writeln("internal error: $error");
@@ -20,7 +20,7 @@ void report(List<LocatedError> errors) {
   _ErrorReporter reporter = new _ErrorReporter();
   try {
     for (LocatedError error in errors) {
-      
+      reporter.report(error);
     }
   } catch (err, stack) {
     reportInternal(err, stack);
@@ -33,24 +33,28 @@ class _ErrorReporter {
   RandomAccessFile _handle;
   ByteStream _stream;
   int offset = 0;
+  int line = 1;
+  int column = 0;
 
   _ErrorReporter();
 
   void report(LocatedError error) {
     if (uri != error.location.uri) {
-      uri = error.uri;
+      uri = error.location.uri;
       _stream = null;
     }
     openStream();
-    String line = getLineText(error.location.startOffset);
+    LocatedSourceString lss = getLineText(error.location.startOffset);
+    stderr.writeln("${lss.fileName}:${lss.line}:${lss.column}: ${error.toString()}.");
+    stderr.writeln("${lss.sourceText}");
   }
 
   void openStream() {
-    if (uri == null) throw ArgumentError.notNull(uri);
+    if (uri == null) throw ArgumentError.notNull("uri");
     if (_stream == null) {
       switch (uri.scheme) {
         case "data":
-          _stream = ByteStream.fromString(uri.data.contextText);
+          _stream = ByteStream.fromString(uri.data.contentText);
           offset = 0;
           break;
         case "file":
@@ -58,8 +62,21 @@ class _ErrorReporter {
           offset = 0;
           break;
         default:
-          throw ArgumentError(uri.scheme);
+          _stream = ByteStream.fromFilePath(uri.toString());
+          offset = 0;
       }
+    }
+  }
+
+  String getFileName() {
+    assert(uri != null);
+    switch (uri.scheme) {
+      case "data":
+        return "stdin";
+      case "file":
+        return uri.path;
+      default:
+        return uri.toString();
     }
   }
 
@@ -74,7 +91,7 @@ class _ErrorReporter {
     return c;
   }
 
-  LocatedSourceString locateLine(int startOffset) {
+  LocatedSourceString getLineText(int startOffset) {
     int c;
     List<int> bytes = new List<int>();
     for (; offset < startOffset; offset++) {
@@ -91,9 +108,10 @@ class _ErrorReporter {
 
     while ( (c = next()) != unicode.NL && c != ByteStream.END_OF_STREAM) {
       offset++;
-      bytes.add(_stream.read());
+      bytes.add(c);
     }
-    return String.fromCharCodes(bytes);
+    String sourceText = String.fromCharCodes(bytes);
+    return LocatedSourceString(sourceText, getFileName(), line, column);
   }
 }
 
