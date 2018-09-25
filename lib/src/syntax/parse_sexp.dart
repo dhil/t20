@@ -246,7 +246,7 @@ class _StatefulSexpParser {
     int offset = _offset;
     List<int> bytes = new List<int>();
     _advance(); // Consume the initial quotation mark.
-    while (!_atEnd && !_match(unicode.QUOTE)) {
+    while (!_atEnd && !_match(unicode.QUOTE) && !_match(unicode.NL)) {
       bytes.add(_advance());
     }
     Sexp stringLit;

@@ -18,9 +18,10 @@ void reportInternal(dynamic error, StackTrace stack) {
 
 void report(List<LocatedError> errors) {
   _ErrorReporter reporter = new _ErrorReporter();
+  const int maxReports = 5;
   try {
-    for (LocatedError error in errors) {
-      reporter.report(error);
+    for (int i = 0; i < maxReports && i < errors.length; i++) {
+      reporter.report(errors[i]);
     }
   } catch (err, stack) {
     reportInternal(err, stack);
@@ -37,23 +38,23 @@ class _ErrorReporter {
     String errorKind = getErrorKind(error);
     stderr.writeln(
         "\u001B[31m\u001B[1m${lss.fileName}:${lss.line}:${lss.column} $errorKind: ${error.toString()}.\u001B[0m");
-    stderr.writeln("${lss.sourceText}");
     int length = 1;
     if (error is UnterminatedStringError) {
       length = error.unterminatedString.length;
     }
-    placePointer(lss.column, length);
+    stderr.writeln("${lss.sourceText}");
+    placePointer(lss.column, unicode.HAT, length);
   }
 
-  void placePointer(int column, [int length = 1]) {
+  void placePointer(int column, [int symbol = unicode.HAT, int length = 1]) {
     List<int> bytes = new List<int>();
     for (int i = 0; i < column; i++) {
       bytes.add(unicode.SPACE);
     }
     for (int i = 0; i < length; i++) {
-      bytes.add(unicode.HAT);
+      bytes.add(symbol);
     }
-    stderr.writeln(String.fromCharCodes(bytes));
+    stderr.writeln("\u001B[1m${String.fromCharCodes(bytes)}\u001B[0m");
   }
 
   String getErrorKind(LocatedError error) {
