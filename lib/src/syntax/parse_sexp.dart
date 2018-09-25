@@ -7,13 +7,14 @@ library t20.syntax.parser;
 import 'dart:collection';
 import 'dart:io';
 
-import '../compilation_unit.dart';
+//import '../compilation_unit.dart';
 import '../errors/errors.dart';
 import '../io/bytestream.dart';
 import '../unicode.dart' as Unicode;
 
 import 'sexp.dart';
-import 'tokens.dart';
+//import 'tokens.dart';
+export 'sexp.dart';
 
 class ExpectationError {
   final String actual;
@@ -355,11 +356,12 @@ class _StatefulSexpParser {
 
   Sexp number({int sign = Unicode.PLUS_SIGN}) {
     assert(Unicode.isDigit(_peek()));
-    List<int> bytes = new List<int>()..add(sign);
+    List<int> bytes = new List<int>()..add(_advance());
     while (!_atEnd && Unicode.isDigit(_peek())) {
       bytes.add(_advance());
     }
     int denotation = int.parse(String.fromCharCodes(bytes));
+    if (sign == Unicode.HYPHEN_MINUS) denotation *= -1;
     return new IntLiteral(denotation, null);
   }
 

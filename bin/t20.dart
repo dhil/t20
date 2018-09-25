@@ -45,15 +45,16 @@ void main(List<String> args) {
     }
     if (settings.sourceFile == null) throw new UsageError();
 
-    // Parse source.
-    File sourceFile = new File(settings.sourceFile);
-    if (!sourceFile.existsSync())
-      throw new _SourceDoesNotExistsError(settings.sourceFile);
-    fileHandle = sourceFile.openSync(mode: FileMode.read);
+    // Run compilation pipeline.
+    compile(<String>[settings.sourceFile], settings);
+    // File sourceFile = new File(settings.sourceFile);
+    // if (!sourceFile.existsSync())
+    //   throw new _SourceDoesNotExistsError(settings.sourceFile);
+    // fileHandle = sourceFile.openSync(mode: FileMode.read);
     // Source source = new FileSource(fileHandle);
     // TokenStream tokens = new TokenStream(source, trace: settings.trace["tokens"] || settings.verbose);
-    Parser parser = Parser.sexp();
-    parser.parse(ByteStream.fromFile(fileHandle), trace:settings.trace["parser"] || settings.verbose);
+    // Parser parser = Parser.sexp();
+    // parser.parse(ByteStream.fromFile(fileHandle), trace:settings.trace["parser"] || settings.verbose);
   } on UsageError {
     stdout.writeln(Settings.usage());
   } on UnknownOptionError catch (err) {
@@ -63,9 +64,6 @@ void main(List<String> args) {
   } on _SourceDoesNotExistsError catch (err) {
     reportError("no such file ${err.sourceFile}.", kind: "i/o");
     exitCode = 1;
-  // } on EndOfStreamError catch (_, stacktrace) {
-  //   reportFatal("end of stream.", stacktrace);
-  //   exitCode = 1;
   } on IOException catch (err, stacktrace) {
     reportFatal("i/o exception $err", stacktrace, kind: "i/o");
     exitCode = 1;
