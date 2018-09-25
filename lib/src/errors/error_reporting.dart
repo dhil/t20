@@ -28,47 +28,31 @@ void report(List<LocatedError> errors) {
 }
 
 class _ErrorReporter {
-  // Book keeping.
-  Uri uri;
-  RandomAccessFile _handle;
-  ByteStream _stream;
-  int offset = 0;
-  int line = 1;
-  int column = 0;
-
   _ErrorReporter();
 
   void report(LocatedError error) {
-    if (uri != error.location.uri) {
-      uri = error.location.uri;
-      _stream = null;
-    }
-    openStream();
-    LocatedSourceString lss = getLineText(error.location.startOffset);
+    LocatedSourceString lss = getLineText(error.location.uri, error.location.startOffset);
     stderr.writeln("${lss.fileName}:${lss.line}:${lss.column}: ${error.toString()}.");
     stderr.writeln("${lss.sourceText}");
-  }
-
-  void openStream() {
-    if (uri == null) throw ArgumentError.notNull("uri");
-    if (_stream == null) {
-      switch (uri.scheme) {
-        case "data":
-          _stream = ByteStream.fromString(uri.data.contentText);
-          offset = 0;
-          break;
-        case "file":
-          _stream = ByteStream.fromFilePath(uri.path);
-          offset = 0;
-          break;
-        default:
-          _stream = ByteStream.fromFilePath(uri.toString());
-          offset = 0;
-      }
+    int length = 1;
+    if (error is UnterminatedStringError) {
+      length = error.unterminatedString.length;
     }
+    placePointer(lss.column, length);
   }
 
-  String getFileName() {
+  void placePointer(int column, [int length = 1]) {
+    List<int> bytes = new List<int>();
+    for (int i = 0; i < column; i++) {
+      bytes.add(unicode.SPACE);
+    }
+    for (int i = 0; i < length; i++) {
+      bytes.add(unicode.HAT);
+    }
+    stderr.writeln(String.fromCharCodes(bytes));
+  }
+
+  String getFileName(Uri uri) {
     assert(uri != null);
     switch (uri.scheme) {
       case "data":
@@ -80,38 +64,48 @@ class _ErrorReporter {
     }
   }
 
-  int next() {
-    int c = _stream.read();
-    if (c == unicode.NL) {
-      column = 0;
-      line++;
-    } else {
-      column++;
-    }
-    return c;
-  }
+  LocatedSourceString getLineText(Uri source, int startOffset) {
+    RandomAccessFile file;
+    ByteStream stream;
+    try {
+      int c;
+      int line = 1;
+      int column = 0;
 
-  LocatedSourceString getLineText(int startOffset) {
-    int c;
-    List<int> bytes = new List<int>();
-    for (; offset < startOffset; offset++) {
-      c = next();
-      if (c == unicode.NL) {
-        bytes.clear();
+      if (source.scheme == "data") {
+        stream = ByteStream.fromString(source.data.contentText);
       } else {
+        file = new File(source.toString()).openSync(mode: FileMode.read);
+        stream = ByteStream.fromFile(file);
+      }
+
+      List<int> bytes = new List<int>();
+      for (int offset = 0; offset < startOffset; offset++) {
+        c = stream.read();
+        if (c == unicode.NL) {
+          column = 0;
+          ++line;
+          bytes.clear();
+        } else {
+          ++column;
+          bytes.add(c);
+        }
+      }
+
+      while ( (c = stream.read()) != unicode.NL && c != ByteStream.END_OF_STREAM) {
         bytes.add(c);
       }
-    }
 
-    int column = this.column;
-    int line = this.line;
+      // Clean up.
+      if (file != null) file.closeSync();
+      file = null;
 
-    while ( (c = next()) != unicode.NL && c != ByteStream.END_OF_STREAM) {
-      offset++;
-      bytes.add(c);
+      // Construct the result.
+      String sourceText = String.fromCharCodes(bytes);
+      return LocatedSourceString(sourceText, getFileName(source), line, column);
+    } finally {
+      if (file != null) file.closeSync();
     }
-    String sourceText = String.fromCharCodes(bytes);
-    return LocatedSourceString(sourceText, getFileName(), line, column);
   }
 }
 

@@ -220,11 +220,11 @@ class _StatefulSexpParser {
       sexps.add(expression());
     }
     Sexp sexp;
+    int endOffset = _offset;
     if (_peek() != getMatchingBracket(beginBracket)) {
       // Error: Unmatched bracket.
-      sexp = error(UnmatchedBracketError(beginBracket, _location(startOffset)));
+      sexp = error(UnmatchedBracketError(beginBracket, _spanLocation(startOffset, endOffset)));
     } else {
-      int endOffset = _offset;
       _advance(); // Consume end bracket.
       sexp = new SList(sexps, _bracketsKind(beginBracket), _spanLocation(startOffset, endOffset));
     }
