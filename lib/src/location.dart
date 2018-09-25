@@ -5,13 +5,23 @@
 library t20.location;
 
 class Location {
-  final String fileName;
-  final int line;
-  final int column;
+  final Uri uri;
+  final int startOffset;
 
-  const Location(this.fileName, this.line, this.column);
+  const Location(this.uri, this.startOffset);
 
   String toString() {
-    return "<$fileName:$line:$column>";
+    return "<$uri:$startOffset>";
+  }
+}
+
+class SpanLocation extends Location {
+  final int endOffset;
+
+  const SpanLocation(Uri uri, int startOffset, this.endOffset)
+      : super(uri, startOffset);
+
+  String toString() {
+    return "<$uri:$startOffset:$endOffset>";
   }
 }

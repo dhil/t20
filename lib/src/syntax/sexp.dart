@@ -58,7 +58,7 @@ enum ListBrackets {
 }
 
 class SList implements Sexp {
-  final Location location;
+  final SpanLocation location;
   final List<Sexp> sexps;
   final ListBrackets brackets;
 

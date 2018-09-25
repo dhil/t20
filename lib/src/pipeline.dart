@@ -23,7 +23,7 @@ void compile(List<String> filePaths, Settings settings) {
       // Parse source.
       Parser parser = Parser.sexp();
       Result<Sexp, SyntaxError> result = parser.parse(
-          new FileStream(currentFile),
+          new FileSource(currentFile),
           trace: settings.trace["parser"] || settings.verbose);
     }
   } catch (err, stack) {

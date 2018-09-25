@@ -11,4 +11,3 @@ export 'src/location.dart';
 export 'src/io/bytestream.dart';
 export 'src/pipeline.dart';
 export 'src/syntax/parse_sexp.dart';
-export 'src/syntax/tokens.dart';

@@ -6,11 +6,11 @@ library t20.compilation_unit;
 
 import 'dart:io';
 
-import 'io/stream_io.dart';
+import 'io/bytestream.dart';
 
 abstract class Source {
-  String get sourceName;
-  ByteStream openInputStream();
+  Uri get uri;
+  ByteStream openStream();
 }
 
 class FileSource implements Source {
@@ -18,12 +18,27 @@ class FileSource implements Source {
 
   FileSource(RandomAccessFile sourceFile) {
     if (sourceFile == null) throw new ArgumentError.notNull("sourceFile");
-    _sourceFile = sourceFile;
+    this._sourceFile = sourceFile;
   }
 
-  String get sourceName => _sourceFile.path;
-
-  ByteStream openInputStream() {
+  ByteStream openStream() {
     return new ByteStream.fromFile(_sourceFile);
   }
+
+  Uri get uri => Uri.file(_sourceFile.path);
+}
+
+class StringSource implements Source {
+  String _contents;
+
+  StringSource(String contents) {
+    if (contents == null) throw new ArgumentError.notNull("contents");
+    _contents = contents;
+  }
+
+  ByteStream openStream() {
+    return new ByteStream.fromString(_contents);
+  }
+
+  Uri get uri => Uri.dataFromString(_contents);
 }
