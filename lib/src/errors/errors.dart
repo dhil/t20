@@ -65,3 +65,27 @@ class UnterminatedStringError extends LocatedError implements LexicalError {
     return "Unterminated string";
   }
 }
+
+class BadCharacterEscapeError extends LocatedError implements LexicalError {
+  final List<int> _badEscape;
+
+  BadCharacterEscapeError(this._badEscape, Location location) : super(location);
+
+  String get badEscape => String.fromCharCodes(_badEscape);
+
+  String toString() {
+    return "Bad character escape";
+  }
+}
+
+class InvalidUTF16SequenceError extends LocatedError implements LexicalError {
+  final List<int> _invalid;
+
+  InvalidUTF16SequenceError(this._invalid, Location location) : super(location);
+
+  String get invalidSequence => String.fromCharCodes(_invalid);
+
+  String toString() {
+    return "Invalid UTF-16 character";
+  }
+}

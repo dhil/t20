@@ -164,7 +164,7 @@ class _StatefulSexpParser {
     int denotation = int.parse(String.fromCharCodes(bytes));
     if (sign == unicode.HYPHEN_MINUS) {
       offset -= 1; // Decrement by one to include the position of the minus
-                   // sign.
+      // sign.
       denotation *= -1;
     }
     return new IntLiteral(denotation, _location(offset));
@@ -223,10 +223,12 @@ class _StatefulSexpParser {
     int endOffset = _offset;
     if (_peek() != getMatchingBracket(beginBracket)) {
       // Error: Unmatched bracket.
-      sexp = error(UnmatchedBracketError(beginBracket, _spanLocation(startOffset, endOffset)));
+      sexp = error(UnmatchedBracketError(
+          beginBracket, _spanLocation(startOffset, endOffset)));
     } else {
       _advance(); // Consume end bracket.
-      sexp = new SList(sexps, _bracketsKind(beginBracket), _spanLocation(startOffset, endOffset));
+      sexp = new SList(sexps, _bracketsKind(beginBracket),
+          _spanLocation(startOffset, endOffset));
     }
     return sexp;
   }
@@ -237,7 +239,7 @@ class _StatefulSexpParser {
     _advance(); // Consume the full stop.
     spaces(); // Consume any white space after the dot.
     Sexp second = expression(); // As a side-effect [expression] consumes
-                                // trailing white space.
+    // trailing white space.
     return new Pair(first, second, _location(offset));
   }
 
@@ -246,10 +248,17 @@ class _StatefulSexpParser {
     int offset = _offset;
     List<int> bytes = new List<int>();
     _advance(); // Consume the initial quotation mark.
-    while (!_atEnd && !_match(unicode.QUOTE) && !_match(unicode.NL)) {
-      bytes.add(_advance());
-    }
     Sexp stringLit;
+    while (!_atEnd && !_match(unicode.QUOTE) && !_match(unicode.NL)) {
+      int c = _advance();
+      if (c == unicode.BACKSLASH) {
+        // Escape the next character.
+        LexicalError err = _escape(bytes);
+        if (err != null) error(err);
+      } else {
+        bytes.add(c);
+      }
+    }
     if (!_match(unicode.QUOTE)) {
       // Error: Unterminated string.
       stringLit = error(UnterminatedStringError(bytes, _location(offset)));
@@ -259,6 +268,59 @@ class _StatefulSexpParser {
       stringLit = new StringLiteral(denotation, _location(offset));
     }
     return stringLit;
+  }
+
+  LexicalError _escape(List<int> bytes) {
+    int offset = _offset;
+    if (_atEnd) {
+      // Error: bad escape.
+      return BadCharacterEscapeError(<int>[], _location(offset));
+    }
+    int c = _peek();
+    switch (c) {
+      case unicode.b:
+        _advance();
+        bytes.add(unicode.BACKSPACE);
+        break;
+      case unicode.n:
+        _advance();
+        bytes.add(unicode.NL);
+        break;
+      case unicode.r:
+        _advance();
+        bytes.add(unicode.CR);
+        break;
+      case unicode.t:
+        _advance();
+        bytes.add(unicode.HT);
+        break;
+      case unicode.BACKSLASH:
+        _advance();
+        bytes.add(unicode.BACKSLASH);
+        break;
+      case unicode.u: // Unicode character.
+        _advance();
+        int i;
+        for (i = 0; i < 4 && !_atEnd; i++) {
+          if (isHex(_peek()))
+            bytes.add(_advance());
+          else
+            break;
+        }
+        if (i != 4) {
+          // Error: bad UTF-16 sequence.
+          return InvalidUTF16SequenceError(
+              bytes.sublist(bytes.length - i, bytes.length), _location(offset));
+        }
+        break;
+      case unicode.QUOTE:
+        bytes.add(_advance());
+        break;
+      default:
+        c = _advance();
+        return BadCharacterEscapeError(<int>[c], _location(offset));
+    }
+    return null;
   }
 
   Sexp error(SyntaxError error) {
@@ -311,6 +373,12 @@ class _StatefulSexpParser {
 
   bool isValidAtomContinuation(int c) {
     return isValidAtomStart(c) || unicode.isDigit(c);
+  }
+
+  bool isHex(int c) {
+    return unicode.a <= c && c <= unicode.f ||
+        unicode.A <= c && c <= unicode.F ||
+        unicode.isDigit(c);
   }
 
   Location _location(int offset) {
