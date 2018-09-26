@@ -1,0 +1,5 @@
+language: dart
+dart:
+  - dev
+script:
+  - bash tools/run-tests
