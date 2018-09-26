@@ -8,13 +8,13 @@ import '../errors/errors.dart';
 import '../location.dart';
 
 abstract class SexpVisitor<T> {
-  T visitAtom<T>(Atom atom);
-  T visitError<T>(Error error);
-  T visitInt<T>(IntLiteral integer);
-  T visitList<T>(SList list);
+  T visitAtom(Atom atom);
+  T visitError(Error error);
+  T visitInt(IntLiteral integer);
+  T visitList(SList list);
   T visitPair(Pair pair);
-  T visitString<T>(StringLiteral string);
-  T visitToplevel<T>(Toplevel toplevel);
+  T visitString(StringLiteral string);
+  T visitToplevel(Toplevel toplevel);
 }
 
 abstract class Sexp {
