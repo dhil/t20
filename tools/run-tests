@@ -10,6 +10,7 @@ SUCCESSES=0
 FAILURES=0
 TICK=$(echo -ne '\x27\x14' | iconv -f utf-16be)
 CROSS=$(echo -ne '\x27\x18' | iconv -f utf-16be)
+export T20_COMPILER_ENABLE_ASSERTS=1
 
 function runtests()
 {

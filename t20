@@ -2,5 +2,9 @@
 #
 # Executable wrapper for the t20 main script.
 #
-pub run t20 $@
+if [[ ! -z $T20_COMPILER_ENABLE_ASSERTS && $T20_COMPILER_ENABLE_ASSERTS -eq 1 ]]; then
+    pub run --enable-asserts t20 $@
+else
+    pub run t20 $@
+fi
 exit $?
