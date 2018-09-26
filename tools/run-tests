@@ -8,6 +8,8 @@ TESTS_DIR="tests"
 FLAGS_FILE=".flags"
 SUCCESSES=0
 FAILURES=0
+TICK=$(echo -ne '\x27\x14' | iconv -f utf-16be)
+CROSS=$(echo -ne '\x27\x18' | iconv -f utf-16be)
 
 function runtests()
 {
@@ -18,7 +20,7 @@ function runtests()
   if [[ -f "$dir/$subdir/$FLAGS_FILE" ]]; then
     flags=$(head -n 1 "$dir/$subdir/$FLAGS_FILE")
   fi
-  echo "== Running tests in $dir/$subdir =="
+  echo -e "\033[1m== Running tests in $dir/$subdir ==\033[0m"
   for file in $(ls "$dir/$subdir" | grep "\.t20$"); do
     local stdout_log=$(mktemp)
     local stderr_log=$(mktemp)
@@ -29,11 +31,11 @@ function runtests()
     actual=$?
 
     if [[ $actual -eq $expectation ]]; then
-      echo "SUCCESS: $test"
+      echo -e "\033[1;32m$TICK\033[0m $test"
       SUCCESSES=$(($SUCCESSES + 1))
     else
       FAILURES=$(($FAILURES + 1))
-      echo "FAILURE: $test"
+      echo -e "\033[1;31m$CROSS\033[0m $test"
       echo "command: $cmd"
       echo -n "stdout:"
       if [[ -s $stdout_log ]]; then
@@ -67,9 +69,9 @@ for dir in $(ls -d $TESTS_DIR/*); do
   fi
 done
 
-echo "== Summary =="
-echo "# successes: $SUCCESSES"
-echo "#  failures: $FAILURES"
+echo -e "\033[1m== Summary ==\033[0m"
+echo -e "# \033[1;32m$TICK\033[0m successes: $SUCCESSES"
+echo -e "# \033[1;31m$CROSS\033[0m failures: $FAILURES\033[0m"
 
 if [[ $FAILURES -ne 0 ]]; then
   exit 1
