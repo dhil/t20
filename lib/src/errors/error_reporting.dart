@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library t20.errors;
+library t20.errors.reporting;
 
 import 'dart:io';
 
@@ -52,9 +52,14 @@ class _ErrorReporter {
       bytes.add(unicode.SPACE);
     }
     for (int i = 0; i < length; i++) {
-      bytes.add(symbol);
+      if (i == 0) {
+        bytes.add(0x2514);
+      } else {
+        bytes.add(0x2500);
+      }
+        //bytes.add(symbol);
     }
-    stderr.writeln("\u001B[1m${String.fromCharCodes(bytes)}\u001B[0m");
+    stderr.writeln("\u001B[1m${String.fromCharCodes(bytes)} This.\u001B[0m");
   }
 
   String getErrorKind(LocatedError error) {

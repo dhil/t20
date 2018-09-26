@@ -8,10 +8,12 @@ import 'dart:io';
 
 import '../settings.dart';
 
+import 'compilation_unit.dart';
 import 'errors/error_reporting.dart';
 import 'errors/errors.dart';
 import 'io/bytestream.dart';
-import 'compilation_unit.dart';
+import 'result.dart';
+import 'syntax/elaborator.dart';
 import 'syntax/parse_sexp.dart';
 
 bool compile(List<String> filePaths, Settings settings) {
@@ -22,21 +24,36 @@ bool compile(List<String> filePaths, Settings settings) {
       currentFile = file.openSync(mode: FileMode.read);
 
       // Parse source.
-      Parser parser = Parser.sexp();
-      Result<Sexp, SyntaxError> result = parser.parse(
+      Result<Sexp, SyntaxError> parseResult = Parser.sexp().parse(
           new FileSource(currentFile),
           trace: settings.trace["parser"] || settings.verbose);
 
-      if (!result.wasSuccessful) {
-        report(result.errors);
+      // Close file.
+      currentFile.closeSync();
+      currentFile = null;
+
+      // Report errors, if any.
+      if (!parseResult.wasSuccessful) {
+        report(parseResult.errors);
+        return false;
+      }
+
+      // Elaborate.
+      Result<Object, Object> elabResult = new Elaborator().elaborate(parseResult.result);
+      if (!elabResult.wasSuccessful) {
+        // TODO: report errors...
         return false;
       }
     }
   } catch (err, stack) {
-    stderr.writeln("Fatal error: $err");
-    stderr.writeln("$stack");
-  } finally {
     if (currentFile != null) currentFile.closeSync();
+    rethrow;
+    // stderr.writeln("Fatal error: $err");
+    // stderr.writeln("$stack");
+    // rethrow;
   }
+  // finally {
+  //   if (currentFile != null) currentFile.closeSync();
+  // }
   return true;
 }

@@ -34,7 +34,6 @@ void reportFatal(String errorMsg, StackTrace trace,
 
 void main(List<String> args) {
   int exitCode = 0;
-  RandomAccessFile fileHandle;
   try {
     // Handle settings.
     Settings settings = Settings.fromCLI(args);
@@ -46,25 +45,22 @@ void main(List<String> args) {
     if (settings.sourceFile == null) throw new UsageError();
 
     // Run compilation pipeline.
-    if (!compile(<String>[settings.sourceFile], settings)) exitCode = 1;
+    if (!compile(<String>[settings.sourceFile], settings)) exitCode = 10;
   } on UsageError {
     stdout.writeln(Settings.usage());
   } on UnknownOptionError catch (err) {
     reportError(err.message);
     stdout.writeln(Settings.usage());
-    exitCode = 1;
+    exitCode = 10;
   } on _SourceDoesNotExistsError catch (err) {
     reportError("no such file ${err.sourceFile}.", kind: "i/o");
-    exitCode = 1;
+    exitCode = 10;
   } on IOException catch (err, stacktrace) {
     reportFatal("i/o exception $err", stacktrace, kind: "i/o");
-    exitCode = 1;
+    exitCode = 10;
   } catch (err, stacktrace) {
     reportFatal("$err", stacktrace, unexpected: true);
-    exitCode = 1;
-  } finally {
-    if (fileHandle != null) fileHandle.closeSync();
+    exitCode = 10;
   }
-
   exit(exitCode);
 }

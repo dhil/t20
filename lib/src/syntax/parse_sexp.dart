@@ -11,20 +11,11 @@ import '../compilation_unit.dart';
 import '../errors/errors.dart';
 import '../io/bytestream.dart';
 import '../location.dart';
+import '../result.dart';
 import '../unicode.dart' as unicode;
 
 import 'sexp.dart';
 export 'sexp.dart';
-
-class Result<TAst, TErr> {
-  final List<TErr> errors;
-  int get errorCount => errors.length;
-  bool get wasSuccessful => errorCount == 0;
-  final TAst result;
-
-  const Result(this.result, [errors = null])
-      : this.errors = errors == null ? [] : errors;
-}
 
 abstract class Parser {
   const factory Parser.sexp() = SexpParser;
