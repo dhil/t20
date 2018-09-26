@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+#
+# Test script driver.
+#
+
+T20="./t20"
+TESTS_DIR="tests"
+FLAGS_FILE=".flags"
+SUCCESSES=0
+FAILURES=0
+
+function runtests()
+{
+  local dir=$1
+  local subdir=$2
+  local expectation=$3
+  echo "== Running tests in $dir/$subdir =="
+  for file in $(ls "$dir/$subdir" | grep "\.t20$"); do
+    local stdout_log=$(mktemp)
+    local stderr_log=$(mktemp)
+    local test="$dir/$subdir/$file"
+
+    $T20 $test > $stdout_log 2> $stderr_log
+    actual=$?
+
+    if [[ $actual -eq $expectation ]]; then
+      echo "SUCCESS: $test"
+      SUCCESSES=$(($FAILURES + 1))
+    else
+      FAILURES=$(($FAILURES + 1))
+      echo "FAILURE: $test"
+      echo -n "stdout:"
+      if [[ -s $stdout_log ]]; then
+        echo ""
+        cat $stdout_log | sed 's/^/    /'
+      else
+        echo " (empty)"
+      fi
+      echo -n "stderr:"
+      if [[ -s $stderr_log  ]]; then
+        echo ""
+        cat $stderr_log | sed 's/^/    /'
+      else
+        echo " (empty)"
+      fi
+    fi
+
+    rm -f $stdout_log
+    rm -f $stderr_log
+  done
+}
+
+for dir in $(ls -d $TESTS_DIR/*); do
+  # Run pass and fail tests, if they exists.
+  if [[ -d "$dir/pass" ]]; then
+    runtests $dir "pass" 0
+  fi
+
+  if [[ -d "$dir/fail" ]]; then
+    runtests $dir "fail" 10
+  fi
+done
+
+echo "== Summary =="
+echo "# successes: $SUCCESSES"
+echo "#  failures: $FAILURES"
+
+if [[ $FAILURES -ne 0 ]]; then
+  exit 1
+else
+  exit 0
+fi
