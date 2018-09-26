@@ -121,7 +121,7 @@ class _StatefulSexpParser {
     while (_matchEither(_whitespaces)) {
       if (_match(unicode.SEMICOLON)) {
         // Consume comment.
-        while (!_match(unicode.NL)) _advance();
+        while (!_match(unicode.NL) && !_atEnd) _advance();
       }
       _advance();
     }
