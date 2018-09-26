@@ -24,9 +24,8 @@ bool compile(List<String> filePaths, Settings settings) {
       currentFile = file.openSync(mode: FileMode.read);
 
       // Parse source.
-      Result<Sexp, SyntaxError> parseResult = Parser.sexp().parse(
-          new FileSource(currentFile),
-          trace: settings.trace["parser"] || settings.verbose);
+      Result<Sexp, SyntaxError> parseResult = Parser.sexp()
+          .parse(new FileSource(currentFile), trace: settings.trace["parser"]);
 
       // Close file.
       currentFile.closeSync();
@@ -44,10 +43,16 @@ bool compile(List<String> filePaths, Settings settings) {
       }
 
       // Elaborate.
-      Result<Object, Object> elabResult = new Elaborator().elaborate(parseResult.result);
+      Result<Object, Object> elabResult =
+          new Elaborator().elaborate(parseResult.result);
       if (!elabResult.wasSuccessful) {
         // TODO: report errors...
         return false;
+      }
+
+      // Exit now, if requested.
+      if (settings.exitAfter == "elaborator") {
+        return elabResult.wasSuccessful;
       }
     }
   } catch (err, stack) {

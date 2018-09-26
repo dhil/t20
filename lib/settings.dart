@@ -12,6 +12,12 @@ class UnknownOptionError extends FormatException {
   UnknownOptionError(String message) : super(message);
 }
 
+class UnrecognisedOptionValue extends FormatException {
+  UnrecognisedOptionValue(String option, String value)
+      : super(
+            "Invalid value; the option `$option' does accept `$value' as a valid value.");
+}
+
 class NamedOptions {
   static String get dump_ast => "dump-ast";
   static String get dump_dast => "dump-dast";
@@ -78,6 +84,16 @@ ArgResults _parse(args) {
   }
 }
 
+bool _validateExitAfter(String value, [bool allowNull = true]) {
+  switch (value) {
+    case "elaborator":
+    case "parser":
+      return true;
+    default:
+      return allowNull && value == null;
+  }
+}
+
 class Settings {
   // Boolean flags.
   final bool dumpAst;
@@ -98,8 +114,12 @@ class Settings {
     var exitAfter = results[NamedOptions.exit_after];
     var showHelp = results[NamedOptions.help];
     var showVersion = results[NamedOptions.version];
-    var trace = new MultiOption(results[NamedOptions.trace]);
     var verbose = results[NamedOptions.verbose];
+    var trace = new MultiOption(results[NamedOptions.trace], verbose ?? false);
+
+    if (!_validateExitAfter(exitAfter)) {
+      throw UnrecognisedOptionValue(NamedOptions.exit_after, exitAfter);
+    }
 
     var sourceFile;
     if (results.rest.length == 1) {
@@ -124,8 +144,9 @@ class Settings {
 
 class MultiOption {
   final List<String> values;
+  final bool verbose;
 
-  MultiOption(this.values);
+  MultiOption(this.values, this.verbose);
 
-  bool operator [](value) => values.contains(value);
+  bool operator [](value) => verbose || values.contains(value);
 }

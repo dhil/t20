@@ -52,6 +52,9 @@ void main(List<String> args) {
     reportError(err.message);
     stdout.writeln(Settings.usage());
     exitCode = 10;
+  } on UnrecognisedOptionValue catch (err) {
+    reportError(err.message);
+    exitCode = 10;
   } on _SourceDoesNotExistsError catch (err) {
     reportError("no such file ${err.sourceFile}.", kind: "i/o");
     exitCode = 10;
