@@ -14,21 +14,27 @@ function runtests()
   local dir=$1
   local subdir=$2
   local expectation=$3
+  local flags=
+  if [[ -f "$dir/$subdir/$FLAGS_FILE" ]]; then
+    flags=$(head -n 1 "$dir/$subdir/$FLAGS_FILE")
+  fi
   echo "== Running tests in $dir/$subdir =="
   for file in $(ls "$dir/$subdir" | grep "\.t20$"); do
     local stdout_log=$(mktemp)
     local stderr_log=$(mktemp)
     local test="$dir/$subdir/$file"
 
-    $T20 $test > $stdout_log 2> $stderr_log
+    local cmd="$T20 $flags $test > $stdout_log 2> $stderr_log"
+    eval $cmd
     actual=$?
 
     if [[ $actual -eq $expectation ]]; then
       echo "SUCCESS: $test"
-      SUCCESSES=$(($FAILURES + 1))
+      SUCCESSES=$(($SUCCESSES + 1))
     else
       FAILURES=$(($FAILURES + 1))
       echo "FAILURE: $test"
+      echo "command: $cmd"
       echo -n "stdout:"
       if [[ -s $stdout_log ]]; then
         echo ""

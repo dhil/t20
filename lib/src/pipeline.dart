@@ -38,6 +38,11 @@ bool compile(List<String> filePaths, Settings settings) {
         return false;
       }
 
+      // Exit now, if requested.
+      if (settings.exitAfter == "parser") {
+        return parseResult.wasSuccessful;
+      }
+
       // Elaborate.
       Result<Object, Object> elabResult = new Elaborator().elaborate(parseResult.result);
       if (!elabResult.wasSuccessful) {

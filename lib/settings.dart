@@ -21,6 +21,7 @@ class NamedOptions {
   static String get type_check => "type-checking";
   static String get verbose => "verbose";
   static String get version => "version";
+  static String get exit_after => "exit-after";
 }
 
 ArgParser _parser;
@@ -38,6 +39,10 @@ ArgParser _setupArgParser() {
       negatable: false,
       defaultsTo: false,
       help: "Dump the elaborated syntax tree to stderr.");
+  parser.addOption(NamedOptions.exit_after,
+      defaultsTo: null,
+      help: "Exit after running a particular component.",
+      valueHelp: "elaborator,parser");
   parser.addFlag(NamedOptions.help,
       abbr: 'h',
       negatable: false,
@@ -50,7 +55,7 @@ ArgParser _setupArgParser() {
       defaultsTo: "stdout");
   parser.addMultiOption(NamedOptions.trace,
       help: "Trace the operational behaviour of a component.",
-      valueHelp: "tokens,parser");
+      valueHelp: "elaborator,parser");
   parser.addFlag(NamedOptions.type_check,
       help: "Enable or disable type checking.", defaultsTo: true);
   parser.addFlag(NamedOptions.verbose,
@@ -77,6 +82,7 @@ class Settings {
   // Boolean flags.
   final bool dumpAst;
   final bool dumpDast;
+  final String exitAfter;
   final bool showHelp;
   final bool showVersion;
   final MultiOption trace;
@@ -89,6 +95,7 @@ class Settings {
     ArgResults results = _parse(args);
     var dumpAst = results[NamedOptions.dump_ast];
     var dumpDast = results[NamedOptions.dump_dast];
+    var exitAfter = results[NamedOptions.exit_after];
     var showHelp = results[NamedOptions.help];
     var showVersion = results[NamedOptions.version];
     var trace = new MultiOption(results[NamedOptions.trace]);
@@ -100,12 +107,12 @@ class Settings {
     } else if (!showHelp && !showVersion) {
       throw new UsageError();
     }
-    return Settings._(dumpAst, dumpDast, showHelp, showVersion, sourceFile,
-                      trace, verbose);
+    return Settings._(dumpAst, dumpDast, exitAfter, showHelp, showVersion,
+        sourceFile, trace, verbose);
   }
 
-  const Settings._(this.dumpAst, this.dumpDast, this.showHelp, this.showVersion,
-                   this.sourceFile, this.trace, this.verbose);
+  const Settings._(this.dumpAst, this.dumpDast, this.exitAfter, this.showHelp,
+      this.showVersion, this.sourceFile, this.trace, this.verbose);
 
   static String usage() {
     ArgParser parser = _setupArgParser();
