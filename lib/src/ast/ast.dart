@@ -19,20 +19,20 @@ library t20.ast;
 //     | string            (* string literal pattern *)
 
 abstract class ExpressionVisitor<T> {
-  T visitApply(Apply application);
-  T visitDefinition(Defintion def);
-  T visitIf(If ifthenelse);
-  T visitInt(IntLiteral intlit);
-  T visitLet(Let let);
-  T visitMatch(Match match);
-  T visitSelection(Select selection);
-  T visitString(StringLiteral stringlit);
-  T visitVariable(Variable x);
+  T visitApply(/*Apply*/ application);
+  T visitDefinition(/*Defintion*/ def);
+  T visitIf(/*If*/ ifthenelse);
+  T visitInt(/*IntLiteral*/ intlit);
+  T visitLet(/*Let*/ let);
+  T visitMatch(/*Match*/ match);
+  T visitSelection(/*Select*/ selection);
+  T visitString(/*StringLiteral*/ stringlit);
+  T visitVariable(/*Variable*/ x);
 }
 
 abstract class PatternVisitor<T> {
-  T visitConstructor(ConstructorPattern k);
-  T visitInt(IntPattern i);
-  T visitString(StringPattern s);
-  T visitVariable(VariablePattern x);
+  T visitConstructor(/*ConstructorPattern*/ k);
+  T visitInt(/*IntPattern*/ i);
+  T visitString(/*StringPattern*/ s);
+  T visitVariable(/*VariablePattern*/ x);
 }
