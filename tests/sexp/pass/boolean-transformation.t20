@@ -1,0 +1,21 @@
+;; A hypothetical transformation that negates booleans.
+
+(include kernel) ;; Provides a T20 data type representation of the
+                 ;; Kernel AST.
+
+(: negate (-> Bool Bool))
+(define (negate b)
+  (match b
+    [#t #f]
+    [#f #t]))
+
+(: coin-flip Transform)
+(define-transform coin-flip
+  (#obvious!) ;; declarations.
+  ([(Bool v) (Bool (negate v))] ;; expressions.
+   #obvious!)
+  (#obvious!) ;; statements.
+  )
+
+(: main (-> Kernel Kernel))
+(define (main ast) (coin-flip ast))
