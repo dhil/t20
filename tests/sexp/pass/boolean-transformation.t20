@@ -17,5 +17,19 @@
   (#obvious!) ;; statements.
   )
 
+;; Alternative definition.
+(: flip-booleans (-> Expr Expr))
+(define
+  (flip-booleans e)
+  (match e
+    [(Bool v) (Bool (negate v))]
+    #obvious!))
+
+(: coin-flip' Transform)
+(define-transform coin-flip'
+  { (decl #obvious!)
+    (expr flip-booleans)
+    (stmt #obvious!) })
+
 (: main (-> Kernel Kernel))
 (define (main ast) (coin-flip ast))
