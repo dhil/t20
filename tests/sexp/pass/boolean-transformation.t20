@@ -27,9 +27,9 @@
 
 (: coin-flip' Transform)
 (define-transform coin-flip'
-  { (decl #obvious!)
-    (expr flip-booleans)
-    (stmt #obvious!) })
+  {record (decl #obvious!)
+          (expr flip-booleans)
+          (stmt #obvious!) })
 
 (: main (-> Kernel Kernel))
 (define (main ast) (coin-flip ast))
