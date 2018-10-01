@@ -63,7 +63,10 @@ class _StatefulSexpParser {
     unicode.QUESTION_MARK,
     unicode.EQUALS_SIGN,
     unicode.LESS_THAN_SIGN,
-    unicode.GREATER_THAN_SIGN
+    unicode.GREATER_THAN_SIGN,
+    unicode.COLON,
+    unicode.HASH,
+    unicode.APOSTROPHE
   ]);
   final List<int> _whitespaces = const <int>[
     // Sorted after "likelihood".
@@ -170,6 +173,7 @@ class _StatefulSexpParser {
       case unicode.LBRACE:
         sexp = list();
         break;
+      case unicode.ZERO:
       case unicode.ONE:
       case unicode.TWO:
       case unicode.THREE:

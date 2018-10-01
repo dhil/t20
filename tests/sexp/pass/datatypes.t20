@@ -1,0 +1,73 @@
+;; Some classic data types.
+
+;; Untyped lambda calculus.
+(define-datatype Term
+  [Var String]
+  [Lambda (String Term)]
+  [App (Term Term)]
+  (derive! map))
+
+;; List definition.
+(define-datatype (List 'a)
+  [cons ('a (List 'a))]
+  [nil]
+  (derive! foldl map))
+
+;; Computes the length of a given list.
+(: length (-> (List 'a) Int))
+(define
+  (length xs)
+  (foldl
+   (lambda ((: x 'a) (: length Int))
+     (+ length 1))
+   0 xs))
+
+;; Determines whether a given list is empty.
+(: is-nil (-> (List 'a) Bool))
+(define
+  (is-nil xs)
+  (match xs
+    [nil #t]
+    [otherwise #f]))
+
+;; Type-specialised fold.
+(: reduce (-> [-> 'a 'a 'a] 'a [List 'a] 'a))
+(define
+  (reduce f z xs)
+  (foldl f z xs))
+
+;; Sums the contents of a list of integers.
+(: sum (-> (List Int) Int))
+(define
+  (sum xs)
+  (let (add x y)
+       (+ x y)
+       (reduce add 0 xs)))
+
+;; Looks up a given key in a given association list.
+(: lookup (-> 'k (List [* 'k 'v]) (Option 'v)))
+(define
+  (lookup key store)
+  (foldl
+   (lambda ([* (key' value)] none)
+     (if (== key key')
+         (return value)
+         none))
+   none store))
+
+;; Option types.
+(define-datatype (Option 'a)
+  [some 'a]
+  [none]
+  (derive! map))
+
+;; Option monad.
+(: option-bind (-> (Option 'a) (-> 'a (Option 'b)) (Option 'b)))
+(define
+  (option-bind m k)
+  (match m
+    [none none]
+    [(some v) (k v)]))
+
+(: pure (-> 'a (Option 'a)))
+(define (option-pure x) (some x))
