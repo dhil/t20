@@ -4,35 +4,190 @@
 
 library t20.ast;
 
-// Algebraic definition
-// E ::= if E E E          (* conditional evaluation *)
-//     | E E               (* application *)
-//     | let B E E         (* let binding *)
-//     | x                 (* variables *)
-//     | match E (P -> E)* (* pattern matching *)
-//     | E.l               (* component selection *)
-//     | def B E           (* definition *)
-// B ::= name
-// P ::= x                 (* variable pattern *)
-//     | K P*              (* constructor pattern *)
-//     | [0-9]+            (* int literal pattern *)
-//     | string            (* string literal pattern *)
+import '../location.dart';
+
+// Abstract syntax.
+//
+// Module
+// M ::= (include ...)*   (* module inclusion *)
+//     | define x P* E    (* definitions *)
+//
+// Constants
+// C ::= #t | #f          (* boolean literals *)
+//     | [0-9]+           (* integer literals *)
+//     | ".*"             (* string literals *)
+//
+// Expressions
+// E ::= C                (* constants *)
+//     | x                (* variables *)
+//     | f x*             (* n-ary application *)
+//     | let (P E)+ E     (* parallel binding *)
+//     | let∗ (P E)+ E    (* sequential binding *)
+//     | tuple E*         (* n-ary tuples *)
+//     | if E E_tt E_ff   (* conditional evaluation *)
+//     | match E P*       (* pattern matching *)
+//
+// Top-level patterns
+// P ::= K Q*             (* constructor pattern *)
+//     | Q                (* regular pattern *)
+//
+// Regular patterns
+// Q ::= x                (* variables *)
+//     | tuple x*         (* tuple matching *)
+//     | [0-9]+           (* integer literal matching *)
+//     | #t | #f          (* boolean literal matching *)
+
+// abstract class ExpressionVisitor<T> {
+//   T visitApply(/*Apply*/ application);
+//   T visitDefinition(/*Defintion*/ def);
+//   T visitIf(/*If*/ ifthenelse);
+//   T visitInt(/*IntLiteral*/ intlit);
+//   T visitLet(/*Let*/ let);
+//   T visitMatch(/*Match*/ match);
+//   T visitSelection(/*Select*/ selection);
+//   T visitString(/*StringLiteral*/ stringlit);
+//   T visitVariable(/*Variable*/ x);
+// }
+
+// abstract class PatternVisitor<T> {
+//   T visitConstructor(/*ConstructorPattern*/ k);
+//   T visitInt(/*IntPattern*/ i);
+//   T visitString(/*StringPattern*/ s);
+//   T visitVariable(/*VariablePattern*/ x);
+// }
 
 abstract class ExpressionVisitor<T> {
-  T visitApply(/*Apply*/ application);
-  T visitDefinition(/*Defintion*/ def);
-  T visitIf(/*If*/ ifthenelse);
-  T visitInt(/*IntLiteral*/ intlit);
-  T visitLet(/*Let*/ let);
-  T visitMatch(/*Match*/ match);
-  T visitSelection(/*Select*/ selection);
-  T visitString(/*StringLiteral*/ stringlit);
-  T visitVariable(/*Variable*/ x);
+  // Literals.
+  T visitBool(BoolLit boolean);
+  T visitInt(IntLit integer);
+  T visitString(StringLit string);
+
+  // Expressions.
+  T visitApply(Apply apply);
+  T visitIf(If ifthenelse);
+  T visitLet(Let binding);
+  T visitMatch(Match match);
+  T visitTuple(Tuple tuple);
+  T visitVariable(Variable v);
 }
 
-abstract class PatternVisitor<T> {
-  T visitConstructor(/*ConstructorPattern*/ k);
-  T visitInt(/*IntPattern*/ i);
-  T visitString(/*StringPattern*/ s);
-  T visitVariable(/*VariablePattern*/ x);
+//
+// Expression language.
+//
+abstract class Expression {
+  T visit<T>(ExpressionVisitor<T> v);
+}
+
+/** Constants. **/
+abstract class Constant extends Expression {}
+class BoolLit implements Constant {
+  bool value;
+  Location location;
+
+  BoolLit(this.value, this.location);
+
+  T visit<T>(ExpressionVisitor<T> v) {
+    return v.visitBool(this);
+  }
+}
+
+class IntLit implements Constant {
+  Location location;
+  int value;
+
+  IntLit(this.value, this.location);
+
+  T visit<T>(ExpressionVisitor<T> v) {
+    return v.visitInt(this);
+  }
+}
+
+class StringLit implements Constant {
+  Location location;
+  String value;
+
+  StringLit(this.value, this.location);
+
+  T visit<T>(ExpressionVisitor<T> v) {
+    return v.visitString(this);
+  }
+}
+
+class Apply implements Expression {
+  Location location;
+  Expression abstractor;
+  List<Expression> arguments;
+
+  Apply(this.abstractor, this.arguments, this.location);
+
+  T visit<T>(ExpressionVisitor<T> v) {
+    return v.visitApply(this);
+  }
+}
+
+class Variable implements Expression {
+  Location location;
+  int id;
+
+  Variable(this.id, this.location);
+
+  T visit<T>(ExpressionVisitor<T> v) {
+    return v.visitVariable(this);
+  }
+}
+
+class If implements Expression {
+  Location location;
+  Expression condition;
+  Expression thenBranch;
+  Expression elseBranch;
+
+  If(this.condition, this.thenBranch, this.elseBranch, this.location);
+
+  T visit<T>(ExpressionVisitor<T> v) {
+    return v.visitIf(this);
+  }
+}
+
+enum LetKind {
+  Parallel,
+  Sequential
+}
+
+class Let implements Expression {
+  Location location;
+  LetKind _kind;
+  List<Object> valueBindings;
+  Expression body;
+
+  LetKind get kind => _kind;
+
+  Let(this._kind, this.valueBindings, this.body, this.location);
+
+  T visit<T>(ExpressionVisitor<T> v) {
+    return v.visitLet(this);
+  }
+}
+
+class Match implements Expression {
+  Location location;
+  Expression scrutinee;
+  List<Object> cases;
+
+  Match(this.scrutinee, this.cases, this.location);
+
+  T visit<T>(ExpressionVisitor<T> v) {
+    return v.visitMatch(this);
+  }
+}
+
+class Tuple implements Expression {
+  Location location;
+  List<Expression> components;
+
+  Tuple(this.components, this.location);
+
+  T visit<T>(ExpressionVisitor<T> v) {
+    return v.visitTuple(this);
+  }
 }
