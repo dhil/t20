@@ -10,9 +10,9 @@ import '../location.dart';
 abstract class SexpVisitor<T> {
   T visitAtom(Atom atom);
   T visitError(Error error);
-  T visitInt(IntLiteral integer);
+  // T visitInt(IntLiteral integer);
   T visitList(SList list);
-  T visitPair(Pair pair);
+  // T visitPair(Pair pair);
   T visitString(StringLiteral string);
   T visitToplevel(Toplevel toplevel);
 }
@@ -36,20 +36,20 @@ class Atom implements Sexp {
   }
 }
 
-class IntLiteral implements Sexp {
-  final Location location;
-  final int value;
+// class IntLiteral implements Sexp {
+//   final Location location;
+//   final int value;
 
-  const IntLiteral(this.value, this.location);
+//   const IntLiteral(this.value, this.location);
 
-  T visit<T>(SexpVisitor<T> visitor) {
-    return visitor.visitInt(this);
-  }
+//   T visit<T>(SexpVisitor<T> visitor) {
+//     return visitor.visitInt(this);
+//   }
 
-  String toString() {
-    return value.toString();
-  }
-}
+//   String toString() {
+//     return value.toString();
+//   }
+// }
 
 enum ListBrackets {
   BRACES,
@@ -80,17 +80,17 @@ class SList implements Sexp {
   // }
 }
 
-class Pair implements Sexp {
-  final Location location;
-  final Sexp first;
-  final Sexp second;
+// class Pair implements Sexp {
+//   final Location location;
+//   final Sexp first;
+//   final Sexp second;
 
-  const Pair(this.first, this.second, this.location);
+//   const Pair(this.first, this.second, this.location);
 
-  T visit<T>(SexpVisitor<T> visitor) {
-    return visitor.visitPair(this);
-  }
-}
+//   T visit<T>(SexpVisitor<T> visitor) {
+//     return visitor.visitPair(this);
+//   }
+// }
 
 class StringLiteral implements Sexp {
   final Location location;

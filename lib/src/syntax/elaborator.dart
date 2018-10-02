@@ -28,17 +28,17 @@ class _Elaborate implements SexpVisitor<Object> {
     return null;
   }
 
-  Object visitInt(IntLiteral integer) {
-    return null;
-  }
+  // Object visitInt(IntLiteral integer) {
+  //   return null;
+  // }
 
   Object visitList(SList list) {
     return null;
   }
 
-  Object visitPair(Pair pair) {
-    return null;
-  }
+  // Object visitPair(Pair pair) {
+  //   return null;
+  // }
 
   Object visitString(StringLiteral string) {
     return null;
@@ -83,16 +83,12 @@ class TypeElaborator implements SexpVisitor<ast.T20Type> {
     return ast.InvalidType(error.location);
   }
 
-  ast.T20Type visitInt(IntLiteral integer) {
-    throw UnsupportedTypeElaborationMethodError("TypeElaborator", "visitInt");
-    return null;
-  }
-
   ast.T20Type visitList(SList list) {
-    return null;
-  }
-
-  ast.T20Type visitPair(Pair pair) {
+    // Function type: (-> T* T).
+    // Forall type: (forall id* T).
+    // Tuple type: (tuple T*).
+    // Type constructor: (K T*).
+    // -- special case: (K) where K = Bool | Int | String.
     return null;
   }
 
