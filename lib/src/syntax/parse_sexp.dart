@@ -321,7 +321,7 @@ class _StatefulSexpParser {
   Sexp error(SyntaxError error) {
     _errors ??= new List<SyntaxError>();
     _errors.add(error);
-    return Error(error);
+    return Error(error, error.location);
   }
 
   int _peek() {

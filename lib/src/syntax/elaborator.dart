@@ -4,8 +4,11 @@
 
 library t20.syntax.elaborator;
 
-import '../ast/ast.dart';
+import '../ast/ast.dart' as ast;
+import '../errors/errors.dart';
+import '../location.dart';
 import '../result.dart';
+import '../unicode.dart' as unicode;
 import 'sexp.dart';
 
 class Elaborator {
@@ -42,6 +45,64 @@ class _Elaborate implements SexpVisitor<Object> {
   }
 
   Object visitToplevel(Toplevel toplevel) {
+    return null;
+  }
+}
+
+class TypeElaborator implements SexpVisitor<ast.T20Type> {
+  ast.T20Type visitAtom(Atom atom) {
+    // Check whether atom is a primitive type, i.e. Bool, Int, or String.
+    if (atom.value == "Bool" || atom.value == "Int" || atom.value == "String") {
+      Location loc = atom.location;
+      switch (atom.value) {
+        case "Bool":
+          return ast.BoolType(loc);
+        case "Int":
+          return ast.IntType(loc);
+        case "String":
+          return ast.StringType(loc);
+        default:
+          assert(false);
+          return null;
+      }
+    } else {
+      // Must be a user-defined type (i.e. nullary type application).
+      String value = atom.value;
+      if (value.length > 0 && unicode.isAsciiLetter(value.codeUnitAt(0))) {
+        return ast.TypeConstructor.nullary(atom.value, atom.location);
+      } else {
+        // Error: invalid type.
+        return null;
+      }
+    }
+  }
+
+  ast.T20Type visitError(Error error) {
+    // Precondition: the error must already have been reported / collected at
+    // this point.
+    return ast.InvalidType(error.location);
+  }
+
+  ast.T20Type visitInt(IntLiteral integer) {
+    throw UnsupportedTypeElaborationMethodError("TypeElaborator", "visitInt");
+    return null;
+  }
+
+  ast.T20Type visitList(SList list) {
+    return null;
+  }
+
+  ast.T20Type visitPair(Pair pair) {
+    return null;
+  }
+
+  ast.T20Type visitString(StringLiteral string) {
+    throw UnsupportedTypeElaborationMethodError("TypeElaborator", "visitString");
+    return null;
+  }
+
+  ast.T20Type visitToplevel(Toplevel toplevel) {
+    throw UnsupportedTypeElaborationMethodError("TypeElaborator", "visitToplevel");
     return null;
   }
 }

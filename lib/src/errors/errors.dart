@@ -89,3 +89,27 @@ class InvalidUTF16SequenceError extends LocatedError implements LexicalError {
     return "Invalid UTF-16 character";
   }
 }
+
+// Elaboration errors.
+abstract class ElaborationError implements T20Error {}
+
+// This error is *never* suppose to occur.
+class UnsupportedTypeElaborationMethodError implements ElaborationError {
+  final String elaboratorName;
+  final String methodName;
+  UnsupportedTypeElaborationMethodError(this.elaboratorName, this.methodName);
+
+  String toString() {
+    return "Unsupported invocation of method '$methodName' elaborator '$elaboratorName'.";
+  }
+}
+
+class InvalidTypeError extends LocatedError implements ElaborationError {
+  final String typeName;
+
+  InvalidTypeError(this.typeName, Location location) : super(location);
+
+  String toString() {
+    return "Invalid type";
+  }
+}

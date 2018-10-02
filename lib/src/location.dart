@@ -10,6 +10,10 @@ class Location {
 
   const Location(this.uri, this.startOffset);
 
+  const factory Location.span(Uri uri, int startOffset, int endOffset) =
+      SpanLocation;
+  factory Location.dummy([String sourceName]) = DummyLocation;
+
   String toString() {
     return "<$uri:$startOffset>";
   }
@@ -23,5 +27,16 @@ class SpanLocation extends Location {
 
   String toString() {
     return "<$uri:$startOffset:$endOffset>";
+  }
+}
+
+class DummyLocation extends Location {
+  final String sourceName;
+
+  DummyLocation([this.sourceName = "dummy"])
+      : super(Uri.dataFromString(""), -1);
+
+  String toString() {
+    return "<$sourceName:$startOffset>";
   }
 }

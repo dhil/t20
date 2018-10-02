@@ -117,9 +117,10 @@ class Toplevel implements Sexp {
 }
 
 class Error implements Sexp {
+  final Location location;
   final SyntaxError error;
 
-  const Error(this.error);
+  const Error(this.error, this.location);
 
   T visit<T>(SexpVisitor visitor) {
     return visitor.visitError(this);
