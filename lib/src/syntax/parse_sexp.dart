@@ -66,7 +66,8 @@ class _StatefulSexpParser {
     unicode.GREATER_THAN_SIGN,
     unicode.COLON,
     unicode.HASH,
-    unicode.APOSTROPHE
+    unicode.APOSTROPHE,
+    unicode.QUOTE
   ]);
   final List<int> _whitespaces = const <int>[
     // Sorted after "likelihood".
@@ -136,33 +137,33 @@ class _StatefulSexpParser {
     assert(isValidAtomStart(c));
 
     // It might be a negative number.
-    if (c == unicode.HYPHEN_MINUS && unicode.isDigit(_peek())) {
-      return number(sign: unicode.HYPHEN_MINUS);
-    } else {
-      List<int> bytes = new List<int>()..add(c);
-      while (!_atEnd && isValidAtomContinuation(_peek())) {
-        bytes.add(_advance());
-      }
-      String value = String.fromCharCodes(bytes);
-      return new Atom(value, _location(_offset));
-    }
-  }
-
-  Sexp number({int sign = unicode.PLUS_SIGN}) {
-    int offset = _offset;
-    assert(unicode.isDigit(_peek()));
-    List<int> bytes = new List<int>()..add(_advance());
-    while (!_atEnd && unicode.isDigit(_peek())) {
+    // if (c == unicode.HYPHEN_MINUS && unicode.isDigit(_peek())) {
+    //   return number(sign: unicode.HYPHEN_MINUS);
+    // } else {
+    List<int> bytes = new List<int>()..add(c);
+    while (!_atEnd && isValidAtomContinuation(_peek())) {
       bytes.add(_advance());
     }
-    int denotation = int.parse(String.fromCharCodes(bytes));
-    if (sign == unicode.HYPHEN_MINUS) {
-      offset -= 1; // Decrement by one to include the position of the minus
-      // sign.
-      denotation *= -1;
-    }
-    return new IntLiteral(denotation, _location(offset));
+    String value = String.fromCharCodes(bytes);
+    return new Atom(value, _location(_offset));
+    // }
   }
+
+  // Sexp number({int sign = unicode.PLUS_SIGN}) {
+  //   int offset = _offset;
+  //   assert(unicode.isDigit(_peek()));
+  //   List<int> bytes = new List<int>()..add(_advance());
+  //   while (!_atEnd && unicode.isDigit(_peek())) {
+  //     bytes.add(_advance());
+  //   }
+  //   int denotation = int.parse(String.fromCharCodes(bytes));
+  //   if (sign == unicode.HYPHEN_MINUS) {
+  //     offset -= 1; // Decrement by one to include the position of the minus
+  //     // sign.
+  //     denotation *= -1;
+  //   }
+  //   return new IntLiteral(denotation, _location(offset));
+  // }
 
   Sexp expression() {
     Sexp sexp;
@@ -173,18 +174,18 @@ class _StatefulSexpParser {
       case unicode.LBRACE:
         sexp = list();
         break;
-      case unicode.ZERO:
-      case unicode.ONE:
-      case unicode.TWO:
-      case unicode.THREE:
-      case unicode.FOUR:
-      case unicode.FIVE:
-      case unicode.SIX:
-      case unicode.SEVEN:
-      case unicode.EIGHT:
-      case unicode.NINE:
-        sexp = number();
-        break;
+      // case unicode.ZERO:
+      // case unicode.ONE:
+      // case unicode.TWO:
+      // case unicode.THREE:
+      // case unicode.FOUR:
+      // case unicode.FIVE:
+      // case unicode.SIX:
+      // case unicode.SEVEN:
+      // case unicode.EIGHT:
+      // case unicode.NINE:
+      //   sexp = number();
+      //   break;
       case unicode.QUOTE:
         sexp = string();
         break;
@@ -198,10 +199,11 @@ class _StatefulSexpParser {
         }
     }
     spaces(); // Consume trailing white space.
-    if (_match(unicode.DOT))
-      return pair(sexp);
-    else
-      return sexp;
+    return sexp;
+    // if (_match(unicode.DOT))
+    //   return pair(sexp);
+    // else
+    //   return sexp;
   }
 
   Sexp list() {
@@ -228,15 +230,15 @@ class _StatefulSexpParser {
     return sexp;
   }
 
-  Sexp pair(Sexp first) {
-    assert(_match(unicode.DOT));
-    int offset = _offset;
-    _advance(); // Consume the full stop.
-    spaces(); // Consume any white space after the dot.
-    Sexp second = expression(); // As a side-effect [expression] consumes
-    // trailing white space.
-    return new Pair(first, second, _location(offset));
-  }
+  // Sexp pair(Sexp first) {
+  //   assert(_match(unicode.DOT));
+  //   int offset = _offset;
+  //   _advance(); // Consume the full stop.
+  //   spaces(); // Consume any white space after the dot.
+  //   Sexp second = expression(); // As a side-effect [expression] consumes
+  //   // trailing white space.
+  //   return new Pair(first, second, _location(offset));
+  // }
 
   Sexp string() {
     assert(_match(unicode.QUOTE));
@@ -246,13 +248,13 @@ class _StatefulSexpParser {
     Sexp stringLit;
     while (!_atEnd && !_match(unicode.QUOTE) && !_match(unicode.NL)) {
       int c = _advance();
-      if (c == unicode.BACKSLASH) {
-        // Escape the next character.
-        LexicalError err = _escape(bytes);
-        if (err != null) error(err);
-      } else {
+      // if (c == unicode.BACKSLASH) {
+      //   // Escape the next character.
+      //   LexicalError err = _escape(bytes);
+      //   if (err != null) error(err);
+      // } else {
         bytes.add(c);
-      }
+      // }
     }
     if (!_match(unicode.QUOTE)) {
       // Error: Unterminated string.
@@ -265,58 +267,58 @@ class _StatefulSexpParser {
     return stringLit;
   }
 
-  LexicalError _escape(List<int> bytes) {
-    int offset = _offset;
-    if (_atEnd) {
-      // Error: bad escape.
-      return BadCharacterEscapeError(<int>[], _location(offset));
-    }
-    int c = _peek();
-    switch (c) {
-      case unicode.b:
-        _advance();
-        bytes.add(unicode.BACKSPACE);
-        break;
-      case unicode.n:
-        _advance();
-        bytes.add(unicode.NL);
-        break;
-      case unicode.r:
-        _advance();
-        bytes.add(unicode.CR);
-        break;
-      case unicode.t:
-        _advance();
-        bytes.add(unicode.HT);
-        break;
-      case unicode.BACKSLASH:
-        _advance();
-        bytes.add(unicode.BACKSLASH);
-        break;
-      case unicode.u: // Unicode character.
-        _advance();
-        int i;
-        for (i = 0; i < 4 && !_atEnd; i++) {
-          if (isHex(_peek()))
-            bytes.add(_advance());
-          else
-            break;
-        }
-        if (i != 4) {
-          // Error: bad UTF-16 sequence.
-          return InvalidUTF16SequenceError(
-              bytes.sublist(bytes.length - i, bytes.length), _location(offset));
-        }
-        break;
-      case unicode.QUOTE:
-        bytes.add(_advance());
-        break;
-      default:
-        c = _advance();
-        return BadCharacterEscapeError(<int>[c], _location(offset));
-    }
-    return null;
-  }
+  // LexicalError _escape(List<int> bytes) {
+  //   int offset = _offset;
+  //   if (_atEnd) {
+  //     // Error: bad escape.
+  //     return BadCharacterEscapeError(<int>[], _location(offset));
+  //   }
+  //   int c = _peek();
+  //   switch (c) {
+  //     case unicode.b:
+  //       _advance();
+  //       bytes.add(unicode.BACKSPACE);
+  //       break;
+  //     case unicode.n:
+  //       _advance();
+  //       bytes.add(unicode.NL);
+  //       break;
+  //     case unicode.r:
+  //       _advance();
+  //       bytes.add(unicode.CR);
+  //       break;
+  //     case unicode.t:
+  //       _advance();
+  //       bytes.add(unicode.HT);
+  //       break;
+  //     case unicode.BACKSLASH:
+  //       _advance();
+  //       bytes.add(unicode.BACKSLASH);
+  //       break;
+  //     case unicode.u: // Unicode character.
+  //       _advance();
+  //       int i;
+  //       for (i = 0; i < 4 && !_atEnd; i++) {
+  //         if (isHex(_peek()))
+  //           bytes.add(_advance());
+  //         else
+  //           break;
+  //       }
+  //       if (i != 4) {
+  //         // Error: bad UTF-16 sequence.
+  //         return InvalidUTF16SequenceError(
+  //             bytes.sublist(bytes.length - i, bytes.length), _location(offset));
+  //       }
+  //       break;
+  //     case unicode.QUOTE:
+  //       bytes.add(_advance());
+  //       break;
+  //     default:
+  //       c = _advance();
+  //       return BadCharacterEscapeError(<int>[c], _location(offset));
+  //   }
+  //   return null;
+  // }
 
   Sexp error(SyntaxError error) {
     _errors ??= new List<SyntaxError>();
@@ -363,7 +365,9 @@ class _StatefulSexpParser {
   }
 
   bool isValidAtomStart(int c) {
-    return unicode.isAsciiLetter(c) || _validAtomSymbols.contains(c);
+    return unicode.isAsciiLetter(c) ||
+        unicode.isDigit(c) ||
+        _validAtomSymbols.contains(c);
   }
 
   bool isValidAtomContinuation(int c) {
@@ -418,18 +422,18 @@ class _TracingSexpParser extends _StatefulSexpParser {
     return node;
   }
 
-  Sexp number({int sign = unicode.PLUS_SIGN}) {
-    var parent = tree;
-    tree = new ParseTreeInteriorNode("number");
-    var node = super.number(sign: sign);
-    if (node is IntLiteral) {
-      parent.add(new ParseTreeLeaf("number", node.toString()));
-    } else {
-      parent.add(tree);
-    }
-    tree = parent;
-    return node;
-  }
+  // Sexp number({int sign = unicode.PLUS_SIGN}) {
+  //   var parent = tree;
+  //   tree = new ParseTreeInteriorNode("number");
+  //   var node = super.number(sign: sign);
+  //   if (node is IntLiteral) {
+  //     parent.add(new ParseTreeLeaf("number", node.toString()));
+  //   } else {
+  //     parent.add(tree);
+  //   }
+  //   tree = parent;
+  //   return node;
+  // }
 
   Sexp list() {
     var parent = tree;
@@ -444,15 +448,15 @@ class _TracingSexpParser extends _StatefulSexpParser {
     return node;
   }
 
-  Sexp pair(Sexp first) {
-    var parent = tree;
-    tree = new ParseTreeInteriorNode("pair");
-    parent.add(tree);
-    var node = super.pair(first);
-    if (node == first) parent.remove(tree);
-    tree = parent;
-    return node;
-  }
+  // Sexp pair(Sexp first) {
+  //   var parent = tree;
+  //   tree = new ParseTreeInteriorNode("pair");
+  //   parent.add(tree);
+  //   var node = super.pair(first);
+  //   if (node == first) parent.remove(tree);
+  //   tree = parent;
+  //   return node;
+  // }
 
   Sexp error(SyntaxError err) {
     var node = super.error(err);
