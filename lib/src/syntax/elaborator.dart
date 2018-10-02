@@ -56,6 +56,12 @@ class Types {
   static const String string = "String";
   static const String forall = "forall";
   static const String tuple = "tuple";
+
+  static bool isBaseTypename(String typeName) {
+    return typeName == Types.bool ||
+        typeName == Types.int ||
+        typeName == Types.string;
+  }
 }
 
 class TypeElaborator implements SexpVisitor<ast.T20Type> {
@@ -63,7 +69,7 @@ class TypeElaborator implements SexpVisitor<ast.T20Type> {
     Location loc = atom.location;
     String value = atom.value;
     // Check whether atom is a primitive type, i.e. Bool, Int, or String.
-    if (value == "Bool" || value == "Int" || value == "String") {
+    if (Types.isBaseTypename(value)) {
       switch (atom.value) {
         case "Bool":
           return ast.BoolType(loc);
@@ -123,7 +129,8 @@ class TypeElaborator implements SexpVisitor<ast.T20Type> {
           // Error: forall requires exactly two arguments.
           return null;
         } else {
-          var quantifiers = list[1].visit(null); // TODO: specialised quantifier visitor?
+          var quantifiers =
+              list[1].visit(null); // TODO: specialised quantifier visitor?
           ast.T20Type body = list[2].visit(this);
           return ast.ForallType(quantifiers, body, list.location);
         }
