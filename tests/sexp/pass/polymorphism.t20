@@ -1,0 +1,56 @@
+;; Parametric polymorphism.
+
+(define-datatype
+  (List 'a)
+  [cons 'a (List 'a)]
+  [nil]
+  (derive! foldl foldr))
+
+(: length (forall 'a (-> (List 'a) Int)))
+(define
+  (length xs)
+  (let (add
+        (lambda (x y)
+          (+ x y)))
+    (foldl add 0 xs)))
+
+(: test0 Int)
+(define test0
+  (length (cons 0 (cons 1 (cons 2 nil))))) ;; ==> 3
+
+(: test1 Int)
+(define test1
+  (length nil)) ;; ==> 0
+
+(: append (forall 'a (-> (List 'a) (List 'a) (List 'a))))
+(define
+  (append xs ys)
+  (foldr cons xs ys)) ;; assuming foldr : (a -> b -> b) -> [a] -> b -> b
+
+(: rev-append (forall 'a (-> (List 'a) (List 'a) (List 'a))))
+(define
+  (rev-append xs ys)
+  (foldr cons ys xs))
+
+(: filter (forall 'a (-> [-> 'a Bool] (List 'a) (List 'a))))
+(define
+  (filter f? xs)
+  (let (g (lambda (xs x)
+            (if (f? x)
+                (cons x xs)
+                xs)))
+    (foldr g xs nil)))
+
+(: map (forall ('a 'b) (-> [-> 'a 'b] (List 'a) (List 'b))))
+(define
+  (map f xs)
+  (let g (lambda (ys x)
+           (cons (f x) ys))
+    (foldr g xs nil)))
+
+(: rev-map (forall ('a 'b) (-> [-> 'a 'b] (List 'a) (List 'b))))
+(define
+  (rev-map f xs)
+  (let g (lambda (x ys)
+           (cons (f x) ys))
+    (foldl g xs nil)))
