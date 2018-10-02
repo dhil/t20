@@ -49,11 +49,21 @@ class _Elaborate implements SexpVisitor<Object> {
   }
 }
 
+class Types {
+  static const String arrow = "->";
+  static const String bool = "Bool";
+  static const String int = "Int";
+  static const String string = "String";
+  static const String forall = "forall";
+  static const String tuple = "tuple";
+}
+
 class TypeElaborator implements SexpVisitor<ast.T20Type> {
   ast.T20Type visitAtom(Atom atom) {
+    Location loc = atom.location;
+    String value = atom.value;
     // Check whether atom is a primitive type, i.e. Bool, Int, or String.
-    if (atom.value == "Bool" || atom.value == "Int" || atom.value == "String") {
-      Location loc = atom.location;
+    if (value == "Bool" || value == "Int" || value == "String") {
       switch (atom.value) {
         case "Bool":
           return ast.BoolType(loc);
@@ -67,25 +77,61 @@ class TypeElaborator implements SexpVisitor<ast.T20Type> {
       }
     } else {
       // Must be a user-defined type (i.e. nullary type application).
-      String value = atom.value;
       if (value.length > 0 && unicode.isAsciiLetter(value.codeUnitAt(0))) {
-        return ast.TypeConstructor.nullary(atom.value, atom.location);
+        return ast.TypeConstructor.nullary(atom.value, loc);
       } else {
         // Error: invalid type.
-        return null;
+        return ast.InvalidType(loc);
       }
     }
   }
 
   ast.T20Type visitError(Error error) {
+    assert(error != null);
     // Precondition: the error must already have been reported / collected at
     // this point.
     return ast.InvalidType(error.location);
   }
 
   ast.T20Type visitList(SList list) {
-    // Function type: (-> T* T).
-    // Forall type: (forall id* T).
+    assert(list != null);
+    if (list.length > 0 && list[0] is Atom) {
+      Atom first = list[0];
+      // Function type: (-> T* T).
+      if (first.value == Types.arrow) {
+        if (list.length < 2) {
+          // Error: -> requires at least one argument.
+          return null;
+        } else if (list.length == 2) {
+          // Nullary function.
+          ast.T20Type codomain = list[1].visit(this);
+          return ast.FunctionType.thunk(codomain, list.location);
+        } else {
+          // N-ary function.
+          ast.T20Type codomain = list.last.visit(this);
+          List<ast.T20Type> domain = new List<ast.T20Type>();
+          for (int i = 1; i < list.length - 1; i++) {
+            domain.add(list[i].visit(this));
+          }
+          return ast.FunctionType(domain, codomain, list.location);
+        }
+      }
+
+      // Forall type: (forall id+ T).
+      if (first.value == Types.forall) {
+        if (list.length != 3) {
+          // Error: forall requires exactly two arguments.
+          return null;
+        } else {
+          var quantifiers = list[1].visit(null); // TODO: specialised quantifier visitor?
+          ast.T20Type body = list[2].visit(this);
+          return ast.ForallType(quantifiers, body, list.location);
+        }
+      }
+    } else {
+      // Error empty.
+    }
+
     // Tuple type: (tuple T*).
     // Type constructor: (K T*).
     // -- special case: (K) where K = Bool | Int | String.
@@ -93,12 +139,16 @@ class TypeElaborator implements SexpVisitor<ast.T20Type> {
   }
 
   ast.T20Type visitString(StringLiteral string) {
-    throw UnsupportedTypeElaborationMethodError("TypeElaborator", "visitString");
+    assert(false);
+    throw UnsupportedTypeElaborationMethodError(
+        "TypeElaborator", "visitString");
     return null;
   }
 
   ast.T20Type visitToplevel(Toplevel toplevel) {
-    throw UnsupportedTypeElaborationMethodError("TypeElaborator", "visitToplevel");
+    assert(false);
+    throw UnsupportedTypeElaborationMethodError(
+        "TypeElaborator", "visitToplevel");
     return null;
   }
 }

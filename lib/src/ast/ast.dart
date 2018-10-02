@@ -44,6 +44,7 @@ import '../location.dart';
 //
 // Types
 // T ::= Int | Bool | String (* base types *)
+//    | forall id+ T         (* quantification *)
 //    | -> T* T              (* n-ary function types *)
 //    | K T*                 (* type application *)
 //    | tuple T*             (* n-ary tuple types *)
@@ -73,6 +74,7 @@ import '../location.dart';
 abstract class TypeVisitor<T> {
   T visitConstructor(TypeConstructor ty);
   T visitBool(BoolType ty);
+  T visitForall(ForallType ty);
   T visitFunction(FunctionType ty);
   T visitInt(IntType ty);
   T visitInvalid(InvalidType ty);
@@ -104,12 +106,26 @@ class IntType implements T20Type {
   }
 }
 
+class ForallType implements T20Type {
+  List<Object> quantifiers;
+  T20Type body;
+  Location location;
+
+  ForallType(this.quantifiers, this.body, this.location);
+
+  T visit<T>(TypeVisitor<T> v) {
+    return v.visitForall(this);
+  }
+}
+
 class FunctionType implements T20Type {
   List<T20Type> domain;
   T20Type codomain;
   Location location;
 
   FunctionType(this.domain, this.codomain, this.location);
+  FunctionType.thunk(T20Type codomain, Location location)
+      : this(const <T20Type>[], codomain, location);
 
   T visit<T>(TypeVisitor<T> v) {
     return v.visitFunction(this);

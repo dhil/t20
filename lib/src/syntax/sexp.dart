@@ -66,6 +66,7 @@ class SList implements Sexp {
       : this.sexps = sexps == null ? <Sexp>[] : sexps;
 
   int get length => sexps.length;
+  Sexp get last => sexps.last;
 
   T visit<T>(SexpVisitor<T> visitor) {
     return visitor.visitList(this);
@@ -78,6 +79,10 @@ class SList implements Sexp {
   //   }
   //   return transform(this, children);
   // }
+
+  Sexp operator[](int index) {
+    return sexps[index];
+  }
 }
 
 // class Pair implements Sexp {
