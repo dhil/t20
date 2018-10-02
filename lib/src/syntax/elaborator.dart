@@ -71,11 +71,11 @@ class TypeElaborator implements SexpVisitor<ast.T20Type> {
     // Check whether atom is a primitive type, i.e. Bool, Int, or String.
     if (Types.isBaseTypename(value)) {
       switch (atom.value) {
-        case "Bool":
+        case Types.bool:
           return ast.BoolType(loc);
-        case "Int":
+        case Types.int:
           return ast.IntType(loc);
-        case "String":
+        case Types.string:
           return ast.StringType(loc);
         default:
           assert(false);
