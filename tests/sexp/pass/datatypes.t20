@@ -3,13 +3,13 @@
 ;; Untyped lambda calculus.
 (define-datatype Term
   [Var String]
-  [Lambda (String Term)]
-  [App (Term Term)]
+  [Lambda String Term]
+  [App Term Term]
   (derive! map))
 
 ;; List definition.
 (define-datatype (List 'a)
-  [cons ('a (List 'a))]
+  [cons 'a (List 'a)]
   [nil]
   (derive! foldl map))
 
