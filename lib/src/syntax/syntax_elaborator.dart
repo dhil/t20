@@ -8,12 +8,16 @@ import 'sexp.dart'
     show Atom, Error, Sexp, SexpVisitor, SList, StringLiteral, Toplevel;
 
 abstract class SyntaxElaborator<T> implements SexpVisitor<T> {
+  List<T20Error> get errors;
+}
+
+abstract class BaseElaborator<T> implements SyntaxElaborator<T> {
   final String elaboratorName;
   List<T20Error> _errors;
 
   List<T20Error> get errors => _errors;
 
-  SyntaxElaborator(this.elaboratorName);
+  BaseElaborator(this.elaboratorName);
 
   T visitAtom(Atom _) {
     assert(false);

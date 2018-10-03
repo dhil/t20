@@ -11,15 +11,13 @@ import '../result.dart';
 import 'sexp.dart'
     show Atom, Error, Sexp, SexpVisitor, SList, StringLiteral, Toplevel;
 
-import 'type_elaborator.dart';
-
-export 'type_elaborator.dart';
+import 'module_elaborator.dart';
 
 class Elaborator {
   Result<Module, T20Error> elaborate(Sexp program) {
-    //ModuleElaborator elab = new ModuleElaborator();
-    Module ast = null; //program.visit<Module>(elab);
-    List<T20Error> errors = []; //elab.errors ?? [];
+    ModuleElaborator elab = new ModuleElaborator();
+    Module ast = program.visit<Module>(elab);
+    List<T20Error> errors = elab.errors ?? [];
     Result<Module, T20Error> result = new Result<Module, T20Error>(ast, errors);
     return result;
   }

@@ -7,7 +7,7 @@ library t20.pipeline;
 import 'dart:io';
 
 import '../settings.dart';
-
+import 'ast/ast.dart';
 import 'compilation_unit.dart';
 import 'errors/error_reporting.dart';
 import 'errors/errors.dart';
@@ -43,7 +43,7 @@ bool compile(List<String> filePaths, Settings settings) {
       }
 
       // Elaborate.
-      Result<Object, Object> elabResult =
+      Result<Module, T20Error> elabResult =
           new Elaborator().elaborate(parseResult.result);
       if (!elabResult.wasSuccessful) {
         // TODO: report errors...

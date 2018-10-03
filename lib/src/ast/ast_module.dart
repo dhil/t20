@@ -3,6 +3,7 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import '../location.dart';
+import '../errors/errors.dart' show ElaborationError;
 import 'ast_types.dart';
 import 'ast_expressions.dart';
 
@@ -11,8 +12,10 @@ import 'ast_expressions.dart';
 //
 abstract class ModuleVisitor<T> {
   T visitDatatype(DatatypeDefinition def);
+  T visitError(ErrorModule err);
   T visitFunction(FunctionDefinition def);
   T visitInclude(Include include);
+  T visitTypename(TypenameDefinition def);
   T visitValue(ValueDefinition def);
 }
 
@@ -66,5 +69,31 @@ class Include implements Module {
 
   T visit<T>(ModuleVisitor<T> v) {
     return v.visitInclude(this);
+  }
+}
+
+class TypenameDefinition implements Module {
+  String name;
+  List<Object> typeParameters;
+  Datatype rhs;
+  Location location;
+
+  TypenameDefinition(this.name, this.typeParameters, this.rhs, this.location);
+
+  T visit<T>(ModuleVisitor<T> v) {
+    return v.visitTypename(this);
+  }
+}
+
+class ErrorModule implements Module {
+  final ElaborationError error;
+  final Location _location;
+
+  Location get location => _location ?? Location.dummy();
+
+  ErrorModule(this.error, [Location location = null]) : _location = location;
+
+  T visit<T>(ModuleVisitor<T> v) {
+    return v.visitError(this);
   }
 }

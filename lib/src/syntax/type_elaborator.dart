@@ -28,7 +28,7 @@ class Typenames {
   }
 }
 
-class TypeElaborator extends SyntaxElaborator<Datatype> {
+class TypeElaborator extends BaseElaborator<Datatype> {
   TypeElaborator() : super("TypeElaborator");
 
   Datatype visitAtom(Atom atom) {
