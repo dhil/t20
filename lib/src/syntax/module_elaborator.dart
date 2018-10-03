@@ -16,7 +16,7 @@ class ModuleElaborator extends BaseElaborator<Module> {
   ModuleElaborator() : super("ModuleElaborator");
 
   Module visitAtom(Atom atom) {
-    
+    error(NakedExpressionAtToplevel(atom.location));
     return null;
   }
 

@@ -177,3 +177,12 @@ class InvalidFunctionTypeError extends LocatedError
     return "A function type constructor '->' must be followed by a non-empty sequence of types.";
   }
 }
+
+class NakedExpressionAtToplevel extends LocatedError implements ElaborationError, SyntaxError {
+
+  NakedExpressionAtToplevel(Location location) : super(location);
+
+  String toString() {
+    return "Naked expression at top level";
+  }
+}
