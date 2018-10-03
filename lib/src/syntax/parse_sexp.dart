@@ -101,7 +101,8 @@ class _StatefulSexpParser {
       sexps.add(expression());
     }
 
-    return new Result<Sexp, SyntaxError>(new Toplevel(sexps), _errors);
+    return new Result<Sexp, SyntaxError>(
+        new Toplevel(sexps, _spanLocation(0, _offset)), _errors);
   }
 
   bool _match(int c) {
@@ -253,7 +254,7 @@ class _StatefulSexpParser {
       //   LexicalError err = _escape(bytes);
       //   if (err != null) error(err);
       // } else {
-        bytes.add(c);
+      bytes.add(c);
       // }
     }
     if (!_match(unicode.QUOTE)) {

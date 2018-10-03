@@ -113,3 +113,67 @@ class InvalidTypeError extends LocatedError implements ElaborationError {
     return "Invalid type";
   }
 }
+
+class InvalidQuantifierError extends LocatedError
+    implements ElaborationError, SyntaxError {
+  final String quantifierName;
+
+  InvalidQuantifierError(this.quantifierName, Location location)
+      : super(location);
+
+  String toString() {
+    return "Invalid quantifier";
+  }
+}
+
+class EmptyQuantifierList extends LocatedError
+    implements ElaborationError, SyntaxError {
+  EmptyQuantifierList(Location location) : super(location);
+
+  String toString() {
+    return "Empty quantifier list";
+  }
+}
+
+class ExpectedQuantifiersError extends LocatedError
+    implements ElaborationError, SyntaxError {
+  ExpectedQuantifiersError(Location location) : super(location);
+  String toString() {
+    return "Expected a single quantifier or a quantifier list.";
+  }
+}
+
+class ExpectedQuantifierError extends LocatedError
+    implements ElaborationError, SyntaxError {
+  ExpectedQuantifierError(Location location) : super(location);
+  String toString() {
+    return "Expected a single quantifier.";
+  }
+}
+
+class ExpectedValidTypeError extends LocatedError
+    implements ElaborationError, SyntaxError {
+  ExpectedValidTypeError(Location location) : super(location);
+
+  String toString() {
+    return "Expected a valid type name";
+  }
+}
+
+class InvalidForallTypeError extends LocatedError
+    implements ElaborationError, SyntaxError {
+  InvalidForallTypeError(Location location) : super(location);
+
+  String toString() {
+    return "'forall' must be followed by a non-empty list of quantifiers and a type.";
+  }
+}
+
+class InvalidFunctionTypeError extends LocatedError
+    implements ElaborationError, SyntaxError {
+  InvalidFunctionTypeError(Location location) : super(location);
+
+  String toString() {
+    return "A function type constructor '->' must be followed by a non-empty sequence of types.";
+  }
+}

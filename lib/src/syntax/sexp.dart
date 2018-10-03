@@ -18,14 +18,15 @@ abstract class SexpVisitor<T> {
 }
 
 abstract class Sexp {
+  final Location location;
+  const Sexp(this.location);
   T visit<T>(SexpVisitor<T> visitor);
 }
 
-class Atom implements Sexp {
-  final Location location;
+class Atom extends Sexp {
   final String value;
 
-  const Atom(this.value, this.location);
+  const Atom(this.value, Location location) : super(location);
 
   T visit<T>(SexpVisitor<T> visitor) {
     return visitor.visitAtom(this);
@@ -51,19 +52,17 @@ class Atom implements Sexp {
 //   }
 // }
 
-enum ListBrackets {
-  BRACES,
-  BRACKETS,
-  PARENS
-}
+enum ListBrackets { BRACES, BRACKETS, PARENS }
 
-class SList implements Sexp {
-  final SpanLocation location;
+class SList extends Sexp {
   final List<Sexp> sexps;
   final ListBrackets brackets;
 
-  const SList(List<Sexp> sexps, this.brackets, this.location)
-      : this.sexps = sexps == null ? <Sexp>[] : sexps;
+  const SList(List<Sexp> sexps, this.brackets, SpanLocation location)
+      : this.sexps = sexps == null ? <Sexp>[] : sexps,
+        super(location);
+
+  SpanLocation get location => super.location as SpanLocation;
 
   int get length => sexps.length;
   Sexp get last => sexps.last;
@@ -80,7 +79,7 @@ class SList implements Sexp {
   //   return transform(this, children);
   // }
 
-  Sexp operator[](int index) {
+  Sexp operator [](int index) {
     return sexps[index];
   }
 }
@@ -97,11 +96,10 @@ class SList implements Sexp {
 //   }
 // }
 
-class StringLiteral implements Sexp {
-  final Location location;
+class StringLiteral extends Sexp {
   final String value;
 
-  const StringLiteral(this.value, this.location);
+  const StringLiteral(this.value, Location location) : super(location);
 
   T visit<T>(SexpVisitor<T> visitor) {
     return visitor.visitString(this);
@@ -112,20 +110,21 @@ class StringLiteral implements Sexp {
   }
 }
 
-class Toplevel implements Sexp {
+class Toplevel extends Sexp {
   final List<Sexp> sexps;
-  const Toplevel(this.sexps);
+  const Toplevel(this.sexps, Location location) : super(location);
+
+  SpanLocation get location => super.location as SpanLocation;
 
   T visit<T>(SexpVisitor<T> visitor) {
     return visitor.visitToplevel(this);
   }
 }
 
-class Error implements Sexp {
-  final Location location;
+class Error extends Sexp {
   final SyntaxError error;
 
-  const Error(this.error, this.location);
+  const Error(this.error, Location location) : super(location);
 
   T visit<T>(SexpVisitor visitor) {
     return visitor.visitError(this);
