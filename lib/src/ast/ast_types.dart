@@ -2,6 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'ast_common.dart';
 import '../location.dart';
 
 // Abstract syntax (algebraic specification in EBNF notation).
@@ -90,11 +91,11 @@ class StringType implements Datatype {
 
 class TypeConstructor implements Datatype {
   Location location;
-  String name;
+  Name name;
   List<Datatype> arguments;
 
   TypeConstructor(this.name, this.arguments, this.location);
-  TypeConstructor.nullary(String name, Location location)
+  TypeConstructor.nullary(Name name, Location location)
       : this(name, const <Datatype>[], location);
 
   T visit<T>(TypeVisitor<T> v) {
@@ -125,7 +126,7 @@ class InvalidType implements Datatype {
 
 class Quantifier implements Datatype {
   Location location;
-  final String name;
+  final Name name;
 
   Quantifier(this.name, this.location);
 
@@ -136,7 +137,7 @@ class Quantifier implements Datatype {
 
 class TypeVariable implements Datatype {
   Location location;
-  final String name;
+  final Name name;
 
   TypeVariable(this.name, this.location);
 

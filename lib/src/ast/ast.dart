@@ -11,8 +11,8 @@ library t20.ast;
 // M ::= (include ...)                         (* module inclusion *)
 //     | : x T                                 (* signatures *)
 //     | define x P* E                         (* value definitions *)
-//     | define-typename NAME t* T
-//     | define-datatype NAME t* (NAME T*)* (* algebraic data type definitions *)
+//     | define-typename NAME t* T             (* type aliases *)
+//     | define-datatype NAME t* (NAME T*)*    (* algebraic data type definitions *)
 //       (derive! (fold | map)+)?
 //
 // Constants
@@ -49,6 +49,7 @@ library t20.ast;
 //    | K T*                 (* type application *)
 //    | ∗ T*             (* n-ary tuple types *)
 
+export 'ast_common.dart';
 export 'ast_expressions.dart';
 export 'ast_module.dart';
 export 'ast_types.dart';

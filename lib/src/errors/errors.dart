@@ -6,6 +6,7 @@ library t20.errors;
 
 import '../location.dart';
 import '../unicode.dart' as unicode;
+import '../utils.dart' show ListUtils;
 
 abstract class T20Error {}
 
@@ -178,11 +179,65 @@ class InvalidFunctionTypeError extends LocatedError
   }
 }
 
-class NakedExpressionAtToplevel extends LocatedError implements ElaborationError, SyntaxError {
-
-  NakedExpressionAtToplevel(Location location) : super(location);
+class NakedExpressionAtToplevelError extends LocatedError
+    implements ElaborationError, SyntaxError {
+  NakedExpressionAtToplevelError(Location location) : super(location);
 
   String toString() {
     return "Naked expression at top level";
+  }
+}
+
+class EmptyListAtToplevelError extends LocatedError
+    implements ElaborationError, SyntaxError {
+  EmptyListAtToplevelError(Location location) : super(location);
+
+  String toString() {
+    return "Empty list expression at top level";
+  }
+}
+
+class BadSyntaxError extends LocatedError
+    implements ElaborationError, SyntaxError {
+  BadSyntaxError(Location location) : super(location);
+
+  String toString() {
+    return "Bad syntax";
+  }
+}
+
+class BadSyntaxWithExpectationError extends BadSyntaxError {
+  final List<String> expectations;
+
+  BadSyntaxWithExpectationError(this.expectations, Location location)
+      : super(location);
+
+  String toString() {
+    String expectedSyntax = ListUtils.insertBeforeLast<String>(
+            "or ", ListUtils.intersperse<String>(", ", expectations))
+        .join();
+    return "Bad syntax. Expected $expectedSyntax";
+  }
+}
+
+class DuplicateTypeSignatureError extends LocatedError
+    implements ElaborationError, SyntaxError {
+  final String name;
+
+  DuplicateTypeSignatureError(this.name, Location location) : super(location);
+
+  String toString() {
+    return "Duplicate type signature for '$name'";
+  }
+}
+
+class MultipleDeclarationsError extends LocatedError
+    implements ElaborationError, SyntaxError {
+  final String name;
+
+  MultipleDeclarationsError(this.name, Location location) : super(location);
+
+  String toString() {
+    return "Multiple declarations of '$name'";
   }
 }

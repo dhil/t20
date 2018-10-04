@@ -64,6 +64,14 @@ class SList extends Sexp {
 
   SpanLocation get location => super.location as SpanLocation;
 
+  String closingBracket() {
+    switch (brackets) {
+      case ListBrackets.BRACES: return "}";
+      case ListBrackets.BRACKETS: return "]";
+      case ListBrackets.PARENS: return ")";
+    }
+  }
+
   int get length => sexps.length;
   Sexp get last => sexps.last;
 

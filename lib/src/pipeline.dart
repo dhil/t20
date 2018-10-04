@@ -43,7 +43,7 @@ bool compile(List<String> filePaths, Settings settings) {
       }
 
       // Elaborate.
-      Result<Module, T20Error> elabResult =
+      Result<ModuleMember, T20Error> elabResult =
           new Elaborator().elaborate(parseResult.result);
       if (!elabResult.wasSuccessful) {
         // TODO: report errors...

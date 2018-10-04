@@ -3,57 +3,60 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import '../location.dart';
-import '../errors/errors.dart' show ElaborationError;
-import 'ast_types.dart';
+import '../errors/errors.dart' show T20Error;
+import 'ast_common.dart';
 import 'ast_expressions.dart';
+import 'ast_types.dart';
 
 //
 // Module / top-level language.
 //
 abstract class ModuleVisitor<T> {
-  T visitDatatype(DatatypeDefinition def);
+  T visitDatatype(DatatypeDeclaration decl);
   T visitError(ErrorModule err);
-  T visitFunction(FunctionDefinition def);
+  T visitFunction(FunctionDeclaration decl);
   T visitInclude(Include include);
-  T visitTypename(TypenameDefinition def);
-  T visitValue(ValueDefinition def);
+  // T visitSignature(Signature sig);
+  T visitTopModule(TopModule mod);
+  T visitTypename(TypenameDeclaration decl);
+  T visitValue(ValueDeclaration decl);
 }
 
-abstract class Module {
+abstract class ModuleMember {
   T visit<T>(ModuleVisitor<T> v);
 }
 
-class ValueDefinition implements Module {
-  String name;
+class ValueDeclaration implements ModuleMember {
+  Name name;
   Expression body;
   Location location;
 
-  ValueDefinition(this.name, this.body, this.location);
+  ValueDeclaration(this.name, this.body, this.location);
   T visit<T>(ModuleVisitor<T> v) {
     return v.visitValue(this);
   }
 }
 
-class FunctionDefinition implements Module {
-  String name;
+class FunctionDeclaration implements ModuleMember {
+  Name name;
   List<Object> parameters;
   Expression body;
   Location location;
 
-  FunctionDefinition(this.name, this.parameters, this.body, this.location);
+  FunctionDeclaration(this.name, this.parameters, this.body, this.location);
 
   T visit<T>(ModuleVisitor<T> v) {
     return v.visitFunction(this);
   }
 }
 
-class DatatypeDefinition implements Module {
-  String name;
+class DatatypeDeclaration implements ModuleMember {
+  Name name;
   List<Object> typeParameters;
   List<Object> constructors;
   Location location;
 
-  DatatypeDefinition(
+  DatatypeDeclaration(
       this.name, this.typeParameters, this.constructors, this.location);
 
   T visit<T>(ModuleVisitor<T> v) {
@@ -61,7 +64,7 @@ class DatatypeDefinition implements Module {
   }
 }
 
-class Include implements Module {
+class Include implements ModuleMember {
   String module;
   Location location;
 
@@ -72,21 +75,44 @@ class Include implements Module {
   }
 }
 
-class TypenameDefinition implements Module {
-  String name;
+// class Signature implements ModuleMember {
+//   Location location;
+//   String name;
+//   Datatype type;
+
+//   Signature(this.name, this.type, this.location);
+
+//   T visit<T>(ModuleVisitor<T> v) {
+//     return v.visitSignature(this);
+//   }
+// }
+
+class TopModule implements ModuleMember {
+  Location location;
+  List<ModuleMember> members;
+
+  TopModule(this.members, this.location);
+
+  T visit<T>(ModuleVisitor<T> v) {
+    return v.visitTopModule(this);
+  }
+}
+
+class TypenameDeclaration implements ModuleMember {
+  Name name;
   List<Object> typeParameters;
   Datatype rhs;
   Location location;
 
-  TypenameDefinition(this.name, this.typeParameters, this.rhs, this.location);
+  TypenameDeclaration(this.name, this.typeParameters, this.rhs, this.location);
 
   T visit<T>(ModuleVisitor<T> v) {
     return v.visitTypename(this);
   }
 }
 
-class ErrorModule implements Module {
-  final ElaborationError error;
+class ErrorModule implements ModuleMember {
+  final T20Error error;
   final Location _location;
 
   Location get location => _location ?? Location.dummy();

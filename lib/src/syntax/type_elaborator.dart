@@ -2,6 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import '../ast/ast_common.dart';
 import '../ast/ast_types.dart';
 import '../errors/errors.dart';
 import '../location.dart';
@@ -9,7 +10,6 @@ import '../unicode.dart' as unicode;
 import 'sexp.dart'
     show Atom, Error, Sexp, SexpVisitor, SList, StringLiteral, Toplevel;
 import 'syntax_elaborator.dart';
-
 
 // TODO: These constants are intrinsic to the compiler; possibly useful
 // elsewhere.
@@ -29,7 +29,9 @@ class Typenames {
 }
 
 class TypeElaborator extends BaseElaborator<Datatype> {
+  TypeElaborator belowToplevelElaborator = new BelowToplevelTypeElaborator();
   TypeElaborator() : super("TypeElaborator");
+  TypeElaborator._(String name) : super(name);
 
   Datatype visitAtom(Atom atom) {
     assert(atom != null);
@@ -48,12 +50,12 @@ class TypeElaborator extends BaseElaborator<Datatype> {
           assert(false);
           return null;
       }
-    } else if (isValidTypeVariable(value)) {
-      return TypeVariable(value, loc);
+    } else if (isValidQuantifier(value)) {
+      return TypeVariable(Name(value, loc), loc);
     } else {
       // Must be a user-defined type (i.e. nullary type application).
       if (value.length > 0 && unicode.isAsciiLetter(value.codeUnitAt(0))) {
-        return TypeConstructor.nullary(atom.value, loc);
+        return TypeConstructor.nullary(Name(value, loc), loc);
       } else {
         // Error: invalid type.
         return InvalidType(loc);
@@ -130,7 +132,7 @@ class TypeElaborator extends BaseElaborator<Datatype> {
       return InvalidType(list.location);
     } else {
       List<Quantifier> qs = quantifiers(list[1]);
-      Datatype body = list[2].visit(this);
+      Datatype body = list[2].visit(belowToplevelElaborator);
       return ForallType(qs, body, list.location);
     }
   }
@@ -165,11 +167,11 @@ class TypeElaborator extends BaseElaborator<Datatype> {
   Quantifier quantifier(Atom atom) {
     String value = atom.value;
     Location location = atom.location;
-    if (!isValidTypeVariable(value)) {
+    if (!isValidQuantifier(value)) {
       // Syntax error.
       error(InvalidQuantifierError(value, location));
     }
-    return Quantifier(value, location);
+    return Quantifier(Name(value, location), location);
   }
 
   // Quanfitier _dummyQuantifier() {
@@ -183,24 +185,44 @@ class TypeElaborator extends BaseElaborator<Datatype> {
       return constr.visit(this);
     }
 
-    // TODO: is valid constructor name?
-    String constructorName = constr.value;
+    if (!isValidIdentifier(constr.value)) {
+      return badSyntax(constr.location, <String>["constructor name"]);
+    }
+    Name constructorName = Name(constr.value, constr.location);
+    List<Datatype> typeArguments = new List<Datatype>();
+    for (int i = 1; i < list.length; i++) {
+      typeArguments.add(list[i].visit(belowToplevelElaborator));
+    }
 
-    return null;
+    return TypeConstructor(constructorName, typeArguments, list.location);
   }
 
   Datatype tupleType(Atom tuple, SList list) {
     assert(tuple == Typenames.tuple);
     List<Datatype> components = new List<Datatype>();
     for (int i = 1; i < list.length; i++) {
-      components.add(list[i].visit(this));
+      components.add(list[i].visit(belowToplevelElaborator));
     }
     return TupleType(components, list.location);
   }
 
-  bool isValidTypeVariable(String name) {
-    assert(name != null);
-    return name.length > 0 && name.codeUnitAt(0) == unicode.APOSTROPHE;
+  InvalidType badSyntax(Location location, [List<String> expectations = null]) {
+    T20Error err;
+    if (expectations == null) {
+      err = BadSyntaxError(location);
+    } else {
+      err = BadSyntaxWithExpectationError(expectations, location);
+    }
+    error(err);
+    return InvalidType(location);
   }
 }
 
+class BelowToplevelTypeElaborator extends TypeElaborator {
+
+  BelowToplevelTypeElaborator() : super._("BelowToplevelTypeElaborator");
+
+  Datatype forallType(Atom head, SList list) {
+    return badSyntax(head.location);
+  }
+}

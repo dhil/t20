@@ -14,11 +14,12 @@ import 'sexp.dart'
 import 'module_elaborator.dart';
 
 class Elaborator {
-  Result<Module, T20Error> elaborate(Sexp program) {
+  Result<ModuleMember, T20Error> elaborate(Sexp program) {
     ModuleElaborator elab = new ModuleElaborator();
-    Module ast = program.visit<Module>(elab);
+    ModuleMember ast = program.visit<ModuleMember>(elab);
     List<T20Error> errors = elab.errors ?? [];
-    Result<Module, T20Error> result = new Result<Module, T20Error>(ast, errors);
+    Result<ModuleMember, T20Error> result =
+        new Result<ModuleMember, T20Error>(ast, errors);
     return result;
   }
 }
