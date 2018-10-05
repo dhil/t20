@@ -28,6 +28,8 @@ class SpanLocation extends Location {
   String toString() {
     return "<$uri:$startOffset:$endOffset>";
   }
+
+  Location get end => Location(super.uri, endOffset);
 }
 
 class DummyLocation extends Location {

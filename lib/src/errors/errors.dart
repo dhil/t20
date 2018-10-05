@@ -16,6 +16,10 @@ abstract class LocatedError implements T20Error {
   LocatedError(this.location);
 }
 
+abstract class HasName {
+  String get name;
+}
+
 // Syntax errors.
 abstract class SyntaxError implements LocatedError, T20Error {}
 
@@ -105,10 +109,10 @@ class UnsupportedTypeElaborationMethodError implements ElaborationError {
   }
 }
 
-class InvalidTypeError extends LocatedError implements ElaborationError {
-  final String typeName;
+class InvalidTypeError extends LocatedError implements ElaborationError, HasName {
+  final String name;
 
-  InvalidTypeError(this.typeName, Location location) : super(location);
+  InvalidTypeError(this.name, Location location) : super(location);
 
   String toString() {
     return "Invalid type";
@@ -116,10 +120,10 @@ class InvalidTypeError extends LocatedError implements ElaborationError {
 }
 
 class InvalidQuantifierError extends LocatedError
-    implements ElaborationError, SyntaxError {
-  final String quantifierName;
+implements ElaborationError, SyntaxError, HasName {
+  final String name;
 
-  InvalidQuantifierError(this.quantifierName, Location location)
+  InvalidQuantifierError(this.name, Location location)
       : super(location);
 
   String toString() {
@@ -213,15 +217,21 @@ class BadSyntaxWithExpectationError extends BadSyntaxError {
       : super(location);
 
   String toString() {
-    String expectedSyntax = ListUtils.insertBeforeLast<String>(
-            "or ", ListUtils.intersperse<String>(", ", expectations))
-        .join();
-    return "Bad syntax. Expected $expectedSyntax";
+    if (expectations.length > 1) {
+      String expectedSyntax = ListUtils.insertBeforeLast<String>(
+          "or ", ListUtils.intersperse<String>(", ", expectations))
+                              .join();
+      return "Bad syntax. Expected $expectedSyntax";
+    } else if (expectations.length == 1) {
+      return "Bad syntax. Expected ${expectations[0]}";
+    } else {
+      return "Bad syntax";
+    }
   }
 }
 
 class DuplicateTypeSignatureError extends LocatedError
-    implements ElaborationError, SyntaxError {
+implements ElaborationError, HasName {
   final String name;
 
   DuplicateTypeSignatureError(this.name, Location location) : super(location);
@@ -232,7 +242,7 @@ class DuplicateTypeSignatureError extends LocatedError
 }
 
 class MultipleDeclarationsError extends LocatedError
-    implements ElaborationError, SyntaxError {
+implements ElaborationError, HasName {
   final String name;
 
   MultipleDeclarationsError(this.name, Location location) : super(location);

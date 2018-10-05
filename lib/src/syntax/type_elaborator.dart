@@ -29,9 +29,14 @@ class Typenames {
 }
 
 class TypeElaborator extends BaseElaborator<Datatype> {
-  TypeElaborator belowToplevelElaborator = new BelowToplevelTypeElaborator();
+  TypeElaborator _belowToplevelElaborator;
   TypeElaborator() : super("TypeElaborator");
   TypeElaborator._(String name) : super(name);
+
+  TypeElaborator belowToplevelElaborator() {
+    _belowToplevelElaborator ??= new BelowToplevelTypeElaborator();
+    return _belowToplevelElaborator;
+  }
 
   Datatype visitAtom(Atom atom) {
     assert(atom != null);
@@ -50,7 +55,7 @@ class TypeElaborator extends BaseElaborator<Datatype> {
           assert(false);
           return null;
       }
-    } else if (isValidQuantifier(value)) {
+    } else if (isValidTypeVariableName(value)) {
       return TypeVariable(Name(value, loc), loc);
     } else {
       // Must be a user-defined type (i.e. nullary type application).
@@ -131,15 +136,15 @@ class TypeElaborator extends BaseElaborator<Datatype> {
       error(InvalidForallTypeError(forall.location));
       return InvalidType(list.location);
     } else {
-      List<Quantifier> qs = quantifiers(list[1]);
-      Datatype body = list[2].visit(belowToplevelElaborator);
+      List<TypeParameter> qs = quantifiers(list[1]);
+      Datatype body = list[2].visit(belowToplevelElaborator());
       return ForallType(qs, body, list.location);
     }
   }
 
   // Either 'a or ('a 'b 'c ...)
-  List<Quantifier> quantifiers(Sexp sexp) {
-    List<Quantifier> qs = new List<Quantifier>();
+  List<TypeParameter> quantifiers(Sexp sexp) {
+    List<TypeParameter> qs = new List<TypeParameter>();
     // Either one or "many" quantifiers.
     if (sexp is Atom) {
       qs.add(quantifier(sexp));
@@ -164,14 +169,14 @@ class TypeElaborator extends BaseElaborator<Datatype> {
     return qs;
   }
 
-  Quantifier quantifier(Atom atom) {
+  TypeParameter quantifier(Atom atom) {
     String value = atom.value;
     Location location = atom.location;
-    if (!isValidQuantifier(value)) {
+    if (!isValidTypeVariableName(value)) {
       // Syntax error.
       error(InvalidQuantifierError(value, location));
     }
-    return Quantifier(Name(value, location), location);
+    return TypeParameter(Name(value, location), location);
   }
 
   // Quanfitier _dummyQuantifier() {
@@ -191,17 +196,17 @@ class TypeElaborator extends BaseElaborator<Datatype> {
     Name constructorName = Name(constr.value, constr.location);
     List<Datatype> typeArguments = new List<Datatype>();
     for (int i = 1; i < list.length; i++) {
-      typeArguments.add(list[i].visit(belowToplevelElaborator));
+      typeArguments.add(list[i].visit(belowToplevelElaborator()));
     }
 
     return TypeConstructor(constructorName, typeArguments, list.location);
   }
 
   Datatype tupleType(Atom tuple, SList list) {
-    assert(tuple == Typenames.tuple);
+    assert(tuple.value == Typenames.tuple);
     List<Datatype> components = new List<Datatype>();
     for (int i = 1; i < list.length; i++) {
-      components.add(list[i].visit(belowToplevelElaborator));
+      components.add(list[i].visit(belowToplevelElaborator()));
     }
     return TupleType(components, list.location);
   }

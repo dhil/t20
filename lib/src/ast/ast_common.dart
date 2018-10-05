@@ -5,6 +5,7 @@
 import '../location.dart' show Location;
 import '../unicode.dart' as unicode;
 
+// TODO clean up the whole naming business.
 class Name {
   final String text; // TODO: intern strings.
   final Location _location;
@@ -16,6 +17,27 @@ class Name {
   String toString() {
     return text;
   }
+
+  bool operator== (dynamic other) {
+    if (other == null) return false;
+    if (other is Name) return other.text.compareTo(text) == 0;
+    if (other is String) return other.compareTo(text) == 0;
+  }
+
+  static bool equals(Name name, Name other) {
+    if (name == null || other == null) return name == other;
+    return name.text.compareTo(other.text) == 0;
+  }
+
+  int get hashCode {
+    int result = 17;
+    result = 37 * result + text.hashCode;
+    return result;
+  }
+}
+
+class DummyName extends Name {
+  const DummyName([Location location = null]) : super("<dummy>", location);
 }
 
 final Set<int> allowedIdentSymbols = Set.of(const <int>[
@@ -38,10 +60,10 @@ bool isValidIdentifier(String name) {
   assert(name != null);
   if (name.length == 0) return false;
 
-  // An identifier is not allowed to start with an underscore (_).
+  // An identifier is not allowed to start with an underscore (_) or colon (:).
   int c = name.codeUnitAt(0);
   if (!unicode.isAsciiLetter(c) &&
-      !(allowedIdentSymbols.contains(c) && c != unicode.LOW_LINE)) {
+      !(allowedIdentSymbols.contains(c) && c != unicode.LOW_LINE && c != unicode.COLON)) {
     return false;
   }
 
@@ -56,18 +78,32 @@ bool isValidIdentifier(String name) {
   return true;
 }
 
-bool isValidQuantifier(String name) {
+bool isValidTypeVariableName(String name) {
   assert(name != null);
-  if (name.length < 2) return false;
 
+  if (name.length < 2) return false;
   int c = name.codeUnitAt(0);
   int k = name.codeUnitAt(1);
-  if (c != unicode.APOSTROPHE && !unicode.isAsciiLetter(k)) return false;
+  if (c != unicode.APOSTROPHE) return false;
+  if (!unicode.isAsciiLetter(k)) return false;
 
   for (int i = 1; i < name.length; i++) {
     c = name.codeUnitAt(i);
-    if (!unicode.isAsciiLetter(i) && !unicode.isDigit(c)) return false;
+    if (!unicode.isAsciiLetter(c) && !unicode.isDigit(c)) return false;
   }
 
+  return true;
+}
+
+bool isValidTypeName(String name) {
+  assert(name != null);
+  if (name.length == 0) return false;
+  int c = name.codeUnitAt(0);
+  if (!unicode.isAsciiUpper(c)) return false;
+
+  for (int i = 1; i < name.length; i++) {
+    c = name.codeUnitAt(i);
+    if (!unicode.isAsciiLetter(c)) return false;
+  }
   return true;
 }

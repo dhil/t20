@@ -3,19 +3,19 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import '../errors/errors.dart'
-    show T20Error, UnsupportedTypeElaborationMethodError;
+    show LocatedError, UnsupportedTypeElaborationMethodError;
 import 'sexp.dart'
     show Atom, Error, Sexp, SexpVisitor, SList, StringLiteral, Toplevel;
 
 abstract class SyntaxElaborator<T> implements SexpVisitor<T> {
-  List<T20Error> get errors;
+  List<LocatedError> get errors;
 }
 
 abstract class BaseElaborator<T> implements SyntaxElaborator<T> {
   final String elaboratorName;
-  List<T20Error> _errors;
+  List<LocatedError> _errors;
 
-  List<T20Error> get errors => _errors;
+  List<LocatedError> get errors => _errors;
 
   BaseElaborator(this.elaboratorName);
 
@@ -44,8 +44,17 @@ abstract class BaseElaborator<T> implements SyntaxElaborator<T> {
     throw UnsupportedTypeElaborationMethodError(elaboratorName, "visitModule");
   }
 
-  void error(T20Error error) {
-    _errors ??= new List<T20Error>();
+  void error(LocatedError error) {
+    _errors ??= new List<LocatedError>();
     _errors.add(error);
+  }
+
+  void manyErrors(List<LocatedError> errors) {
+    if (errors == null) return;
+    if (_errors == null) {
+      _errors = errors;
+    } else {
+      _errors.addAll(errors);
+    }
   }
 }

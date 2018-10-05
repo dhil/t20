@@ -12,8 +12,18 @@ import 'dart:collection';
 
 class Gensym {
   static int _i = 0;
-  static int fresh() {
+  static int freshInt() {
     return ++Gensym._i;
+  }
+
+  static String freshString([String prefix = null]) {
+    if (prefix != null) {
+      StringBuffer buffer = new StringBuffer(prefix);
+      int suffix = Gensym.freshInt();
+      buffer.write("_");
+      buffer.write(suffix.toString());
+      return buffer.toString();
+    }
   }
 }
 

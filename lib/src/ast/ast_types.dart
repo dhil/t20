@@ -2,8 +2,10 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'ast_common.dart';
 import '../location.dart';
+
+import 'ast_common.dart';
+import 'ast_declaration.dart';
 
 // Abstract syntax (algebraic specification in EBNF notation).
 // Types
@@ -26,7 +28,7 @@ abstract class TypeVisitor<T> {
   T visitString(StringType ty);
   T visitTuple(TupleType ty);
   T visitTypeVariable(TypeVariable ty);
-  T visitQuantifier(Quantifier ty);
+  T visitTypeParameter(TypeParameter ty);
 }
 
 abstract class Datatype {
@@ -54,7 +56,7 @@ class IntType implements Datatype {
 }
 
 class ForallType implements Datatype {
-  List<Quantifier> quantifiers;
+  List<TypeParameter> quantifiers;
   Datatype body;
   Location location;
 
@@ -124,14 +126,14 @@ class InvalidType implements Datatype {
   }
 }
 
-class Quantifier implements Datatype {
+class TypeParameter implements TypeDeclaration, Datatype {
   Location location;
-  final Name name;
+  Name name;
 
-  Quantifier(this.name, this.location);
+  TypeParameter(this.name, this.location);
 
   T visit<T>(TypeVisitor<T> v) {
-    return v.visitQuantifier(this);
+    return v.visitTypeParameter(this);
   }
 }
 

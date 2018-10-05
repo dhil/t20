@@ -17,8 +17,14 @@ import 'syntax_elaborator.dart';
 import 'type_elaborator.dart';
 
 class ModuleElaborator extends BaseElaborator<ModuleMember> {
-  final Map<String, Datatype> signatures = new Map<String, Datatype>();
-  final Set<String> declaredNames = new Set<String>();
+  TypeElaborator toplevelTypeElaborator = new TypeElaborator();
+  TypeElaborator belowToplevelTypeElaborator;
+  final Map<Name, Datatype> signatures = new Map<Name, Datatype>();
+  final Set<Name> declaredNames = new Set<Name>();
+  final Map<Name, TermDeclaration> declarations =
+      new Map<Name, TermDeclaration>();
+  final Map<Name, TypeDeclaration> typeDeclarations =
+      new Map<Name, TypeDeclaration>();
   final List<String> keywords = <String>[
     ":",
     "define",
@@ -27,7 +33,10 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
     "include"
   ];
 
-  ModuleElaborator() : super("ModuleElaborator");
+  ModuleElaborator() : super("ModuleElaborator") {
+    belowToplevelTypeElaborator =
+        toplevelTypeElaborator.belowToplevelElaborator();
+  }
 
   ModuleMember visitAtom(Atom atom) {
     assert(atom != null);
@@ -44,7 +53,7 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
   ModuleMember visitList(SList list) {
     assert(list != null);
     if (list.length == 0) {
-      ElaborationError err = EmptyListAtToplevelError(list.location);
+      LocatedError err = EmptyListAtToplevelError(list.location);
       return ErrorModule(err, list.location);
     }
 
@@ -82,21 +91,27 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
     for (int i = 0; i < toplevel.sexps.length; i++) {
       ModuleMember member = toplevel.sexps[i].visit(this);
       if (member != null) {
-        // The [signature] method is allowed to return null.
+        // The [signature] and [datatypeDeclaration] methods are allowed to return null.
         members.add(member);
       }
     }
+    // Add any errors caught by other elaborators.
+    manyErrors(toplevelTypeElaborator.errors);
+    manyErrors(belowToplevelTypeElaborator.errors);
+
+    // Semantic checks.
+    checkSemantics();
     return TopModule(members, toplevel.location);
   }
 
-  ElaborationError _nakedExpressionError(Location location) {
-    ElaborationError err = NakedExpressionAtToplevelError(location);
+  LocatedError _nakedExpressionError(Location location) {
+    LocatedError err = NakedExpressionAtToplevelError(location);
     error(err);
     return err;
   }
 
   ErrorModule badSyntax(Location location, [List<String> expectations = null]) {
-    ElaborationError err;
+    LocatedError err;
     if (expectations == null) {
       err = BadSyntaxError(location);
     } else {
@@ -123,21 +138,19 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
     }
 
     if (list[1] is Atom) {
-      Atom name = list[1];
-      if (isValidIdentifier(name.value)) {
-        if (signatures.containsKey(name.value)) {
-          ElaborationError err =
-              DuplicateTypeSignatureError(name.value, list.location);
-          error(err);
-          return ErrorModule(err, list.location);
-        }
-
-        Datatype type = list[2].visit(new TypeElaborator());
-        signatures[name.value] = type;
-        return null;
-      } else {
-        return badSyntax(name.location, <String>["identifier"]);
+      Atom atom = list[1];
+      Name name = identifier(atom);
+      if (name is DummyName) return null;
+      if (signatures.containsKey(name)) {
+        LocatedError err =
+            DuplicateTypeSignatureError(atom.value, list.location);
+        error(err);
+        return ErrorModule(err, list.location);
       }
+
+      Datatype type = list[2].visit(toplevelTypeElaborator);
+      signatures[name] = type;
+      return null;
     } else {
       return badSyntax(list[1].location, <String>["identifier"]);
     }
@@ -160,16 +173,93 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
 
       // Expression body = list[2].visit(new ExpressionElaborator());
       var body = null;
-      return ValueDeclaration(ident, body, list.location);
+      ValueDeclaration valueDeclaration =
+          ValueDeclaration(ident, body, list.location);
+      declare(ident, valueDeclaration);
+      return valueDeclaration;
     }
-    // or (define (name P*) E+
-    return null;
+
+    if (list[1] is SList) {
+      // (define (name P*) E+
+      SList idArgs = list[1];
+      if (idArgs.length == 0) {
+        // Syntax error.
+        return badSyntax(idArgs.location);
+      }
+
+      Name ident = identifier(idArgs[0]);
+      List<Pattern> parameters = new List<Object>();
+      for (int i = 1; i < idArgs.length; i++) {
+        parameters.add(idArgs[i].visit(null /* PatternElaborator() */));
+      }
+
+      if (list.length < 3) {
+        Location loc = list.location.end;
+        return badSyntax(loc, <String>["expression"]);
+      }
+
+      List<Expression> expressions = new List<Expression>();
+      for (int i = 2; i < list.length; i++) {
+        expressions.add(list[i].visit(null /* ExpressionElaborator() */));
+      }
+
+      FunctionDeclaration functionDeclaration =
+          FunctionDeclaration(ident, parameters, expressions, list.location);
+      declare(ident, functionDeclaration);
+      return functionDeclaration;
+    }
+
+    // Syntax error.
+    return badSyntax(list[1].location);
   }
 
   ModuleMember datatypeDeclaration(Atom defineDatatype, SList list) {
     assert(defineDatatype.value == "define-datatype");
-    // (define-datatype name (K T*)*
-    // or (define-datatype (name q+) (K T*)*
+    // (define-datatype name (K T*)* or (define-datatype (name q+) (K T*)*
+    if (list.length < 2) {
+      return badSyntax(list.location);
+    }
+
+    DatatypeDeclaration datatypeDeclaration;
+    if (list[1] is Atom) {
+      // No type parameters.
+      datatypeDeclaration = DatatypeDeclaration(typeIdentifier(list[1]),
+          const <TypeParameter>[], dataConstructors(list), list.location);
+    } else if (list[1] is SList) {
+      // Expect type parameters.
+      SList idParams = list[1];
+      if (idParams.length < 2) {
+        return badSyntax(idParams.location, <String>[
+          "an identifier",
+          "an identifier and a non-empty sequence of type parameters"
+        ]);
+      }
+
+      Name name = typeIdentifier(idParams[0]);
+      List<TypeParameter> typeParameters = new List<TypeParameter>();
+      for (int i = 1; i < idParams.length; i++) {
+        typeParameters.add(belowToplevelTypeElaborator.quantifier(idParams[i]));
+      }
+
+      // Constructors.
+      Map<Name, List<Datatype>> constructors = new Map<Name, List<Datatype>>();
+      if (list.length > 2) {
+        constructors = dataConstructors(list);
+      } else {
+        constructors = new Map<Name, List<Datatype>>();
+      }
+
+      // TODO: derive clause.
+
+      datatypeDeclaration = DatatypeDeclaration(
+          name, typeParameters, constructors, list.location);
+    } else {
+      return badSyntax(list[1].location, <String>[
+        "an identifier",
+        "an identifier and a non-empty sequence of type parameters"
+      ]);
+    }
+    declare(datatypeDeclaration.name, datatypeDeclaration);
     return null;
   }
 
@@ -192,12 +282,95 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
       Atom name = sexp;
       if (!isValidIdentifier(name.value)) {
         badSyntax(name.location, <String>["identifier"]);
-        return null;
+        return DummyName(name.location);
       }
       return Name(name.value, name.location);
     } else {
       badSyntax(sexp.location, <String>["identifier"]);
-      return null;
+      return DummyName(sexp.location);
     }
   }
+
+  Name typeIdentifier(Sexp sexp) {
+    assert(sexp != null);
+    if (sexp is Atom) {
+      Atom name = sexp;
+      if (!isValidTypeName(name.value)) {
+        badSyntax(name.location);
+        return DummyName(name.location);
+      }
+      return Name(name.value, name.location);
+    } else {
+      badSyntax(sexp.location);
+      return DummyName(sexp.location);
+    }
+  }
+
+  Map<Name, List<Datatype>> dataConstructors(SList list) {
+    assert(list != null);
+    Map<Name, List<Datatype>> constructors = new Map<Name, List<Datatype>>();
+    for (int i = 2; i < list.length; i++) {
+      if (list[i] is SList) {
+        SList constr = list[i];
+        if (constr.length == 0) {
+          badSyntax(constr.location, <String>["data constructor"]);
+          continue;
+        }
+
+        if (constr[0] is Atom) {
+          Name name = identifier(constr[0]);
+          declare(name, null);
+          List<Datatype> types = new List<Datatype>();
+          for (int i = 1; i < constr.length; i++) {
+            types.add(constr[i].visit(belowToplevelTypeElaborator));
+          }
+
+          constructors[name] = types;
+        } else {
+          badSyntax(constr[0].location, <String>["data constructor"]);
+          continue;
+        }
+      } else if (list[i] is Atom) {
+        // Nullary data constructor.
+        Atom atom = list[i];
+        Name name = identifier(atom);
+        declare(name, null);
+        constructors[name] = const <Datatype>[];
+      }
+    }
+    return constructors;
+  }
+
+  // TypeParameter quantifier(Atom atom) {
+  //   String value = atom.value;
+  //   Location location = atom.location;
+  //   if (!isValidTypeVariableName(value)) {
+  //     // Syntax error.
+  //     error(InvalidQuantifierError(value, location));
+  //   }
+  //   return TypeParameter(Name(value, location), location);
+  // }
+
+  void declare(Name name, Declaration declaration) {
+    assert(name != null);
+    if (name is DummyName) return;
+    if (declaration is TermDeclaration) {
+      if (declarations.containsKey(name) || declaredNames.contains(name)) {
+        error(MultipleDeclarationsError(name.text, name.location));
+        return;
+      }
+      declarations[name] = declaration;
+      declaredNames.add(name);
+    } else if (declaration is TypeDeclaration) {
+      if (typeDeclarations.containsKey(name)) {
+        error(MultipleDeclarationsError(name.text, name.location));
+        return;
+      }
+      typeDeclarations[name] = declaration;
+    } else {
+      declaredNames.add(name);
+    }
+  }
+
+  void checkSemantics() {}
 }

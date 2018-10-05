@@ -146,7 +146,7 @@ class _StatefulSexpParser {
       bytes.add(_advance());
     }
     String value = String.fromCharCodes(bytes);
-    return new Atom(value, _location(_offset));
+    return new Atom(value, _location(offset));
     // }
   }
 
@@ -406,7 +406,7 @@ class _TracingSexpParser extends _StatefulSexpParser {
     tree = new ParseTreeInteriorNode("atom");
     var node = super.atom();
     if (node is Atom) {
-      parent.add(new ParseTreeLeaf("atom", node.toString()));
+      parent.add(new ParseTreeLeaf("atom", "${node.toString()} ${node.location}"));
     } else {
       parent.add(tree);
     }
@@ -443,7 +443,7 @@ class _TracingSexpParser extends _StatefulSexpParser {
     var node = super.list();
     if (node is SList && node.sexps.length == 0) {
       parent.remove(tree);
-      parent.add(new ParseTreeLeaf("list", "(nil)"));
+      parent.add(new ParseTreeLeaf("list", "(nil) ${node.location}"));
     }
     tree = parent;
     return node;
@@ -461,7 +461,7 @@ class _TracingSexpParser extends _StatefulSexpParser {
 
   Sexp error(SyntaxError err) {
     var node = super.error(err);
-    tree.add(new ParseTreeLeaf("error", err.toString()));
+    tree.add(new ParseTreeLeaf("error", "${err.toString()} ${node.location}"));
     return node;
   }
 
@@ -470,7 +470,7 @@ class _TracingSexpParser extends _StatefulSexpParser {
     tree = new ParseTreeInteriorNode("string");
     var node = super.string();
     if (node is StringLiteral) {
-      parent.add(new ParseTreeLeaf("string", node.toString()));
+      parent.add(new ParseTreeLeaf("string", "${node.toString()} ${node.location}"));
     } else {
       parent.add(tree);
     }

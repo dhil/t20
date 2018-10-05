@@ -1,0 +1,9 @@
+;; Algebraic data types.
+
+(define-datatype Suit [Hearts] [Spades] [Diamonds] [Clubs])
+
+(define-datatype Card [Card (* Suit Int)])
+
+(define-datatype (List 'a)
+  [cons 'a (List 'a)]
+  [nil])

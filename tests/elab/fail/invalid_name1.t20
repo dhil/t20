@@ -1,0 +1,2 @@
+;; Test for invalid term names.
+(define : 0)

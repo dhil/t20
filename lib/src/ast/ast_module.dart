@@ -2,9 +2,12 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'dart:collection' show List, Map;
+
 import '../location.dart';
-import '../errors/errors.dart' show T20Error;
+import '../errors/errors.dart' show LocatedError;
 import 'ast_common.dart';
+import 'ast_declaration.dart';
 import 'ast_expressions.dart';
 import 'ast_types.dart';
 
@@ -26,8 +29,9 @@ abstract class ModuleMember {
   T visit<T>(ModuleVisitor<T> v);
 }
 
-class ValueDeclaration implements ModuleMember {
+class ValueDeclaration implements TermDeclaration, ModuleMember {
   Name name;
+  Datatype type;
   Expression body;
   Location location;
 
@@ -37,10 +41,11 @@ class ValueDeclaration implements ModuleMember {
   }
 }
 
-class FunctionDeclaration implements ModuleMember {
+class FunctionDeclaration implements TermDeclaration, ModuleMember {
   Name name;
+  Datatype type;
   List<Object> parameters;
-  Expression body;
+  List<Expression> body;
   Location location;
 
   FunctionDeclaration(this.name, this.parameters, this.body, this.location);
@@ -50,10 +55,10 @@ class FunctionDeclaration implements ModuleMember {
   }
 }
 
-class DatatypeDeclaration implements ModuleMember {
+class DatatypeDeclaration implements TypeDeclaration, ModuleMember {
   Name name;
-  List<Object> typeParameters;
-  List<Object> constructors;
+  List<TypeParameter> typeParameters;
+  Map<Name, List<Datatype>> constructors;
   Location location;
 
   DatatypeDeclaration(
@@ -90,6 +95,7 @@ class Include implements ModuleMember {
 class TopModule implements ModuleMember {
   Location location;
   List<ModuleMember> members;
+  List<Map<Name, Map<Name, List<Datatype>>>> datatypes;
 
   TopModule(this.members, this.location);
 
@@ -98,7 +104,7 @@ class TopModule implements ModuleMember {
   }
 }
 
-class TypenameDeclaration implements ModuleMember {
+class TypenameDeclaration implements TypeDeclaration, ModuleMember {
   Name name;
   List<Object> typeParameters;
   Datatype rhs;
@@ -112,7 +118,7 @@ class TypenameDeclaration implements ModuleMember {
 }
 
 class ErrorModule implements ModuleMember {
-  final T20Error error;
+  final LocatedError error;
   final Location _location;
 
   Location get location => _location ?? Location.dummy();

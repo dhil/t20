@@ -38,10 +38,7 @@ class _ErrorReporter {
     String errorKind = getErrorKind(error);
     stderr.writeln(
         "\u001B[31m\u001B[1m${lss.fileName}:${lss.line}:${lss.column} $errorKind: ${error.toString()}.\u001B[0m");
-    int length = 1;
-    if (error is UnterminatedStringError) {
-      length = error.unterminatedString.length;
-    }
+    int length = computePointerLength(error);
     stderr.writeln("${lss.sourceText}");
     placePointer(lss.column, unicode.HAT, length);
   }
@@ -60,6 +57,18 @@ class _ErrorReporter {
         //bytes.add(symbol);
     }
     stderr.writeln("\u001B[1m${String.fromCharCodes(bytes)} This.\u001B[0m");
+  }
+
+  int computePointerLength(LocatedError error) {
+    if (error is UnterminatedStringError) {
+      return error.unterminatedString.length;
+    }
+
+    if (error is HasName) {
+      return (error as HasName).name.length;
+    }
+
+    return 1;
   }
 
   String getErrorKind(LocatedError error) {

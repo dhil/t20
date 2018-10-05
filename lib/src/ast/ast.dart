@@ -32,25 +32,28 @@ library t20.ast;
 //     | match E P*       (* pattern matching *)
 //
 // Top-level patterns
-// P ::= K Q*             (* constructor pattern *)
+// P ::= K x*             (* constructor pattern *)
 //     | Q                (* regular pattern *)
+//     | P : T            (* has type pattern *)
 //
 // Regular patterns
 // Q ::= x                (* variables *)
-//     | x : T            (* has type pattern *)
 //     | tuple x*         (* tuple matching *)
 //     | [0-9]+           (* integer literal matching *)
+//     | ".*"             (* string literal matching *)
 //     | #t | #f          (* boolean literal matching *)
+//     | _                (* wildcard *)
 //
 // Types
 // T ::= Int | Bool | String (* base types *)
 //    | forall id+ T         (* quantification *)
 //    | -> T* T              (* n-ary function types *)
 //    | K T*                 (* type application *)
-//    | ∗ T*             (* n-ary tuple types *)
+//    | ∗ T*                 (* n-ary tuple types *)
 
 export 'ast_common.dart';
+export 'ast_declaration.dart';
 export 'ast_expressions.dart';
 export 'ast_module.dart';
+export 'ast_patterns.dart';
 export 'ast_types.dart';
-//export 'ast_patterns.dart';
