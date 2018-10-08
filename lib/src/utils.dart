@@ -9,6 +9,8 @@ library t20.utils;
 
 import 'dart:collection';
 
+import 'fp.dart';
+
 
 class Gensym {
   static int _i = 0;
@@ -51,5 +53,15 @@ class ListUtils {
 
     elements.insert(elements.length - 1, elem);
     return elements;
+  }
+
+  static Map<A,B> assocToMap<A, B>(List<Pair<A, B>> assocList) {
+    assert(assocList != null);
+    Map<A, B> map = Map<A, B>();
+    for (int i = 0; i < assocList.length; i++) {
+      Pair<A, B> pair = assocList[i];
+      map[pair.$1] = pair.$2;
+    }
+    return map;
   }
 }

@@ -59,7 +59,7 @@ class TypeElaborator extends BaseElaborator<Datatype> {
       return TypeVariable(Name(value, loc), loc);
     } else {
       // Must be a user-defined type (i.e. nullary type application).
-      if (value.length > 0 && unicode.isAsciiLetter(value.codeUnitAt(0))) {
+      if (isValidTypeConstructorName(value)) {
         return TypeConstructor.nullary(Name(value, loc), loc);
       } else {
         // Error: invalid type.
@@ -123,7 +123,8 @@ class TypeElaborator extends BaseElaborator<Datatype> {
       Datatype codomain = list.last.visit(this);
       List<Datatype> domain = new List<Datatype>();
       for (int i = 1; i < list.length - 1; i++) {
-        domain.add(list[i].visit(this));
+        domain.add(expect<Sexp, Datatype>(signatureDatatype, list[i],
+            makeErrorNode: invalidType));
       }
       return FunctionType(domain, codomain, list.location);
     }
@@ -136,48 +137,49 @@ class TypeElaborator extends BaseElaborator<Datatype> {
       error(InvalidForallTypeError(forall.location));
       return InvalidType(list.location);
     } else {
-      List<TypeParameter> qs = quantifiers(list[1]);
-      Datatype body = list[2].visit(belowToplevelElaborator());
+      List<TypeParameter> qs =
+          expectMany(quantifier, list[1], 0, makeErrorNode: dummyTypeParameter);
+      Datatype body = expect(datatype, list[2], makeErrorNode: invalidType);
       return ForallType(qs, body, list.location);
     }
   }
 
   // Either 'a or ('a 'b 'c ...)
-  List<TypeParameter> quantifiers(Sexp sexp) {
-    List<TypeParameter> qs = new List<TypeParameter>();
-    // Either one or "many" quantifiers.
-    if (sexp is Atom) {
-      qs.add(quantifier(sexp));
-    } else if (sexp is SList) {
-      SList sexps = sexp;
-      for (int i = 0; i < sexps.length; i++) {
-        if (sexps[i] is Atom) {
-          Atom atom = sexps[i];
-          qs.add(quantifier(atom));
-        } else {
-          // Syntax error.
-          error(ExpectedQuantifierError(sexps.location));
-        }
-      }
-      // TODO: Maybe perform this check on [sexps] to avoid cascading errors.
-      if (qs.isEmpty) {
-        error(EmptyQuantifierList(sexps.location));
-      }
-    } else {
-      error(ExpectedQuantifiersError(sexp.location));
-    }
-    return qs;
-  }
+  // List<TypeParameter> quantifiers(Sexp sexp) {
+  //   List<TypeParameter> qs = new List<TypeParameter>();
+  //   // Either one or "many" quantifiers.
+  //   if (sexp is Atom) {
+  //     qs.add(quantifier(sexp));
+  //   } else if (sexp is SList) {
+  //     SList sexps = sexp;
+  //     for (int i = 0; i < sexps.length; i++) {
+  //       if (sexps[i] is Atom) {
+  //         Atom atom = sexps[i];
+  //         qs.add(quantifier(atom));
+  //       } else {
+  //         // Syntax error.
+  //         error(ExpectedQuantifierError(sexps.location));
+  //       }
+  //     }
+  //     // TODO: Maybe perform this check on [sexps] to avoid cascading errors.
+  //     if (qs.isEmpty) {
+  //       error(EmptyQuantifierList(sexps.location));
+  //     }
+  //   } else {
+  //     error(ExpectedQuantifiersError(sexp.location));
+  //   }
+  //   return qs;
+  // }
 
-  TypeParameter quantifier(Atom atom) {
-    String value = atom.value;
-    Location location = atom.location;
-    if (!isValidTypeVariableName(value)) {
-      // Syntax error.
-      error(InvalidQuantifierError(value, location));
-    }
-    return TypeParameter(Name(value, location), location);
-  }
+  // TypeParameter quantifier(Atom atom) {
+  //   String value = atom.value;
+  //   Location location = atom.location;
+  //   if (!isValidTypeVariableName(value)) {
+  //     // Syntax error.
+  //     error(InvalidQuantifierError(value, location));
+  //   }
+  //   return TypeParameter(Name(value, location), location);
+  // }
 
   // Quanfitier _dummyQuantifier() {
   //   return Quantifier("dummy", Location.dummy);
@@ -191,43 +193,51 @@ class TypeElaborator extends BaseElaborator<Datatype> {
     }
 
     if (!isValidIdentifier(constr.value)) {
-      return badSyntax(constr.location, <String>["constructor name"]);
+      return errorNode(
+          badSyntax(constr.location, <String>["constructor name"]));
     }
     Name constructorName = Name(constr.value, constr.location);
-    List<Datatype> typeArguments = new List<Datatype>();
-    for (int i = 1; i < list.length; i++) {
-      typeArguments.add(list[i].visit(belowToplevelElaborator()));
-    }
+    List<Datatype> typeArguments =
+        expectMany(datatype, list, 1, makeErrorNode: invalidType);
 
     return TypeConstructor(constructorName, typeArguments, list.location);
   }
 
   Datatype tupleType(Atom tuple, SList list) {
     assert(tuple.value == Typenames.tuple);
-    List<Datatype> components = new List<Datatype>();
-    for (int i = 1; i < list.length; i++) {
-      components.add(list[i].visit(belowToplevelElaborator()));
-    }
+    List<Datatype> components =
+        expectMany(datatype, list, 1, makeErrorNode: invalidType);
     return TupleType(components, list.location);
   }
 
-  InvalidType badSyntax(Location location, [List<String> expectations = null]) {
-    T20Error err;
-    if (expectations == null) {
-      err = BadSyntaxError(location);
-    } else {
-      err = BadSyntaxWithExpectationError(expectations, location);
-    }
-    error(err);
+  // InvalidType badSyntax(Location location, [List<String> expectations = null]) {
+  //   T20Error err;
+  //   if (expectations == null) {
+  //     err = BadSyntaxError(location);
+  //   } else {
+  //     err = BadSyntaxWithExpectationError(expectations, location);
+  //   }
+  //   error(err);
+  //   return InvalidType(location);
+  // }
+
+  InvalidType errorNode(LocatedError err) {
+    return invalidType(err.location);
+  }
+
+  InvalidType invalidType(Location location) {
     return InvalidType(location);
+  }
+
+  TypeParameter dummyTypeParameter(Location location) {
+    return TypeParameter(Name.fresh("dummy", location), location);
   }
 }
 
 class BelowToplevelTypeElaborator extends TypeElaborator {
-
   BelowToplevelTypeElaborator() : super._("BelowToplevelTypeElaborator");
 
   Datatype forallType(Atom head, SList list) {
-    return badSyntax(head.location);
+    return errorNode(badSyntax(head.location));
   }
 }

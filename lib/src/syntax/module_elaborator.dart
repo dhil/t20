@@ -6,25 +6,26 @@ import 'dart:collection';
 
 import '../ast/ast.dart';
 import '../errors/errors.dart';
+import '../fp.dart' show Pair;
 import '../location.dart';
+import '../result.dart';
 import '../unicode.dart' as unicode;
 import 'sexp.dart'
     show Atom, Error, Sexp, SexpVisitor, SList, StringLiteral, Toplevel;
 
 import '../unicode.dart' as unicode;
+import '../utils.dart' show ListUtils;
 
 import 'syntax_elaborator.dart';
 import 'type_elaborator.dart';
 
 class ModuleElaborator extends BaseElaborator<ModuleMember> {
-  TypeElaborator toplevelTypeElaborator = new TypeElaborator();
-  TypeElaborator belowToplevelTypeElaborator;
-  final Map<Name, Datatype> signatures = new Map<Name, Datatype>();
-  final Set<Name> declaredNames = new Set<Name>();
-  final Map<Name, TermDeclaration> declarations =
-      new Map<Name, TermDeclaration>();
-  final Map<Name, TypeDeclaration> typeDeclarations =
-      new Map<Name, TypeDeclaration>();
+  final Map<String, Datatype> signatures = new Map<String, Datatype>();
+  final Set<String> declaredNames = new Set<String>();
+  final Map<String, TermDeclaration> declarations =
+      new Map<String, TermDeclaration>();
+  final Map<String, TypeDeclaration> typeDeclarations =
+      new Map<String, TypeDeclaration>();
   final List<String> keywords = <String>[
     ":",
     "define",
@@ -33,10 +34,7 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
     "include"
   ];
 
-  ModuleElaborator() : super("ModuleElaborator") {
-    belowToplevelTypeElaborator =
-        toplevelTypeElaborator.belowToplevelElaborator();
-  }
+  ModuleElaborator() : super("ModuleElaborator");
 
   ModuleMember visitAtom(Atom atom) {
     assert(atom != null);
@@ -72,10 +70,10 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
         case "include": // Module inclusion.
           return include(head, list);
         default: // Error: unexpected syntax.
-          return badSyntax(head.location, keywords);
+          return errorNode(badSyntax(head.location, keywords));
       }
     } else {
-      return badSyntax(list[0].location, keywords);
+      return errorNode(badSyntax(list[0].location, keywords));
     }
   }
 
@@ -95,9 +93,6 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
         members.add(member);
       }
     }
-    // Add any errors caught by other elaborators.
-    manyErrors(toplevelTypeElaborator.errors);
-    manyErrors(belowToplevelTypeElaborator.errors);
 
     // Semantic checks.
     checkSemantics();
@@ -110,16 +105,16 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
     return err;
   }
 
-  ErrorModule badSyntax(Location location, [List<String> expectations = null]) {
-    LocatedError err;
-    if (expectations == null) {
-      err = BadSyntaxError(location);
-    } else {
-      err = BadSyntaxWithExpectationError(expectations, location);
-    }
-    error(err);
-    return ErrorModule(err, location);
-  }
+  // ErrorModule badSyntax(Location location, [List<String> expectations = null]) {
+  //   LocatedError err;
+  //   if (expectations == null) {
+  //     err = BadSyntaxError(location);
+  //   } else {
+  //     err = BadSyntaxWithExpectationError(expectations, location);
+  //   }
+  //   error(err);
+  //   return ErrorModule(err, location);
+  // }
 
   ModuleMember signature(Atom colon, SList list) {
     assert(colon.value == ":");
@@ -129,30 +124,33 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
 
     // (: name T)
     if (list.length < 2) {
-      return badSyntax(colon.location);
+      return errorNode(badSyntax(colon.location));
     }
 
     if (list.length > 2) {
       Location loc = list[2].location;
-      return badSyntax(loc, <String>[list.closingBracket()]);
+      LocatedError err = badSyntax(loc, <String>[list.closingBracket()]);
+      return errorNode(err);
     }
 
     if (list[1] is Atom) {
       Atom atom = list[1];
-      Name name = identifier(atom);
+      Name name = expect(identifier, atom);
       if (name is DummyName) return null;
-      if (signatures.containsKey(name)) {
+      if (signatures.containsKey(name.text)) {
         LocatedError err =
-            DuplicateTypeSignatureError(atom.value, list.location);
+            DuplicateTypeSignatureError(name.text, list.location);
         error(err);
-        return ErrorModule(err, list.location);
+        return errorNode(err);
       }
 
-      Datatype type = list[2].visit(toplevelTypeElaborator);
-      signatures[name] = type;
+      Datatype type = expect(signatureDatatype, list[2]);
+      signatures[name.text] = type;
       return null;
     } else {
-      return badSyntax(list[1].location, <String>["identifier"]);
+      Location location = list[1].location;
+      LocatedError err = badSyntax(location, const <String>["signature"]);
+      return errorNode(err);
     }
   }
 
@@ -160,19 +158,21 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
     assert(define.value == "define");
 
     if (list.length < 3) {
-      return badSyntax(list[1].location,
+      LocatedError err = badSyntax(list[1].location,
           <String>["identifier", "identifier and parameter list"]);
+      return errorNode(err);
     }
 
     if (list[1] is Atom) {
       // (define name E)
-      Name ident = identifier(list[1]);
+      Name ident = expect(identifier, list[1]);
       if (list.length > 3) {
-        return badSyntax(list[3].location, <String>[list.closingBracket()]);
+        LocatedError err =
+            badSyntax(list[3].location, <String>[list.closingBracket()]);
+        return errorNode(err);
       }
 
-      // Expression body = list[2].visit(new ExpressionElaborator());
-      var body = null;
+      var body = expect<Sexp, Expression>(expression, list[2]);
       ValueDeclaration valueDeclaration =
           ValueDeclaration(ident, body, list.location);
       declare(ident, valueDeclaration);
@@ -184,24 +184,21 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
       SList idArgs = list[1];
       if (idArgs.length == 0) {
         // Syntax error.
-        return badSyntax(idArgs.location);
+        LocatedError err = badSyntax(idArgs.location);
+        return errorNode(err);
       }
 
-      Name ident = identifier(idArgs[0]);
-      List<Pattern> parameters = new List<Object>();
-      for (int i = 1; i < idArgs.length; i++) {
-        parameters.add(idArgs[i].visit(null /* PatternElaborator() */));
-      }
+      Name ident = expect(identifier, idArgs[0]);
+      List<Pattern> parameters = expectManyOne(pattern, idArgs, 1);
 
       if (list.length < 3) {
         Location loc = list.location.end;
-        return badSyntax(loc, <String>["expression"]);
+        LocatedError err = badSyntax(loc, <String>["expression"]);
+        return errorNode(err);
       }
 
-      List<Expression> expressions = new List<Expression>();
-      for (int i = 2; i < list.length; i++) {
-        expressions.add(list[i].visit(null /* ExpressionElaborator() */));
-      }
+      List<Expression> expressions =
+          expectManyOne<Sexp, Expression>(expression, list, 2);
 
       FunctionDeclaration functionDeclaration =
           FunctionDeclaration(ident, parameters, expressions, list.location);
@@ -210,55 +207,33 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
     }
 
     // Syntax error.
-    return badSyntax(list[1].location);
+    LocatedError err = badSyntax(list[1].location);
+    return errorNode(err);
   }
 
   ModuleMember datatypeDeclaration(Atom defineDatatype, SList list) {
     assert(defineDatatype.value == "define-datatype");
     // (define-datatype name (K T*)* or (define-datatype (name q+) (K T*)*
     if (list.length < 2) {
-      return badSyntax(list.location);
+      LocatedError err = badSyntax(list.location);
+      return errorNode(err);
     }
 
-    DatatypeDeclaration datatypeDeclaration;
-    if (list[1] is Atom) {
-      // No type parameters.
-      datatypeDeclaration = DatatypeDeclaration(typeIdentifier(list[1]),
-          const <TypeParameter>[], dataConstructors(list), list.location);
-    } else if (list[1] is SList) {
-      // Expect type parameters.
-      SList idParams = list[1];
-      if (idParams.length < 2) {
-        return badSyntax(idParams.location, <String>[
-          "an identifier",
-          "an identifier and a non-empty sequence of type parameters"
-        ]);
-      }
+    Pair<Name, List<TypeParameter>> constructor =
+        expect<Sexp, Pair<Name, List<TypeParameter>>>(typeConstructor, list[1]);
 
-      Name name = typeIdentifier(idParams[0]);
-      List<TypeParameter> typeParameters = new List<TypeParameter>();
-      for (int i = 1; i < idParams.length; i++) {
-        typeParameters.add(belowToplevelTypeElaborator.quantifier(idParams[i]));
-      }
+    //if (constructor == null) return null;
 
-      // Constructors.
-      Map<Name, List<Datatype>> constructors = new Map<Name, List<Datatype>>();
-      if (list.length > 2) {
-        constructors = dataConstructors(list);
-      } else {
-        constructors = new Map<Name, List<Datatype>>();
-      }
-
-      // TODO: derive clause.
-
-      datatypeDeclaration = DatatypeDeclaration(
-          name, typeParameters, constructors, list.location);
+    // Constructors.
+    Map<Name, List<Datatype>> constructors = new Map<Name, List<Datatype>>();
+    if (list.length > 2) {
+      constructors = dataConstructors(list);
     } else {
-      return badSyntax(list[1].location, <String>[
-        "an identifier",
-        "an identifier and a non-empty sequence of type parameters"
-      ]);
+      constructors = new Map<Name, List<Datatype>>();
     }
+    // TODO: derive clause.
+    DatatypeDeclaration datatypeDeclaration = DatatypeDeclaration(
+        constructor.$1, constructor.$2, constructors, list.location);
     declare(datatypeDeclaration.name, datatypeDeclaration);
     return null;
   }
@@ -267,7 +242,18 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
     assert(defineTypename.value == "define-typename");
     // (define-typename name T)
     // or (define-typename (name q+) T
-    return null;
+    if (list.length < 3) {
+      LocatedError err = badSyntax(list.location.end);
+      return errorNode(err);
+    } else if (list.length > 3) {
+      return errorNode(badSyntax(list[3].location));
+    } else {
+      var constructor = expect<Sexp, Pair<Name, List<TypeParameter>>>(
+          typeConstructor, list[1]);
+      var type = expect<Sexp, Datatype>(datatype, list[2]);
+      return TypenameDeclaration(
+          constructor.$1, constructor.$2, type, list.location);
+    }
   }
 
   ModuleMember include(Atom keyword, SList list) {
@@ -276,69 +262,57 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
     return null;
   }
 
-  Name identifier(Sexp sexp) {
-    assert(sexp != null);
-    if (sexp is Atom) {
-      Atom name = sexp;
-      if (!isValidIdentifier(name.value)) {
-        badSyntax(name.location, <String>["identifier"]);
-        return DummyName(name.location);
-      }
-      return Name(name.value, name.location);
-    } else {
-      badSyntax(sexp.location, <String>["identifier"]);
-      return DummyName(sexp.location);
-    }
-  }
+  // Name identifier(Sexp sexp) {
+  //   assert(sexp != null);
+  //   if (sexp is Atom) {
+  //     Atom name = sexp;
+  //     if (!isValidIdentifier(name.value)) {
+  //       badSyntax(name.location, <String>["identifier"]);
+  //       return DummyName(name.location);
+  //     }
+  //     return Name(name.value, name.location);
+  //   } else {
+  //     badSyntax(sexp.location, <String>["identifier"]);
+  //     return DummyName(sexp.location);
+  //   }
+  // }
 
-  Name typeIdentifier(Sexp sexp) {
-    assert(sexp != null);
-    if (sexp is Atom) {
-      Atom name = sexp;
-      if (!isValidTypeName(name.value)) {
-        badSyntax(name.location);
-        return DummyName(name.location);
-      }
-      return Name(name.value, name.location);
-    } else {
-      badSyntax(sexp.location);
-      return DummyName(sexp.location);
-    }
-  }
+  // Name typeIdentifier(Sexp sexp) {
+  //   assert(sexp != null);
+  //   if (sexp is Atom) {
+  //     Atom name = sexp;
+  //     if (!isValidTypeName(name.value)) {
+  //       badSyntax(name.location);
+  //       return DummyName(name.location);
+  //     }
+  //     return Name(name.value, name.location);
+  //   } else {
+  //     badSyntax(sexp.location);
+  //     return DummyName(sexp.location);
+  //   }
+  // }
 
   Map<Name, List<Datatype>> dataConstructors(SList list) {
     assert(list != null);
-    Map<Name, List<Datatype>> constructors = new Map<Name, List<Datatype>>();
-    for (int i = 2; i < list.length; i++) {
-      if (list[i] is SList) {
-        SList constr = list[i];
-        if (constr.length == 0) {
-          badSyntax(constr.location, <String>["data constructor"]);
-          continue;
-        }
+    List<Pair<Name, List<Datatype>>> constructors =
+        expectMany(dataConstructor, list, 0);
+    return ListUtils.assocToMap(constructors);
+  }
 
-        if (constr[0] is Atom) {
-          Name name = identifier(constr[0]);
-          declare(name, null);
-          List<Datatype> types = new List<Datatype>();
-          for (int i = 1; i < constr.length; i++) {
-            types.add(constr[i].visit(belowToplevelTypeElaborator));
-          }
-
-          constructors[name] = types;
-        } else {
-          badSyntax(constr[0].location, <String>["data constructor"]);
-          continue;
-        }
-      } else if (list[i] is Atom) {
-        // Nullary data constructor.
-        Atom atom = list[i];
-        Name name = identifier(atom);
-        declare(name, null);
-        constructors[name] = const <Datatype>[];
-      }
+  Result<Pair<Name, List<Datatype>>, LocatedError> dataConstructor(Sexp sexp) {
+    assert(sexp != null);
+    if (sexp is SList) {
+      // N-ary constructor.
+      SList list = sexp;
+      Name name = expect(identifier, list[0]);
+      List<Datatype> types = expectMany(datatype, list, 1);
+      return Result.success(Pair<Name, List<Datatype>>(name, types));
+    } else {
+      // Attempt to parse as a nullary constructor.
+      Name name = expect(identifier, sexp);
+      return Result.success(
+          Pair<Name, List<Datatype>>(name, const <Datatype>[]));
     }
-    return constructors;
   }
 
   // TypeParameter quantifier(Atom atom) {
@@ -359,18 +333,58 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
         error(MultipleDeclarationsError(name.text, name.location));
         return;
       }
-      declarations[name] = declaration;
-      declaredNames.add(name);
+      declarations[name.text] = declaration;
+      declaredNames.add(name.text);
     } else if (declaration is TypeDeclaration) {
-      if (typeDeclarations.containsKey(name)) {
+      if (typeDeclarations.containsKey(name.text)) {
         error(MultipleDeclarationsError(name.text, name.location));
         return;
       }
-      typeDeclarations[name] = declaration;
+      typeDeclarations[name.text] = declaration;
     } else {
-      declaredNames.add(name);
+      declaredNames.add(name.text);
     }
   }
 
   void checkSemantics() {}
+
+  ModuleMember errorNode(LocatedError error) {
+    return ErrorModule(error, error.location);
+  }
+
+  Result<Pair<Name, List<TypeParameter>>, LocatedError> typeConstructor(
+      Sexp sexp) {
+    if (sexp is Atom) {
+      Atom atom = sexp;
+      Name name = expect<Sexp, Name>(typeConstructorName, atom);
+      return Result.success(
+          Pair<Name, List<TypeParameter>>(name, const <TypeParameter>[]));
+    } else if (sexp is SList) {
+      SList list = sexp;
+      if (list.length < 2) {
+        LocatedError err = BadSyntaxError(list.location.end, const <String>[
+          "type constructor followed by a non-empty sequence of quantifiers"
+        ]);
+        return Result.failure(<LocatedError>[err]);
+      } else {
+        Name name = expect<Sexp, Name>(typeConstructorName, list[0]);
+        List<TypeParameter> typeParameters = expectManyOne(quantifier, list, 1);
+        return Result.success(Pair(name, typeParameters));
+      }
+    } else {
+      LocatedError err = BadSyntaxError(sexp.location, const <String>[
+        "type constructor",
+        "type constructor followed by a non-empty sequence of quantifiers"
+      ]);
+      return Result.failure(<LocatedError>[err]);
+    }
+  }
+
+  Result<Pattern, LocatedError> pattern(Sexp sexp) {
+    return null;
+  }
+
+  Result<Expression, LocatedError> expression(Sexp sexp) {
+    return null;
+  }
 }

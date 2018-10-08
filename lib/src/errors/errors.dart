@@ -109,7 +109,8 @@ class UnsupportedTypeElaborationMethodError implements ElaborationError {
   }
 }
 
-class InvalidTypeError extends LocatedError implements ElaborationError, HasName {
+class InvalidTypeError extends LocatedError
+    implements ElaborationError, HasName {
   final String name;
 
   InvalidTypeError(this.name, Location location) : super(location);
@@ -120,11 +121,10 @@ class InvalidTypeError extends LocatedError implements ElaborationError, HasName
 }
 
 class InvalidQuantifierError extends LocatedError
-implements ElaborationError, SyntaxError, HasName {
+    implements ElaborationError, SyntaxError, HasName {
   final String name;
 
-  InvalidQuantifierError(this.name, Location location)
-      : super(location);
+  InvalidQuantifierError(this.name, Location location) : super(location);
 
   String toString() {
     return "Invalid quantifier";
@@ -203,35 +203,27 @@ class EmptyListAtToplevelError extends LocatedError
 
 class BadSyntaxError extends LocatedError
     implements ElaborationError, SyntaxError {
-  BadSyntaxError(Location location) : super(location);
-
-  String toString() {
-    return "Bad syntax";
-  }
-}
-
-class BadSyntaxWithExpectationError extends BadSyntaxError {
   final List<String> expectations;
 
-  BadSyntaxWithExpectationError(this.expectations, Location location)
+  BadSyntaxError(Location location, this.expectations)
       : super(location);
 
   String toString() {
-    if (expectations.length > 1) {
-      String expectedSyntax = ListUtils.insertBeforeLast<String>(
-          "or ", ListUtils.intersperse<String>(", ", expectations))
-                              .join();
-      return "Bad syntax. Expected $expectedSyntax";
-    } else if (expectations.length == 1) {
-      return "Bad syntax. Expected ${expectations[0]}";
-    } else {
+    if (expectations == null || expectations.length == 0) {
       return "Bad syntax";
+    } else if (expectations.length > 1) {
+      String expectedSyntax = ListUtils.insertBeforeLast<String>(
+              "or ", ListUtils.intersperse<String>(", ", expectations))
+          .join();
+      return "Bad syntax. Expected $expectedSyntax";
+    } else {
+      return "Bad syntax. Expected ${expectations[0]}";
     }
   }
 }
 
 class DuplicateTypeSignatureError extends LocatedError
-implements ElaborationError, HasName {
+    implements ElaborationError, HasName {
   final String name;
 
   DuplicateTypeSignatureError(this.name, Location location) : super(location);
@@ -242,7 +234,7 @@ implements ElaborationError, HasName {
 }
 
 class MultipleDeclarationsError extends LocatedError
-implements ElaborationError, HasName {
+    implements ElaborationError, HasName {
   final String name;
 
   MultipleDeclarationsError(this.name, Location location) : super(location);

@@ -11,5 +11,8 @@ class Result<TRes, TErr> {
   final TRes result;
 
   const Result(this.result, [errors = null])
-      : this.errors = errors == null ? [] : errors;
+      : this.errors = errors == null ? const [] : errors;
+
+  const Result.success(TRes result) : this(result, null);
+  const Result.failure(List<TErr> errors) : this(null, errors);
 }
