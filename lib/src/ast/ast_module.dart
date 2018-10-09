@@ -9,6 +9,7 @@ import '../errors/errors.dart' show LocatedError;
 import 'ast_common.dart';
 import 'ast_declaration.dart';
 import 'ast_expressions.dart';
+import 'ast_patterns.dart';
 import 'ast_types.dart';
 
 //
@@ -44,7 +45,7 @@ class ValueDeclaration implements TermDeclaration, ModuleMember {
 class FunctionDeclaration implements TermDeclaration, ModuleMember {
   Name name;
   Datatype type;
-  List<Object> parameters;
+  List<Pattern> parameters;
   List<Expression> body;
   Location location;
 
@@ -106,7 +107,7 @@ class TopModule implements ModuleMember {
 
 class TypenameDeclaration implements TypeDeclaration, ModuleMember {
   Name name;
-  List<Object> typeParameters;
+  List<TypeParameter> typeParameters;
   Datatype rhs;
   Location location;
 

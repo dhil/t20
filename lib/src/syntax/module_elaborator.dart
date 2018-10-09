@@ -123,11 +123,11 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
     // notational and presentational advantages.
 
     // (: name T)
-    if (list.length < 2) {
+    if (list.length < 3) {
       return errorNode(badSyntax(colon.location));
     }
 
-    if (list.length > 2) {
+    if (list.length > 3) {
       Location loc = list[2].location;
       LocatedError err = badSyntax(loc, <String>[list.closingBracket()]);
       return errorNode(err);
@@ -172,7 +172,7 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
         return errorNode(err);
       }
 
-      var body = expect<Sexp, Expression>(expression, list[2]);
+      Expression body = expect<Sexp, Expression>(expression, list[2]);
       ValueDeclaration valueDeclaration =
           ValueDeclaration(ident, body, list.location);
       declare(ident, valueDeclaration);
@@ -251,8 +251,10 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
       var constructor = expect<Sexp, Pair<Name, List<TypeParameter>>>(
           typeConstructor, list[1]);
       var type = expect<Sexp, Datatype>(datatype, list[2]);
-      return TypenameDeclaration(
+      TypenameDeclaration typenameDecl = TypenameDeclaration(
           constructor.$1, constructor.$2, type, list.location);
+      declare(typenameDecl.name, typenameDecl);
+      return typenameDecl;
     }
   }
 
@@ -305,6 +307,7 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
       // N-ary constructor.
       SList list = sexp;
       Name name = expect(identifier, list[0]);
+      declare(name, null);
       List<Datatype> types = expectMany(datatype, list, 1);
       return Result.success(Pair<Name, List<Datatype>>(name, types));
     } else {
@@ -329,7 +332,7 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
     assert(name != null);
     if (name is DummyName) return;
     if (declaration is TermDeclaration) {
-      if (declarations.containsKey(name) || declaredNames.contains(name)) {
+      if (declarations.containsKey(name.text) || declaredNames.contains(name.text)) {
         error(MultipleDeclarationsError(name.text, name.location));
         return;
       }
@@ -378,13 +381,5 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
       ]);
       return Result.failure(<LocatedError>[err]);
     }
-  }
-
-  Result<Pattern, LocatedError> pattern(Sexp sexp) {
-    return null;
-  }
-
-  Result<Expression, LocatedError> expression(Sexp sexp) {
-    return null;
   }
 }

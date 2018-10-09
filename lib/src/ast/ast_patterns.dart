@@ -12,6 +12,7 @@ import 'ast_types.dart';
 abstract class PatternVisitor<T> {
   T visitBool(BoolPattern b);
   T visitConstructor(ConstructorPattern constr);
+  T visitError(ErrorPattern e);
   T visitHasType(HasTypePattern t);
   T visitInt(IntPattern i);
   T visitString(StringPattern s);
@@ -53,6 +54,15 @@ class ConstructorPattern implements Pattern {
   }
 }
 
+class ErrorPattern implements Pattern {
+  Location location;
+  ErrorPattern(this.location);
+
+  T visit<T>(PatternVisitor<T> v) {
+    return v.visitError(this);
+  }
+}
+
 class HasTypePattern implements Pattern {
   Location location;
   Pattern pattern;
@@ -83,7 +93,7 @@ class StringPattern extends BaseValuePattern<String> {
 
 class TuplePattern implements Pattern {
   Location location;
-  List<VariablePattern> components;
+  List<NamePattern> components;
 
   TuplePattern(this.components, this.location);
 
@@ -92,7 +102,11 @@ class TuplePattern implements Pattern {
   }
 }
 
-class VariablePattern implements TermDeclaration, Pattern {
+abstract class NamePattern implements Pattern {
+  Location location;
+}
+
+class VariablePattern implements TermDeclaration, NamePattern {
   Location location;
   Datatype type;
   Name name;
@@ -116,7 +130,7 @@ class VariablePattern implements TermDeclaration, Pattern {
   }
 }
 
-class WildcardPattern implements Pattern {
+class WildcardPattern implements NamePattern {
   Location location;
 
   WildcardPattern(this.location);

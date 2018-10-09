@@ -37,21 +37,15 @@ class PatternElaborator extends BaseElaborator<Pattern> {
       return BoolPattern(denoteBool(value), location);
     }
 
-    // Wildcard pattern.
-    if (isWildcard(value)) {
-      return WildcardPattern(location);
-    }
-
-    // Variable pattern.
-    Name name = expect(identifier, atom);
-    return VariablePattern(name, location);
+    // Name pattern.
+    return expect(namePattern, atom);
   }
 
   Pattern visitList(SList list) {
     assert(list != null);
     if (list.length == 0) {
       badSyntax(list.location.end);
-      return null;
+      return ErrorPattern(list.location);
     }
 
     // Has type pattern.
@@ -61,17 +55,15 @@ class PatternElaborator extends BaseElaborator<Pattern> {
     }
 
     // Constructor or tuple pattern.
-    if (list[0] is SList) {
-      return expect<SList, Pattern>(constructorOrTuple, list);
-    }
+    return expect<SList, Pattern>(constructorOrTuple, list);
 
-    if (list.length == 1 && list[0] is Atom) {
-      Atom atom = list[0];
-      return expect<Atom, Pattern>(pattern, atom);
-    }
+    // if (list.length == 1 && list[0] is Atom) {
+    //   Atom atom = list[0];
+    //   return expect<Atom, Pattern>(pattern, atom);
+    // }
 
-    badSyntax(list[1].location);
-    return null;
+    // badSyntax(list[1].location);
+    // return ErrorPattern(list.location);
   }
 
   Result<Pattern, LocatedError> hasType(SList list) {
@@ -134,21 +126,31 @@ class PatternElaborator extends BaseElaborator<Pattern> {
 
   Result<Pattern, LocatedError> tuple(SList list) {
     assert(list != null && (list[0] as Atom).value == ",");
-    List<VariablePattern> pats = expectMany(variablePattern, list, 1);
+    List<NamePattern> pats = expectMany<SList, NamePattern>(namePattern, list, 1);
     return Result.success(TuplePattern(pats, list.location));
   }
 
   Result<Pattern, LocatedError> dataConstructor(SList list) {
     assert(list != null);
     Name name = expect(identifier, list[0]);
-    List<Pattern> pats = expectMany(variablePattern, list, 1);
+    List<Pattern> pats = expectMany(namePattern, list, 1);
     return Result.success(ConstructorPattern(name, pats, list.location));
   }
 
-  Result<Pattern, LocatedError> variablePattern(Sexp sexp) {
+  Result<NamePattern, LocatedError> namePattern(Sexp sexp) {
     assert(sexp != null);
-    Name name = expect(identifier, sexp);
-    return Result.success(VariablePattern(name, sexp.location));
+    if (sexp is Atom) {
+      Atom atom = sexp;
+      if (isWildcard(sexp.value)) {
+        return Result.success(WildcardPattern(sexp.location));
+      } else {
+        Name name = expect(identifier, sexp);
+        return Result.success(VariablePattern(name, sexp.location));
+      }
+    }
+
+    LocatedError err = BadSyntaxError(sexp.location, <String>["variable pattern", "wildcard pattern"]);
+    return Result.failure(<LocatedError>[err]);
   }
 }
 

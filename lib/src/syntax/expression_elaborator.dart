@@ -43,7 +43,7 @@ class ExpressionElaborator extends BaseElaborator<Expression> {
     return StringLit(string.value, string.location);
   }
 
-  Expression atom(Atom atom) {
+  Expression visitAtom(Atom atom) {
     assert(atom != null);
     String value = atom.value;
     Location location = atom.location;
@@ -64,7 +64,7 @@ class ExpressionElaborator extends BaseElaborator<Expression> {
     return Variable(name, location);
   }
 
-  Expression list(SList list) {
+  Expression visitList(SList list) {
     assert(list != null);
 
     if (list.length == 0) {

@@ -107,7 +107,7 @@ class TypeElaborator extends BaseElaborator<Datatype> {
   }
 
   Datatype functionType(Atom arrow, SList list) {
-    assert(arrow == Typenames.arrow);
+    assert(arrow.value == Typenames.arrow);
     if (list.length < 2) {
       // Error: -> requires at least one argument.
       error(InvalidFunctionTypeError(arrow.location));
@@ -131,7 +131,7 @@ class TypeElaborator extends BaseElaborator<Datatype> {
   }
 
   Datatype forallType(Atom forall, SList list) {
-    assert(forall == Typenames.forall);
+    assert(forall.value == Typenames.forall);
     if (list.length != 3) {
       // Error: forall requires exactly two arguments.
       error(InvalidForallTypeError(forall.location));

@@ -65,6 +65,7 @@ class _StatefulSexpParser {
     unicode.LESS_THAN_SIGN,
     unicode.GREATER_THAN_SIGN,
     unicode.COLON,
+    unicode.COMMA,
     unicode.HASH,
     unicode.APOSTROPHE,
     unicode.QUOTE

@@ -23,6 +23,7 @@ abstract class ExpressionVisitor<T> {
   T visitLambda(Lambda lambda);
   T visitLet(Let binding);
   T visitMatch(Match match);
+  // T visitProjection(Projection p);
   T visitTuple(Tuple tuple);
   T visitVariable(Variable v);
   T visitTypeAscription(TypeAscription ascription);
@@ -112,7 +113,7 @@ enum LetKind { Parallel, Sequential }
 class Let implements Expression {
   Location location;
   LetKind _kind;
-  List<Pair<Pattern,Expression>> valueBindings;
+  List<Pair<Pattern, Expression>> valueBindings;
   List<Expression> body;
 
   LetKind get kind => _kind;
@@ -126,7 +127,7 @@ class Let implements Expression {
 
 class Lambda implements Expression {
   Location location;
-  List<Object> parameters;
+  List<Pattern> parameters;
   List<Expression> body;
 
   Lambda(this.parameters, this.body, this.location);
