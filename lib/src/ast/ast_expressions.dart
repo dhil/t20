@@ -6,6 +6,7 @@ import '../fp.dart' show Pair;
 import '../location.dart';
 import 'ast_common.dart' show Name;
 import 'ast_types.dart';
+import 'ast_patterns.dart' show Pattern;
 
 //
 // Expression language.
@@ -24,6 +25,7 @@ abstract class ExpressionVisitor<T> {
   T visitMatch(Match match);
   T visitTuple(Tuple tuple);
   T visitVariable(Variable v);
+  T visitTypeAscription(TypeAscription ascription);
 }
 
 abstract class Expression {
@@ -42,6 +44,9 @@ class BoolLit implements Constant {
   T visit<T>(ExpressionVisitor<T> v) {
     return v.visitBool(this);
   }
+
+  static const String T_LITERAL = "#t";
+  static const String F_LITERAL = "#f";
 }
 
 class IntLit implements Constant {
@@ -107,7 +112,7 @@ enum LetKind { Parallel, Sequential }
 class Let implements Expression {
   Location location;
   LetKind _kind;
-  List<Pair<Name,Expression>> valueBindings;
+  List<Pair<Pattern,Expression>> valueBindings;
   List<Expression> body;
 
   LetKind get kind => _kind;
@@ -134,7 +139,7 @@ class Lambda implements Expression {
 class Match implements Expression {
   Location location;
   Expression scrutinee;
-  List<Object> cases;
+  List<Pair<Pattern, List<Expression>>> cases;
 
   Match(this.scrutinee, this.cases, this.location);
 
@@ -154,4 +159,16 @@ class Tuple implements Expression {
   }
 
   bool get isUnit => components.length == 0;
+}
+
+class TypeAscription implements Expression {
+  Location location;
+  Datatype type;
+  Expression exp;
+
+  TypeAscription(this.exp, this.type, this.location);
+
+  T visit<T>(ExpressionVisitor<T> v) {
+    return v.visitTypeAscription(this);
+  }
 }

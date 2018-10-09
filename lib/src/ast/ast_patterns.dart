@@ -13,10 +13,11 @@ abstract class PatternVisitor<T> {
   T visitBool(BoolPattern b);
   T visitConstructor(ConstructorPattern constr);
   T visitHasType(HasTypePattern t);
-  T visitInt(IntegerPattern i);
+  T visitInt(IntPattern i);
   T visitString(StringPattern s);
   T visitTuple(TuplePattern t);
   T visitVariable(VariablePattern v);
+  T visitWildcard(WildcardPattern w);
 }
 
 abstract class Pattern {
@@ -64,8 +65,8 @@ class HasTypePattern implements Pattern {
   }
 }
 
-class IntegerPattern extends BaseValuePattern<int> {
-  IntegerPattern(int value, Location location) : super(value, location);
+class IntPattern extends BaseValuePattern<int> {
+  IntPattern(int value, Location location) : super(value, location);
 
   T visit<T>(PatternVisitor<T> v) {
     return v.visitInt(this);
@@ -112,5 +113,15 @@ class VariablePattern implements TermDeclaration, Pattern {
 
   T visit<T>(PatternVisitor<T> v) {
     return v.visitVariable(this);
+  }
+}
+
+class WildcardPattern implements Pattern {
+  Location location;
+
+  WildcardPattern(this.location);
+
+  T visit<T>(PatternVisitor<T> v) {
+    return v.visitWildcard(this);
   }
 }

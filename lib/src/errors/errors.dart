@@ -205,7 +205,7 @@ class BadSyntaxError extends LocatedError
     implements ElaborationError, SyntaxError {
   final List<String> expectations;
 
-  BadSyntaxError(Location location, this.expectations)
+  BadSyntaxError(Location location, [this.expectations = null])
       : super(location);
 
   String toString() {

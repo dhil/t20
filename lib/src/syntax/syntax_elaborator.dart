@@ -15,6 +15,7 @@ import 'sexp.dart'
     show Atom, Error, Sexp, SexpVisitor, SList, StringLiteral, Toplevel;
 
 import 'expression_elaborator.dart';
+import 'pattern_elaborator.dart';
 import 'type_elaborator.dart';
 
 abstract class SyntaxElaborator<T> implements SexpVisitor<T> {
@@ -61,7 +62,7 @@ abstract class BaseElaborator<T> implements SyntaxElaborator<T> {
     _errors.add(error);
   }
 
-  void manyErrors(List<LocatedError> errors) {
+  void collectErrors(List<LocatedError> errors) {
     if (errors == null) return;
     if (_errors == null) {
       _errors = errors;
@@ -71,7 +72,8 @@ abstract class BaseElaborator<T> implements SyntaxElaborator<T> {
   }
 
   // Elaboration API.
-  LocatedError badSyntax(Location location, [List<String> expectations = null]) {
+  LocatedError badSyntax(Location location,
+      [List<String> expectations = null]) {
     LocatedError err = BadSyntaxError(location, expectations);
     error(err);
     return err;
@@ -97,8 +99,18 @@ abstract class BaseElaborator<T> implements SyntaxElaborator<T> {
     if (result.wasSuccessful) {
       return result.result;
     } else {
-      manyErrors(result.errors);
-      return makeErrorNode != null ? makeErrorNode(sexp.location) : null;
+      collectErrors(result.errors);
+      T data;
+      if (makeErrorNode == null) {
+        if (T is List) {
+          data = [] as T;
+        } else {
+          data = null;
+        }
+      } else {
+        data = makeErrorNode(sexp.location);
+      }
+      return data;
     }
   }
 
@@ -222,6 +234,38 @@ abstract class BaseElaborator<T> implements SyntaxElaborator<T> {
     return true;
   }
 
+  bool isValidBoolean(String literal) {
+    assert(literal != null);
+    if (literal.length != 2) return false;
+
+    int c = literal.codeUnitAt(1);
+    return literal.codeUnitAt(0) == unicode.HASH &&
+        (c == unicode.t || c == unicode.f);
+  }
+
+  bool isWildcard(String w) {
+    assert(w != null);
+    if (w.length != 1) return false;
+    return w.codeUnitAt(0) == unicode.LOW_LINE;
+  }
+
+  bool denoteBool(String literal) {
+    bool denotation;
+    switch (literal) {
+      case BoolLit.T_LITERAL:
+        denotation = true;
+        break;
+      case BoolLit.F_LITERAL:
+        denotation = false;
+        break;
+      default:
+        assert(false);
+        // TODO: use a proper exception.
+        throw "fatal error: not a (surface syntax) boolean literal.";
+    }
+    return denotation;
+  }
+
   Result<Name, LocatedError> identifier(Sexp sexp) {
     assert(sexp != null);
 
@@ -303,14 +347,14 @@ abstract class BaseElaborator<T> implements SyntaxElaborator<T> {
   Result<Expression, LocatedError> expression(Sexp sexp) {
     assert(sexp != null);
     ExpressionElaborator elab = new ExpressionElaborator();
-    Expression expression = sexp.visit(elab);
-    return Result<Expression, LocatedError>(expression, elab.errors);
+    Expression exp = sexp.visit(elab);
+    return Result<Expression, LocatedError>(exp, elab.errors);
   }
 
   Result<Pattern, LocatedError> pattern(Sexp sexp) {
     assert(sexp != null);
-    dynamic /* PatternElaborator */ elab = null; // new PatternElaborator();
-    Pattern pattern = sexp.visit(elab);
-    return Result<Pattern, LocatedError>(pattern, null /*elab.errors*/);
+    PatternElaborator elab = new PatternElaborator();
+    Pattern pat = sexp.visit(elab);
+    return Result<Pattern, LocatedError>(pat, elab.errors);
   }
 }

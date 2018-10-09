@@ -23,22 +23,22 @@ library t20.ast;
 // Expressions
 // E ::= C                (* constants *)
 //     | x                (* variables *)
-//     | f x*             (* n-ary application *)
+//     | f E*             (* n-ary application *)
 //     | lambda P* E+     (* lambda function *)
 //     | let (P E)+ E+    (* parallel binding *)
 //     | let∗ (P E)+ E+   (* sequential binding *)
-//     | tuple E*         (* n-ary tuples *)
+//     | , E*             (* n-ary tuples *)
 //     | if E E_tt E_ff   (* conditional evaluation *)
-//     | match E P*       (* pattern matching *)
+//     | match E [P E+]*  (* pattern matching *)
 //
 // Top-level patterns
-// P ::= K x*             (* constructor pattern *)
-//     | Q                (* regular pattern *)
-//     | P : T            (* has type pattern *)
+// P ::= P' : T           (* has type pattern *)
+//     | Q                (* constructor patterns *)
 //
 // Regular patterns
 // Q ::= x                (* variables *)
-//     | tuple x*         (* tuple matching *)
+//     | K x*             (* constructor matching *)
+//     | , x*             (* tuple matching *)
 //     | [0-9]+           (* integer literal matching *)
 //     | ".*"             (* string literal matching *)
 //     | #t | #f          (* boolean literal matching *)
