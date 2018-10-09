@@ -6,6 +6,15 @@
 (: snd (-> (* 'a 'b) 'b))
 (define (snd [, _ y]) y)
 
+(: make-pair (-> 'a (-> 'a (* 'a 'b))))
+(define (make-pair x)
+  (lambda (y)
+    (, x y)))
+
+(: extend-pair (-> 'c (* 'a 'b) (* 'a 'b 'c)))
+(define (extend-pair c [, a b])
+  (, a b c))
+
 (: tuple-test0 Int)
 (define tuple-test0
   (match (, 1 2 3 4)
@@ -13,7 +22,7 @@
     [(, _ b _ _) b]
     [(, _ _ c _) c]
     [(, _ _ _ d) d]
-    [(, a b c d) (+ a b c d)]))
+    [(, a b c d) (+ a (* b (- d c)))]))
 
 (: bool-test0 Bool)
 (define bool-test0

@@ -68,7 +68,9 @@ class _StatefulSexpParser {
     unicode.COMMA,
     unicode.HASH,
     unicode.APOSTROPHE,
-    unicode.QUOTE
+    unicode.QUOTE,
+    unicode.AMPERSAND,
+    unicode.VERTICAL_LINE
   ]);
   final List<int> _whitespaces = const <int>[
     // Sorted after "likelihood".

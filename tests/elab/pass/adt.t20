@@ -1,9 +1,71 @@
 ;; Algebraic data types.
 
-(define-datatype Suit [Hearts] [Spades] [Diamonds] [Clubs])
-
-(define-datatype Card [Card (* Suit Int)])
-
 (define-datatype (List 'a)
   [cons 'a (List 'a)]
   [nil])
+;;  (derive! map))
+
+;; Modelling cards.
+(define-datatype Suit
+  [Clubs]
+  [Diamonds]
+  [Hearts]
+  [Spades])
+
+;; Type synonym.
+(define-datatype Value
+  [Number Int]
+  [Jack]
+  [Queen]
+  [King]
+  [Ace])
+
+(: value-of-int (-> Int Value))
+(define (value-of-int n)
+  (if (&& (<= 2 n) (<= n 10))
+      (Number n)
+      (match n
+        [11 Jack]
+        [12 Queen]
+        [13 King]
+        [14 Ace]
+        [_  (error "invalid argument.")])))
+
+(: two-to-fourteen (List Int))
+(define two-to-fourteen
+  (cons 2 (cons 3 (cons 4 (cons 5 (cons 6 (cons 7 (cons 8 (cons 9 (cons 10 (cons 11 (cons 12 (cons 13 (cons 14 nil))))))))))))))
+
+(: values (List Value))
+(define values
+  (map value-of-int two-to-fourteen))
+
+(define-datatype Card
+  [Card (* Suit Value)])
+
+(: make-card (-> Suit Value Card))
+(define (make-card suit valuation)
+  (Card (, suit valuation)))
+
+(: offsuited-cards (List (-> Suit Card)))
+(define offsuited-cards
+  (map (lambda ([v : Value])
+         (lambda ([suit : Suit])
+           (make-card suit v)))))
+
+(: make-all-cards-with-suit (-> Suit (List Card)))
+(define (make-all-cards-with-suit suit)
+  (map (lambda ([make-suited-card : (-> Suit (List Card))])
+         (make-suited-card suit))
+       offsuited-cards))
+
+(: deck (List Card))
+(define deck
+  (let ([clubs (make-all-cards-with-suit Clubs)]
+        [diamonds (make-all-cards-with-suit Diamonds)]
+        [hearts (make-all-cards-with-suit Hearts)]
+        [spades (make-all-cards-with-suit Spades)])
+    (list-concat
+     clubs
+     (list-concat
+      diamonds
+      (list-concat hearts spades)))))

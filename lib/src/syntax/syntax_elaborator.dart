@@ -155,7 +155,9 @@ abstract class BaseElaborator<T> implements SyntaxElaborator<T> {
     unicode.EQUALS_SIGN,
     unicode.LESS_THAN_SIGN,
     unicode.GREATER_THAN_SIGN,
-    unicode.COLON
+    unicode.COLON,
+    unicode.AMPERSAND,
+    unicode.VERTICAL_LINE
   ]);
 
   bool isValidNumber(String text) {
