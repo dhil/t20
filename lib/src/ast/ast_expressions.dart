@@ -2,7 +2,9 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import '../fp.dart' show Pair;
 import '../location.dart';
+import 'ast_common.dart' show Name;
 import 'ast_types.dart';
 
 //
@@ -78,7 +80,7 @@ class Apply implements Expression {
 
 class Variable implements Expression {
   Location location;
-  int id;
+  Name id;
 
   Variable(this.id, this.location);
 
@@ -105,7 +107,7 @@ enum LetKind { Parallel, Sequential }
 class Let implements Expression {
   Location location;
   LetKind _kind;
-  List<Object> valueBindings;
+  List<Pair<Name,Expression>> valueBindings;
   List<Expression> body;
 
   LetKind get kind => _kind;
@@ -150,4 +152,6 @@ class Tuple implements Expression {
   T visit<T>(ExpressionVisitor<T> v) {
     return v.visitTuple(this);
   }
+
+  bool get isUnit => components.length == 0;
 }

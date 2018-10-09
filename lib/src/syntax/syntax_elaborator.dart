@@ -14,6 +14,7 @@ import '../unicode.dart' as unicode;
 import 'sexp.dart'
     show Atom, Error, Sexp, SexpVisitor, SList, StringLiteral, Toplevel;
 
+import 'expression_elaborator.dart';
 import 'type_elaborator.dart';
 
 abstract class SyntaxElaborator<T> implements SexpVisitor<T> {
@@ -297,5 +298,19 @@ abstract class BaseElaborator<T> implements SyntaxElaborator<T> {
     TypeElaborator elab = new TypeElaborator();
     Datatype type = sexp.visit(elab);
     return Result(type, elab.errors);
+  }
+
+  Result<Expression, LocatedError> expression(Sexp sexp) {
+    assert(sexp != null);
+    ExpressionElaborator elab = new ExpressionElaborator();
+    Expression expression = sexp.visit(elab);
+    return Result<Expression, LocatedError>(expression, elab.errors);
+  }
+
+  Result<Pattern, LocatedError> pattern(Sexp sexp) {
+    assert(sexp != null);
+    dynamic /* PatternElaborator */ elab = null; // new PatternElaborator();
+    Pattern pattern = sexp.visit(elab);
+    return Result<Pattern, LocatedError>(pattern, null /*elab.errors*/);
   }
 }

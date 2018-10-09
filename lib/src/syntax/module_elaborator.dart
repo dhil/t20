@@ -189,7 +189,7 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
       }
 
       Name ident = expect(identifier, idArgs[0]);
-      List<Pattern> parameters = expectManyOne(pattern, idArgs, 1);
+      List<Pattern> parameters = expectMany(pattern, idArgs, 1);
 
       if (list.length < 3) {
         Location loc = list.location.end;
