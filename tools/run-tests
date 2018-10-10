@@ -3,6 +3,14 @@
 # Test script driver.
 #
 
+MEASURE=0
+STARTTIME=
+ACCUMULATOR=0
+if [[ $1 == "--measure" ]]; then
+  MEASURE=1
+  STARTTIME=`date +%s.%N`
+fi
+
 T20="./t20"
 TESTS_DIR="tests"
 FLAGS_FILE=".flags"
@@ -23,20 +31,36 @@ function runtests()
   fi
   echo -e "\033[1m== Running tests in $dir/$subdir ==\033[0m"
   for file in $(ls "$dir/$subdir" | grep "\.t20$"); do
+    local starttime=
+    local endtime=
+    local elapsed=
+    local elapsed_str=
+
     local stdout_log=$(mktemp)
     local stderr_log=$(mktemp)
     local test="$dir/$subdir/$file"
 
     local cmd="$T20 $flags $test > $stdout_log 2> $stderr_log"
+    if [[ $MEASURE -eq 1 ]]; then
+      starttime=`date +%s.%N`
+    fi
     eval $cmd
     actual=$?
+    if [[ $MEASURE -eq 1 ]]; then
+      endtime=`date +%s.%N`
+      elapsed=`echo "$endtime - $starttime" | bc`
+      local elapsed_fmt=`echo $elapsed | awk -F"." '{print $1"."substr($2,1,3)}'`
+      elapsed_str="[${elapsed_fmt}s] "
+      ACCUMULATOR=`echo "$ACCUMULATOR + $elapsed" | bc`
+    fi
+
 
     if [[ $actual -eq $expectation ]]; then
-      echo -e "\033[1;32m$TICK\033[0m $test"
+      echo -e "\033[1;32m$TICK\033[0m ${elapsed_str}$test"
       SUCCESSES=$(($SUCCESSES + 1))
     else
       FAILURES=$(($FAILURES + 1))
-      echo -e "\033[1;31m$CROSS\033[0m $test"
+      echo -e "\033[1;31m$CROSS\033[0m ${elapsed_str}$test"
       echo "command: $cmd"
       echo -n "stdout:"
       if [[ -s $stdout_log ]]; then
@@ -73,6 +97,17 @@ done
 echo -e "\033[1m== Summary ==\033[0m"
 echo -e "# \033[1;32m$TICK\033[0m successes: $SUCCESSES"
 echo -e "# \033[1;31m$CROSS\033[0m failures: $FAILURES\033[0m"
+if [[ $MEASURE -eq 1 ]]; then
+  ENDTIME=`date +%s.%N`
+  ELAPSED=`echo "$ENDTIME - $STARTTIME" | bc`
+  ELAPSED_FMT=`echo $ELAPSED | awk -F"." '{print $1"."substr($2,1,3)}'`
+  ACCUMULATED_FMT=`echo $ACCUMULATOR | awk -F"." '{print $1"."substr($2,1,3)}'`
+  OVERHEAD=`echo "$ELAPSED - $ACCUMULATOR" | bc | awk -F"." '{print $1"."substr($2,1,3)}'`
+  echo -e "\033[1m== Running time statistics ==\033[0m"
+  echo "# Total running time: ${ELAPSED_FMT}s"
+  echo "# Accumulated test running time: ${ACCUMULATED_FMT}s"
+  echo "# Test script overhead: ${OVERHEAD}s"
+fi
 
 if [[ $FAILURES -ne 0 ]]; then
   exit 1

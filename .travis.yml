@@ -2,4 +2,4 @@ language: dart
 dart:
   - dev
 script:
-  - bash tools/run-tests
+  - bash tools/run-tests --measure
