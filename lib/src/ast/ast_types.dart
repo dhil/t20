@@ -32,6 +32,7 @@ abstract class TypeVisitor<T> {
 }
 
 abstract class Datatype {
+  Location get location;
   T visit<T>(TypeVisitor<T> v);
 }
 

@@ -21,7 +21,9 @@ import 'type_elaborator.dart';
 
 class ModuleElaborator extends BaseElaborator<ModuleMember> {
   final Map<String, Datatype> signatures = new Map<String, Datatype>();
-  final Set<String> declaredNames = new Set<String>();
+  final Map<String, Location> signatureNameLocations =
+      new Map<String, Location>();
+  final Set<String> dataConstructorNames = new Set<String>();
   final Map<String, TermDeclaration> declarations =
       new Map<String, TermDeclaration>();
   final Map<String, TypeDeclaration> typeDeclarations =
@@ -94,7 +96,7 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
       }
     }
 
-    // Semantic checks.
+    // Some semantic checks related to declarations and signatures.
     checkSemantics();
     return TopModule(members, toplevel.location);
   }
@@ -146,6 +148,7 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
 
       Datatype type = expect(signatureDatatype, list[2]);
       signatures[name.text] = type;
+      signatureNameLocations[name.text] = name.location;
       return null;
     } else {
       Location location = list[1].location;
@@ -307,7 +310,7 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
       // N-ary constructor.
       SList list = sexp;
       Name name = expect(identifier, list[0]);
-      declare(name, null);
+      declare(name);
       List<Datatype> types = expectMany(datatype, list, 1);
       return Result.success(Pair<Name, List<Datatype>>(name, types));
     } else {
@@ -328,16 +331,16 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
   //   return TypeParameter(Name(value, location), location);
   // }
 
-  void declare(Name name, Declaration declaration) {
+  void declare(Name name, [Declaration declaration = null]) {
     assert(name != null);
     if (name is DummyName) return;
     if (declaration is TermDeclaration) {
-      if (declarations.containsKey(name.text) || declaredNames.contains(name.text)) {
+      if (declarations.containsKey(name.text) ||
+          dataConstructorNames.contains(name.text)) {
         error(MultipleDeclarationsError(name.text, name.location));
         return;
       }
       declarations[name.text] = declaration;
-      declaredNames.add(name.text);
     } else if (declaration is TypeDeclaration) {
       if (typeDeclarations.containsKey(name.text)) {
         error(MultipleDeclarationsError(name.text, name.location));
@@ -345,11 +348,40 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
       }
       typeDeclarations[name.text] = declaration;
     } else {
-      declaredNames.add(name.text);
+      dataConstructorNames.add(name.text);
     }
   }
 
-  void checkSemantics() {}
+  void checkSemantics() {
+    // Ensure that every signature has an accompanying binding.
+    int compare(String a, String b) {
+      return a.compareTo(b);
+    }
+
+    List<String> signatureKeys = signatures.keys.toList()..sort(compare);
+    List<String> declarationKeys = declarations.keys.toList()..sort(compare);
+    Pair<List<String>, List<String>> diffs =
+        ListUtils.diff(signatureKeys, declarationKeys, compare);
+
+    List<String> danglingSignatures = diffs.$1;
+    List<String> danglingDeclarations = diffs.$2;
+
+    // Report signatures without an accompanying definition.
+    for (int i = 0; i < danglingSignatures.length; i++) {
+      String name = danglingSignatures[i];
+      Location location = signatureNameLocations[name];
+      LocatedError err = MissingAccompanyingDefinitionError(name, location);
+      error(err);
+    }
+
+    // Report declarations without an accompanying signature.
+    for (int i = 0; i < danglingDeclarations.length; i++) {
+      String name = danglingDeclarations[i];
+      Location location = declarations[name].name.location;
+      LocatedError err = MissingAccompanyingDefinitionError(name, location);
+      error(err);
+    }
+  }
 
   ModuleMember errorNode(LocatedError error) {
     return ErrorModule(error, error.location);

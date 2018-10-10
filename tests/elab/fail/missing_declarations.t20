@@ -1,0 +1,10 @@
+;; Signatures without accompanying definitions.
+
+(: foo (-> Int Int))
+
+(: id (-> 'a 'a))
+(define (id x) x)
+
+(: bar String)
+
+(: baz (-> Int (* Int Int Int Int)))

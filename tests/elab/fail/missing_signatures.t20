@@ -1,0 +1,10 @@
+;; Declarations without accompanying signatures.
+
+(define (id x) x)
+
+(: foo (-> Int Int))
+(define (foo x) (+ x 2))
+
+(define forty 40)
+
+(define (foobar (,)) "foobar")

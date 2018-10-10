@@ -64,4 +64,50 @@ class ListUtils {
     }
     return map;
   }
+
+  // Computes the multi-set differences xs \ ys and ys \ xs.
+  static Pair<List<T>, List<T>> diff<T>(List<T> xs, List<T> ys, int Function(T, T) compare) {
+    // Precondition `xs' and `ys' are sorted.
+    Iterator<T> itxs = xs.iterator;
+    Iterator<T> itys = ys.iterator;
+
+    List<T> xsDelta = new List<T>(); // [ x \in xs | x \notin ys ].
+    List<T> ysDelta = new List<T>(); // [ y \in ys | y \notin xs ].
+
+    bool xsHasMore = itxs.moveNext();
+    bool ysHasMore = itys.moveNext();
+
+    while (xsHasMore && ysHasMore) {
+      T x = itxs.current;
+      T y = itys.current;
+      int result = compare(x, y);
+      if (result < 0) {
+        // We have x < y, so x \notin ys
+        xsDelta.add(x);
+        xsHasMore = itxs.moveNext();
+      } else if (result == 0) {
+        // We have x = y, so x \in ys and y \in xs.
+        xsHasMore = itxs.moveNext();
+        ysHasMore = itys.moveNext();
+      } else {
+        // We have x > y, so y \notin xs.
+        ysDelta.add(y);
+        ysHasMore = itys.moveNext();
+      }
+    }
+
+    // Any remaining elements in xs must be in the delta.
+    while (xsHasMore) {
+      xsDelta.add(itxs.current);
+      xsHasMore = itxs.moveNext();
+    }
+
+    // Any remaining elements in ys must be in the delta.
+    while (ysHasMore) {
+      ysDelta.add(itys.current);
+      ysHasMore = itys.moveNext();
+    }
+
+    return Pair<List<T>, List<T>>(xsDelta, ysDelta);
+  }
 }

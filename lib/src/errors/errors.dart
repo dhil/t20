@@ -260,3 +260,29 @@ class InvalidIdentifierError extends LocatedError
     return "Invalid identifier '$name'";
   }
 }
+
+class MissingAccompanyingSignatureError extends LocatedError
+    implements ElaborationError, HasLength {
+  final String name;
+  int get length => name.length;
+
+  MissingAccompanyingSignatureError(this.name, Location location)
+      : super(location);
+
+  String toString() {
+    return "The top level definition '$name' is missing an accompanying signature";
+  }
+}
+
+class MissingAccompanyingDefinitionError extends LocatedError
+    implements ElaborationError, HasLength {
+  final String name;
+  int get length => name.length;
+
+  MissingAccompanyingDefinitionError(this.name, Location location)
+      : super(location);
+
+  String toString() {
+    return "The signature '$name' is missing an accompanying definition";
+  }
+}
