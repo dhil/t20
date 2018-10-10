@@ -60,10 +60,11 @@ class DatatypeDeclaration implements TypeDeclaration, ModuleMember {
   Name name;
   List<TypeParameter> typeParameters;
   Map<Name, List<Datatype>> constructors;
+  List<Name> deriving;
   Location location;
 
   DatatypeDeclaration(
-      this.name, this.typeParameters, this.constructors, this.location);
+      this.name, this.typeParameters, this.constructors, this.deriving, this.location);
 
   T visit<T>(ModuleVisitor<T> v) {
     return v.visitDatatype(this);

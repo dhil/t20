@@ -11,7 +11,7 @@ import '../errors/errors.dart'
         BadSyntaxError,
         InvalidIdentifierError,
         LocatedError,
-        UnsupportedTypeElaborationMethodError;
+        UnsupportedElaborationMethodError;
 import '../location.dart';
 import '../result.dart';
 import '../unicode.dart' as unicode;
@@ -38,27 +38,27 @@ abstract class BaseElaborator<T> implements SyntaxElaborator<T> {
 
   T visitAtom(Atom _) {
     assert(false);
-    throw UnsupportedTypeElaborationMethodError(elaboratorName, "visitAtom");
+    throw UnsupportedElaborationMethodError(elaboratorName, "visitAtom");
   }
 
   T visitError(Error _) {
     assert(false);
-    throw UnsupportedTypeElaborationMethodError(elaboratorName, "visitError");
+    throw UnsupportedElaborationMethodError(elaboratorName, "visitError");
   }
 
   T visitList(SList _) {
     assert(false);
-    throw UnsupportedTypeElaborationMethodError(elaboratorName, "visitList");
+    throw UnsupportedElaborationMethodError(elaboratorName, "visitList");
   }
 
   T visitString(StringLiteral _) {
     assert(false);
-    throw UnsupportedTypeElaborationMethodError(elaboratorName, "visitString");
+    throw UnsupportedElaborationMethodError(elaboratorName, "visitString");
   }
 
   T visitToplevel(Toplevel _) {
     assert(false);
-    throw UnsupportedTypeElaborationMethodError(elaboratorName, "visitModule");
+    throw UnsupportedElaborationMethodError(elaboratorName, "visitToplevel");
   }
 
   void error(LocatedError error) {
@@ -177,8 +177,15 @@ abstract class BaseElaborator<T> implements SyntaxElaborator<T> {
     assert(text != null);
     if (text.length == 0) return false;
 
-    for (int i = 0; i < text.length; i++) {
-      int c = text.codeUnitAt(i);
+    int c = text.codeUnitAt(0);
+    int lowerBound = 0;
+    if (c == unicode.HYPHEN_MINUS || c == unicode.PLUS) {
+      if (text.length == 1) return false;
+      lowerBound = 1;
+    }
+
+    for (int i = lowerBound; i < text.length; i++) {
+      c = text.codeUnitAt(i);
       if (!unicode.isDigit(c)) return false;
     }
     return true;

@@ -99,10 +99,10 @@ class InvalidUTF16SequenceError extends LocatedError implements LexicalError {
 abstract class ElaborationError implements T20Error {}
 
 // This error is *never* suppose to occur.
-class UnsupportedTypeElaborationMethodError implements ElaborationError {
+class UnsupportedElaborationMethodError implements ElaborationError {
   final String elaboratorName;
   final String methodName;
-  UnsupportedTypeElaborationMethodError(this.elaboratorName, this.methodName);
+  UnsupportedElaborationMethodError(this.elaboratorName, this.methodName);
 
   String toString() {
     return "Unsupported invocation of method '$methodName' elaborator '$elaboratorName'.";

@@ -69,8 +69,8 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
           return datatypeDeclaration(head, list);
         case "define-typename": // Type alias definition.
           return typeAliasDeclaration(head, list);
-        case "include": // Module inclusion.
-          return include(head, list);
+        case "open": // Module inclusion.
+          return open(head, list);
         default: // Error: unexpected syntax.
           return errorNode(badSyntax(head.location, keywords));
       }
@@ -227,6 +227,23 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
 
     //if (constructor == null) return null;
 
+    // Check whether there is a deriving clause.  TODO: The syntax should
+    // probably be modified such that the deriving clause comes before any data
+    // constructors.
+    int dataConstructorBound = list.length;
+    List<Name> deriving;
+    if (list.last is SList) {
+      SList deriveList = list.last;
+      if (deriveList.length > 0 &&
+          deriveList[0] is Atom &&
+          (deriveList[0] as Atom).value == "derive!") {
+        deriving = derive(deriveList[0], deriveList);
+        dataConstructorBound = list.length - 1;
+      } else {
+        deriving = const <Name>[];
+      }
+    }
+
     // Constructors.
     Map<Name, List<Datatype>> constructors = new Map<Name, List<Datatype>>();
     if (list.length > 2) {
@@ -234,9 +251,8 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
     } else {
       constructors = new Map<Name, List<Datatype>>();
     }
-    // TODO: derive clause.
     DatatypeDeclaration datatypeDeclaration = DatatypeDeclaration(
-        constructor.$1, constructor.$2, constructors, list.location);
+        constructor.$1, constructor.$2, constructors, deriving, list.location);
     declare(datatypeDeclaration.name, datatypeDeclaration);
     return null;
   }
@@ -261,9 +277,9 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
     }
   }
 
-  ModuleMember include(Atom keyword, SList list) {
-    assert(keyword.value == "include");
-    // (include uri)
+  ModuleMember open(Atom keyword, SList list) {
+    assert(keyword.value == "open");
+    // (open uri)
     return null;
   }
 
@@ -412,6 +428,16 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
         "type constructor followed by a non-empty sequence of quantifiers"
       ]);
       return Result.failure(<LocatedError>[err]);
+    }
+  }
+
+  List<Name> derive(Atom head, SList list) {
+    assert(head.value == "derive!");
+    if (list.length > 1) {
+      return expectMany(typeConstructorName, list, 1);
+    } else {
+      badSyntax(list.location.end);
+      return const <Name>[];
     }
   }
 }

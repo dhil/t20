@@ -2,8 +2,8 @@
 
 (define-datatype (List 'a)
   [cons 'a (List 'a)]
-  [nil])
-;;  (derive! map))
+  [nil]
+  (derive! Map Fold))
 
 ;; Modelling cards.
 (define-datatype Suit

@@ -1,0 +1,2 @@
+;; Naked string literal at top level.
+"Hello World!"

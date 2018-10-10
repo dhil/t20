@@ -1,0 +1,5 @@
+;; Integer literals.
+
+(: zero Int)
+(define zero
+  (+ 0 (+ -2 (/ 8 (* 2 +2)))))

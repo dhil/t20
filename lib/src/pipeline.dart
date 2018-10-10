@@ -13,6 +13,7 @@ import 'errors/error_reporting.dart';
 import 'errors/errors.dart';
 import 'io/bytestream.dart';
 import 'result.dart';
+import 'static_semantics/scope.dart';
 import 'syntax/elaborator.dart';
 import 'syntax/parse_sexp.dart';
 
@@ -53,6 +54,14 @@ bool compile(List<String> filePaths, Settings settings) {
       // Exit now, if requested.
       if (settings.exitAfter == "elaborator") {
         return elabResult.wasSuccessful;
+      }
+
+      // Check static semantics.
+      Result<ModuleMember, LocatedError> nameResult =
+          new NameRefiner().refine(elabResult.result);
+      if (!nameResult.wasSuccessful) {
+        report(nameResult.errors);
+        return false;
       }
     }
   } catch (err, stack) {

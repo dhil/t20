@@ -1,0 +1,2 @@
+;; Naked boolean literal at top level.
+#t

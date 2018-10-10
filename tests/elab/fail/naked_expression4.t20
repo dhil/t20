@@ -1,0 +1,6 @@
+;; Naked application expression at top level.
+
+(: id (-> 'a 'a))
+(define (id x) x)
+
+(id #t)
