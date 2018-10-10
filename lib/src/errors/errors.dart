@@ -16,8 +16,8 @@ abstract class LocatedError implements T20Error {
   LocatedError(this.location);
 }
 
-abstract class HasName {
-  String get name;
+abstract class HasLength {
+  int get length;
 }
 
 // Syntax errors.
@@ -110,8 +110,9 @@ class UnsupportedTypeElaborationMethodError implements ElaborationError {
 }
 
 class InvalidTypeError extends LocatedError
-    implements ElaborationError, HasName {
+    implements ElaborationError, HasLength {
   final String name;
+  int get length => name.length;
 
   InvalidTypeError(this.name, Location location) : super(location);
 
@@ -121,8 +122,9 @@ class InvalidTypeError extends LocatedError
 }
 
 class InvalidQuantifierError extends LocatedError
-    implements ElaborationError, SyntaxError, HasName {
+    implements ElaborationError, SyntaxError, HasLength {
   final String name;
+  int get length => name.length;
 
   InvalidQuantifierError(this.name, Location location) : super(location);
 
@@ -223,8 +225,9 @@ class BadSyntaxError extends LocatedError
 }
 
 class DuplicateTypeSignatureError extends LocatedError
-    implements ElaborationError, HasName {
+    implements ElaborationError, HasLength {
   final String name;
+  int get length => name.length;
 
   DuplicateTypeSignatureError(this.name, Location location) : super(location);
 
@@ -234,12 +237,26 @@ class DuplicateTypeSignatureError extends LocatedError
 }
 
 class MultipleDeclarationsError extends LocatedError
-    implements ElaborationError, HasName {
+    implements ElaborationError, HasLength {
   final String name;
+  int get length => name.length;
 
   MultipleDeclarationsError(this.name, Location location) : super(location);
 
   String toString() {
     return "Multiple declarations of '$name'";
+  }
+}
+
+class InvalidIdentifierError extends LocatedError
+    implements SyntaxError, ElaborationError, HasLength {
+  final String name;
+
+  int get length => name.length;
+
+  InvalidIdentifierError(this.name, Location location) : super(location);
+
+  String toString() {
+    return "Invalid identifier '$name'";
   }
 }

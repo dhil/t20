@@ -7,7 +7,11 @@ import 'dart:collection' show Set;
 import '../ast/ast_common.dart' show Name;
 import '../ast/ast.dart';
 import '../errors/errors.dart'
-    show BadSyntaxError, LocatedError, UnsupportedTypeElaborationMethodError;
+    show
+        BadSyntaxError,
+        InvalidIdentifierError,
+        LocatedError,
+        UnsupportedTypeElaborationMethodError;
 import '../location.dart';
 import '../result.dart';
 import '../unicode.dart' as unicode;
@@ -101,7 +105,9 @@ abstract class BaseElaborator<T> implements SyntaxElaborator<T> {
     } else {
       collectErrors(result.errors);
       T data;
-      if (makeErrorNode == null) {
+      if (result.result != null) {
+        data = result.result;
+      } else if (makeErrorNode == null) {
         if (T is List) {
           data = [] as T;
         } else {
@@ -157,7 +163,8 @@ abstract class BaseElaborator<T> implements SyntaxElaborator<T> {
     unicode.GREATER_THAN_SIGN,
     unicode.COLON,
     unicode.AMPERSAND,
-    unicode.VERTICAL_LINE
+    unicode.VERTICAL_LINE,
+    unicode.APOSTROPHE,
   ]);
 
   bool isValidNumber(String text) {
@@ -181,12 +188,14 @@ abstract class BaseElaborator<T> implements SyntaxElaborator<T> {
     assert(name != null);
     if (name.length == 0) return false;
 
-    // An identifier is not allowed to start with an underscore (_) or colon (:).
+    // An identifier is not allowed to start with an underscore (_), colon (:),
+    // or apostrophe (').
     int c = name.codeUnitAt(0);
     if (!unicode.isAsciiLetter(c) &&
         !(allowedIdentSymbols.contains(c) &&
             c != unicode.LOW_LINE &&
-            c != unicode.COLON)) {
+            c != unicode.COLON &&
+            c != unicode.APOSTROPHE)) {
       return false;
     }
 
@@ -276,14 +285,13 @@ abstract class BaseElaborator<T> implements SyntaxElaborator<T> {
       if (isValidIdentifier(atom.value)) {
         return Result.success(Name(atom.value, atom.location));
       } else {
-        LocatedError err =
-            BadSyntaxError(atom.location, const <String>["identifier"]);
-        return Result.failure(<LocatedError>[err]);
+        LocatedError err = InvalidIdentifierError(atom.value, atom.location);
+        return Result(Name.dummy(), <LocatedError>[err]);
       }
     } else {
       LocatedError err =
           BadSyntaxError(sexp.location, const <String>["identifier"]);
-      return Result.failure(<LocatedError>[err]);
+      return Result(Name.dummy(), <LocatedError>[err]);
     }
   }
 

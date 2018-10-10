@@ -18,6 +18,8 @@ class Name {
       : text = Gensym.freshString(prefix),
         _location = location;
 
+  const factory Name.dummy([Location location]) = DummyName;
+
   String toString() {
     return text;
   }

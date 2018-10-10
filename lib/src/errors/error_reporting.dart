@@ -64,8 +64,8 @@ class _ErrorReporter {
       return error.unterminatedString.length;
     }
 
-    if (error is HasName) {
-      return (error as HasName).name.length;
+    if (error is HasLength) {
+      return (error as HasLength).length;
     }
 
     return 1;
