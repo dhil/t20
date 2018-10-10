@@ -1,0 +1,34 @@
+;; Constant functions
+
+;; This is a genuine nullary function.
+(: forty-two (-> Int))
+(define (forty-two) 42)
+
+(: value-of-forty-two Int)
+(define value-of-forty-two
+  (forty-two)) ;; Nullary functions are applied by enclosing them in brackets.
+
+;; In languages without n-ary functions, such as OCaml and Haskell,
+;; unary constant functions are typically used to approximate nullary
+;; functions.
+
+;; It is custom to use `unit' as "the dummy argument" to a constant function.
+(: twenty-one (-> (*) Int))
+(define (twenty-one _) 21) ;; Using wildcard pattern to ignore the `unit' value.
+
+(: value-of-twenty-one Int)
+(define value-of-twenty-one (twenty-one (,)))
+
+(: twenty-one' (-> (*) Int))
+(define (twenty-one' (,)) 21) ;; Explicitly matching the `unit' value.
+
+(: value-of-twenty-one' Int)
+(define value-of-twenty-one' (twenty-one' (,)))
+
+
+;; Though, with polymorphism it is possible to use any value as a dummy value.
+(: twenty-two (-> 'a Int))
+(define (twenty-two _) 22)
+
+(: value-of-twenty-two Int)
+(define value-of-twenty-two (twenty-two "Please give me your value, thanks!"))
