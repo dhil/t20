@@ -267,3 +267,36 @@ abstract class DefaultTypeVisitor<T> implements TypeVisitor<T> {
     throw _UnsupportedVisitorMethodError("visitTypeParameter");
   }
 }
+
+abstract class ModuleIterator implements ModuleVisitor<Null> {
+  ExpressionVisitor<Null> expIterator;
+  PatternVisitor<Null> patIterator;
+  TypeVisitor<Null> typeIterator;
+
+  ModuleIterator(this.expIterator, this.patIterator, this.typeIterator);
+
+  void iterate(ModuleMember mod) {
+    mod.visit<Null>(this);
+  }
+  
+  Null visitDatatype(DatatypeDeclaration decl) {
+  }
+
+  Null visitError(ErrorModule err) {
+  }
+
+  Null visitFunction(FunctionDeclaration decl) {
+  }
+
+  Null visitInclude(Include include) {
+  }
+
+  Null visitTopModule(TopModule mod) {
+  }
+
+  Null visitTypename(TypenameDeclaration decl) {
+  }
+
+  Null visitValue(ValueDeclaration decl) {
+  }
+}

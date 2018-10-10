@@ -31,49 +31,63 @@ abstract class TypeVisitor<T> {
   T visitTypeParameter(TypeParameter ty);
 }
 
+enum TypeTag {
+  BOOL_TYPE,
+  CONSTRUCTOR_TYPE,
+  FORALL,
+  FUNCTION_TYPE,
+  INT_TYPE,
+  INVALID_TYPE,
+  STRING_TYPE,
+  TUPLE_TYPE,
+  VARIABLE,
+  QUANTIFIER
+}
+
 abstract class Datatype {
-  Location get location;
+  final TypeTag tag;
+  Location _location;
+  Location get location => _location;
+
+  Datatype(this.tag, this._location);
+
   T visit<T>(TypeVisitor<T> v);
 }
 
-class BoolType implements Datatype {
-  Location location;
-
-  BoolType(this.location);
+class BoolType extends Datatype {
+  BoolType(Location location) : super(TypeTag.BOOL_TYPE, location);
 
   T visit<T>(TypeVisitor<T> v) {
     return v.visitBool(this);
   }
 }
 
-class IntType implements Datatype {
-  Location location;
-
-  IntType(this.location);
+class IntType extends Datatype {
+  IntType(Location location) : super(TypeTag.INT_TYPE, location);
 
   T visit<T>(TypeVisitor<T> v) {
     return v.visitInt(this);
   }
 }
 
-class ForallType implements Datatype {
+class ForallType extends Datatype {
   List<TypeParameter> quantifiers;
   Datatype body;
-  Location location;
 
-  ForallType(this.quantifiers, this.body, this.location);
+  ForallType(this.quantifiers, this.body, Location location)
+      : super(TypeTag.FORALL, location);
 
   T visit<T>(TypeVisitor<T> v) {
     return v.visitForall(this);
   }
 }
 
-class FunctionType implements Datatype {
+class FunctionType extends Datatype {
   List<Datatype> domain;
   Datatype codomain;
-  Location location;
 
-  FunctionType(this.domain, this.codomain, this.location);
+  FunctionType(this.domain, this.codomain, Location location)
+      : super(TypeTag.FUNCTION_TYPE, location);
   FunctionType.thunk(Datatype codomain, Location location)
       : this(const <Datatype>[], codomain, location);
 
@@ -82,22 +96,20 @@ class FunctionType implements Datatype {
   }
 }
 
-class StringType implements Datatype {
-  Location location;
-
-  StringType(this.location);
+class StringType extends Datatype {
+  StringType(Location location) : super(TypeTag.STRING_TYPE, location);
 
   T visit<T>(TypeVisitor<T> v) {
     return v.visitString(this);
   }
 }
 
-class TypeConstructor implements Datatype {
-  Location location;
+class TypeConstructor extends Datatype {
   Name name;
   List<Datatype> arguments;
 
-  TypeConstructor(this.name, this.arguments, this.location);
+  TypeConstructor(this.name, this.arguments, Location location)
+      : super(TypeTag.CONSTRUCTOR_TYPE, location);
   TypeConstructor.nullary(Name name, Location location)
       : this(name, const <Datatype>[], location);
 
@@ -106,43 +118,44 @@ class TypeConstructor implements Datatype {
   }
 }
 
-class TupleType implements Datatype {
-  Location location;
+class TupleType extends Datatype {
   List<Datatype> components;
 
-  TupleType(this.components, this.location);
+  TupleType(this.components, Location location)
+      : super(TypeTag.TUPLE_TYPE, location);
 
   T visit<T>(TypeVisitor<T> v) {
     return v.visitTuple(this);
   }
 }
 
-class InvalidType implements Datatype {
-  Location location;
-
-  InvalidType(this.location);
+class InvalidType extends Datatype {
+  InvalidType(Location location) : super(TypeTag.INVALID_TYPE, location);
 
   T visit<T>(TypeVisitor<T> v) {
     return v.visitInvalid(this);
   }
 }
 
-class TypeParameter implements TypeDeclaration, Datatype {
-  Location location;
+enum Kind { TYPE }
+
+class TypeParameter extends Datatype implements TypeDeclaration {
   Name name;
 
-  TypeParameter(this.name, this.location);
+  TypeParameter(this.name, Location location)
+      : super(TypeTag.QUANTIFIER, location);
 
   T visit<T>(TypeVisitor<T> v) {
     return v.visitTypeParameter(this);
   }
 }
 
-class TypeVariable implements Datatype {
-  Location location;
+class TypeVariable extends Datatype {
+  final TypeTag tag = TypeTag.VARIABLE;
   final Name name;
 
-  TypeVariable(this.name, this.location);
+  TypeVariable(this.name, Location location)
+      : super(TypeTag.VARIABLE, location);
 
   T visit<T>(TypeVisitor<T> v) {
     return v.visitTypeVariable(this);

@@ -8,11 +8,11 @@ import 'ast_common.dart' show Name;
 import 'ast_types.dart' show Datatype;
 
 abstract class Declaration {
-  Location location;
-  Name name;
+  Location get location;
+  Name get name;
 }
 
 abstract class TermDeclaration extends Declaration {
-  Datatype type;
+  Datatype get type;
 }
 abstract class TypeDeclaration extends Declaration {}
