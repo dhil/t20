@@ -2,6 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'dart:core';
+import 'dart:core' as core;
 import '../ast/ast_common.dart';
 import '../ast/ast_types.dart';
 import '../errors/errors.dart';
@@ -15,16 +17,21 @@ import 'syntax_elaborator.dart';
 // elsewhere.
 class Typenames {
   static const String arrow = "->";
-  static const String bool = "Bool";
-  static const String int = "Int";
+  static const String boolean = "Bool";
+  static const String integer = "Int";
   static const String string = "String";
   static const String forall = "forall";
   static const String tuple = "*";
 
   static bool isBaseTypename(String typeName) {
-    return typeName == Typenames.bool ||
-        typeName == Typenames.int ||
-        typeName == Typenames.string;
+    switch (typeName) {
+      case Typenames.boolean:
+      case Typenames.integer:
+      case Typenames.string:
+        return true;
+      default:
+        return false;
+    }
   }
 }
 
@@ -43,28 +50,25 @@ class TypeElaborator extends BaseElaborator<Datatype> {
     Location loc = atom.location;
     String value = atom.value;
     // Check whether atom is a primitive type, i.e. Bool, Int, or String.
-    if (Typenames.isBaseTypename(value)) {
-      switch (atom.value) {
-        case Typenames.bool:
-          return BoolType(loc);
-        case Typenames.int:
-          return IntType(loc);
-        case Typenames.string:
-          return StringType(loc);
-        default:
-          assert(false);
-          return null;
-      }
-    } else if (isValidTypeVariableName(value)) {
-      return TypeVariable(Name(value, loc), loc);
-    } else {
-      // Must be a user-defined type (i.e. nullary type application).
-      if (isValidTypeConstructorName(value)) {
-        return TypeConstructor.nullary(Name(value, loc), loc);
-      } else {
-        // Error: invalid type.
-        return InvalidType(loc);
-      }
+    switch (atom.value) {
+      case Typenames.boolean:
+        return BoolType(loc);
+      case Typenames.integer:
+        return IntType(loc);
+      case Typenames.string:
+        return StringType(loc);
+      default:
+        if (isValidTypeVariableName(value)) {
+          return TypeVariable(Name(value, loc), loc);
+        } else {
+          // Must be a user-defined type (i.e. nullary type application).
+          if (isValidTypeConstructorName(value)) {
+            return TypeConstructor.nullary(Name(value, loc), loc);
+          } else {
+            // Error: invalid type.
+            return InvalidType(loc);
+          }
+        }
     }
   }
 

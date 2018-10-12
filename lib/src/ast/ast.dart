@@ -65,238 +65,238 @@ export 'ast_module.dart';
 export 'ast_patterns.dart';
 export 'ast_types.dart';
 
-class _UnsupportedVisitorMethodError {
-  final String methodName;
-  _UnsupportedVisitorMethodError(this.methodName);
+// class _UnsupportedVisitorMethodError {
+//   final String methodName;
+//   _UnsupportedVisitorMethodError(this.methodName);
 
-  String toString() {
-    return "Unsupported invocation of AST visitor method '$methodName'.";
-  }
-}
+//   String toString() {
+//     return "Unsupported invocation of AST visitor method '$methodName'.";
+//   }
+// }
 
-abstract class DefaultExpressionVisitor<T> implements ExpressionVisitor<T> {
-  T visitBool(BoolLit boolean) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitBool");
-  }
+// abstract class DefaultExpressionVisitor<T> implements ExpressionVisitor<T> {
+//   T visitBool(BoolLit boolean) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitBool");
+//   }
 
-  T visitInt(IntLit integer) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitInt");
-  }
+//   T visitInt(IntLit integer) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitInt");
+//   }
 
-  T visitString(StringLit string) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitString");
-  }
+//   T visitString(StringLit string) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitString");
+//   }
 
-  T visitApply(Apply apply) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitApply");
-  }
+//   T visitApply(Apply apply) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitApply");
+//   }
 
-  T visitIf(If ifthenelse) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitIf");
-  }
+//   T visitIf(If ifthenelse) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitIf");
+//   }
 
-  T visitLambda(Lambda lambda) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitLambda");
-  }
+//   T visitLambda(Lambda lambda) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitLambda");
+//   }
 
-  T visitLet(Let binding) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitLet");
-  }
+//   T visitLet(Let binding) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitLet");
+//   }
 
-  T visitMatch(Match match) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitMatch");
-  }
+//   T visitMatch(Match match) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitMatch");
+//   }
 
-  T visitTuple(Tuple tuple) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitTuple");
-  }
+//   T visitTuple(Tuple tuple) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitTuple");
+//   }
 
-  T visitVariable(Variable v) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitVariable");
-  }
+//   T visitVariable(Variable v) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitVariable");
+//   }
 
-  T visitTypeAscription(TypeAscription ascription) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitTypeAscription");
-  }
-}
+//   T visitTypeAscription(TypeAscription ascription) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitTypeAscription");
+//   }
+// }
 
-abstract class DefaultModuleVisitor<T> implements ModuleVisitor<T> {
-  T visitDatatype(DatatypeDeclaration _) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitDatatype");
-  }
+// abstract class DefaultModuleVisitor<T> implements ModuleVisitor<T> {
+//   T visitDatatype(DatatypeDeclaration _) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitDatatype");
+//   }
 
-  T visitError(ErrorModule _) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitError");
-  }
+//   T visitError(ErrorModule _) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitError");
+//   }
 
-  T visitFunction(FunctionDeclaration _) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitFunction");
-  }
+//   T visitFunction(FunctionDeclaration _) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitFunction");
+//   }
 
-  T visitInclude(Include _) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitInclude");
-  }
+//   T visitInclude(Include _) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitInclude");
+//   }
 
-  T visitTopModule(TopModule _) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitTopModule");
-  }
+//   T visitTopModule(TopModule _) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitTopModule");
+//   }
 
-  T visitTypename(TypenameDeclaration _) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitTypename");
-  }
+//   T visitTypename(TypenameDeclaration _) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitTypename");
+//   }
 
-  T visitValue(ValueDeclaration _) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitValue");
-  }
-}
+//   T visitValue(ValueDeclaration _) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitValue");
+//   }
+// }
 
-abstract class DefaultPatternVisitor<T> implements PatternVisitor<T> {
-  T visitBool(BoolPattern b) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitBool");
-  }
+// abstract class DefaultPatternVisitor<T> implements PatternVisitor<T> {
+//   T visitBool(BoolPattern b) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitBool");
+//   }
 
-  T visitConstructor(ConstructorPattern constr) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitConstructor");
-  }
+//   T visitConstructor(ConstructorPattern constr) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitConstructor");
+//   }
 
-  T visitError(ErrorPattern e) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitError");
-  }
+//   T visitError(ErrorPattern e) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitError");
+//   }
 
-  T visitHasType(HasTypePattern t) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitHasType");
-  }
+//   T visitHasType(HasTypePattern t) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitHasType");
+//   }
 
-  T visitInt(IntPattern i) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitInt");
-  }
+//   T visitInt(IntPattern i) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitInt");
+//   }
 
-  T visitString(StringPattern s) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitString");
-  }
+//   T visitString(StringPattern s) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitString");
+//   }
 
-  T visitTuple(TuplePattern t) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitTuple");
-  }
+//   T visitTuple(TuplePattern t) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitTuple");
+//   }
 
-  T visitVariable(VariablePattern v) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitVariable");
-  }
+//   T visitVariable(VariablePattern v) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitVariable");
+//   }
 
-  T visitWildcard(WildcardPattern w) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitWildcard");
-  }
-}
+//   T visitWildcard(WildcardPattern w) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitWildcard");
+//   }
+// }
 
-abstract class DefaultTypeVisitor<T> implements TypeVisitor<T> {
+// abstract class DefaultTypeVisitor<T> implements TypeVisitor<T> {
 
-  T visitConstructor(TypeConstructor ty) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitConstructor");
-  }
+//   T visitConstructor(TypeConstructor ty) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitConstructor");
+//   }
 
-  T visitBool(BoolType ty) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitBool");
-  }
+//   T visitBool(BoolType ty) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitBool");
+//   }
 
-  T visitForall(ForallType ty) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitForall");
-  }
+//   T visitForall(ForallType ty) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitForall");
+//   }
 
-  T visitFunction(FunctionType ty) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitFunction");
-  }
+//   T visitFunction(FunctionType ty) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitFunction");
+//   }
 
-  T visitInt(IntType ty) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitInt");
-  }
+//   T visitInt(IntType ty) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitInt");
+//   }
 
-  T visitInvalid(InvalidType ty) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitInvalid");
-  }
+//   T visitInvalid(InvalidType ty) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitInvalid");
+//   }
 
-  T visitString(StringType ty) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitString");
-  }
+//   T visitString(StringType ty) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitString");
+//   }
 
-  T visitTuple(TupleType ty) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitTuple");
-  }
+//   T visitTuple(TupleType ty) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitTuple");
+//   }
 
-  T visitTypeVariable(TypeVariable ty) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitTypeVariable");
-  }
+//   T visitTypeVariable(TypeVariable ty) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitTypeVariable");
+//   }
 
-  T visitTypeParameter(TypeParameter ty) {
-    assert(false);
-    throw _UnsupportedVisitorMethodError("visitTypeParameter");
-  }
-}
+//   T visitTypeParameter(TypeParameter ty) {
+//     assert(false);
+//     throw _UnsupportedVisitorMethodError("visitTypeParameter");
+//   }
+// }
 
-abstract class ModuleIterator implements ModuleVisitor<Null> {
-  ExpressionVisitor<Null> expIterator;
-  PatternVisitor<Null> patIterator;
-  TypeVisitor<Null> typeIterator;
+// abstract class ModuleIterator implements ModuleVisitor<Null> {
+//   ExpressionVisitor<Null> expIterator;
+//   PatternVisitor<Null> patIterator;
+//   TypeVisitor<Null> typeIterator;
 
-  ModuleIterator(this.expIterator, this.patIterator, this.typeIterator);
+//   ModuleIterator(this.expIterator, this.patIterator, this.typeIterator);
 
-  void iterate(ModuleMember mod) {
-    mod.visit<Null>(this);
-  }
+//   void iterate(ModuleMember mod) {
+//     mod.visit<Null>(this);
+//   }
   
-  Null visitDatatype(DatatypeDeclaration decl) {
-  }
+//   Null visitDatatype(DatatypeDeclaration decl) {
+//   }
 
-  Null visitError(ErrorModule err) {
-  }
+//   Null visitError(ErrorModule err) {
+//   }
 
-  Null visitFunction(FunctionDeclaration decl) {
-  }
+//   Null visitFunction(FunctionDeclaration decl) {
+//   }
 
-  Null visitInclude(Include include) {
-  }
+//   Null visitInclude(Include include) {
+//   }
 
-  Null visitTopModule(TopModule mod) {
-  }
+//   Null visitTopModule(TopModule mod) {
+//   }
 
-  Null visitTypename(TypenameDeclaration decl) {
-  }
+//   Null visitTypename(TypenameDeclaration decl) {
+//   }
 
-  Null visitValue(ValueDeclaration decl) {
-  }
-}
+//   Null visitValue(ValueDeclaration decl) {
+//   }
+// }
