@@ -50,6 +50,7 @@ abstract class TypeAlgebra<Typ> {
   Typ integer({Location location});
   Typ boolean({Location location});
   Typ string({Location location});
+  Typ var_(String name, {Location location});
   Typ forall(List<String> quantifiers, Typ type, {Location location});
   Typ arrow(Typ domain, Typ codomain, {Location location});
   Typ constr(String name, List<Typ> arguments, {Location location});
