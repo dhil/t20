@@ -20,7 +20,7 @@ abstract class SexpVisitor<T> {
 abstract class Sexp {
   final Location location;
   const Sexp(this.location);
-  T visit<T>(SexpVisitor<T> visitor);
+  T accept<T>(SexpVisitor<T> visitor);
 }
 
 class Atom extends Sexp {
@@ -28,7 +28,7 @@ class Atom extends Sexp {
 
   const Atom(this.value, Location location) : super(location);
 
-  T visit<T>(SexpVisitor<T> visitor) {
+  T accept<T>(SexpVisitor<T> visitor) {
     return visitor.visitAtom(this);
   }
 
@@ -43,7 +43,7 @@ class Atom extends Sexp {
 
 //   const IntLiteral(this.value, this.location);
 
-//   T visit<T>(SexpVisitor<T> visitor) {
+//   T accept<T>(SexpVisitor<T> visitor) {
 //     return visitor.visitInt(this);
 //   }
 
@@ -75,7 +75,7 @@ class SList extends Sexp {
   int get length => sexps.length;
   Sexp get last => sexps.last;
 
-  T visit<T>(SexpVisitor<T> visitor) {
+  T accept<T>(SexpVisitor<T> visitor) {
     return visitor.visitList(this);
   }
 
@@ -99,7 +99,7 @@ class SList extends Sexp {
 
 //   const Pair(this.first, this.second, this.location);
 
-//   T visit<T>(SexpVisitor<T> visitor) {
+//   T accept<T>(SexpVisitor<T> visitor) {
 //     return visitor.visitPair(this);
 //   }
 // }
@@ -109,7 +109,7 @@ class StringLiteral extends Sexp {
 
   const StringLiteral(this.value, Location location) : super(location);
 
-  T visit<T>(SexpVisitor<T> visitor) {
+  T accept<T>(SexpVisitor<T> visitor) {
     return visitor.visitString(this);
   }
 
@@ -124,7 +124,7 @@ class Toplevel extends Sexp {
 
   SpanLocation get location => super.location as SpanLocation;
 
-  T visit<T>(SexpVisitor<T> visitor) {
+  T accept<T>(SexpVisitor<T> visitor) {
     return visitor.visitToplevel(this);
   }
 }
@@ -134,7 +134,7 @@ class Error extends Sexp {
 
   const Error(this.error, Location location) : super(location);
 
-  T visit<T>(SexpVisitor visitor) {
+  T accept<T>(SexpVisitor visitor) {
     return visitor.visitError(this);
   }
 

@@ -51,13 +51,13 @@ abstract class Datatype {
 
   Datatype(this.tag, this._location);
 
-  T visit<T>(TypeVisitor<T> v);
+  T accept<T>(TypeVisitor<T> v);
 }
 
 class BoolType extends Datatype {
   BoolType(Location location) : super(TypeTag.BOOL_TYPE, location);
 
-  T visit<T>(TypeVisitor<T> v) {
+  T accept<T>(TypeVisitor<T> v) {
     return v.visitBool(this);
   }
 }
@@ -65,7 +65,7 @@ class BoolType extends Datatype {
 class IntType extends Datatype {
   IntType(Location location) : super(TypeTag.INT_TYPE, location);
 
-  T visit<T>(TypeVisitor<T> v) {
+  T accept<T>(TypeVisitor<T> v) {
     return v.visitInt(this);
   }
 }
@@ -77,7 +77,7 @@ class ForallType extends Datatype {
   ForallType(this.quantifiers, this.body, Location location)
       : super(TypeTag.FORALL, location);
 
-  T visit<T>(TypeVisitor<T> v) {
+  T accept<T>(TypeVisitor<T> v) {
     return v.visitForall(this);
   }
 }
@@ -91,7 +91,7 @@ class FunctionType extends Datatype {
   FunctionType.thunk(Datatype codomain, Location location)
       : this(const <Datatype>[], codomain, location);
 
-  T visit<T>(TypeVisitor<T> v) {
+  T accept<T>(TypeVisitor<T> v) {
     return v.visitFunction(this);
   }
 }
@@ -99,7 +99,7 @@ class FunctionType extends Datatype {
 class StringType extends Datatype {
   StringType(Location location) : super(TypeTag.STRING_TYPE, location);
 
-  T visit<T>(TypeVisitor<T> v) {
+  T accept<T>(TypeVisitor<T> v) {
     return v.visitString(this);
   }
 }
@@ -113,7 +113,7 @@ class TypeConstructor extends Datatype {
   TypeConstructor.nullary(Name name, Location location)
       : this(name, const <Datatype>[], location);
 
-  T visit<T>(TypeVisitor<T> v) {
+  T accept<T>(TypeVisitor<T> v) {
     return v.visitConstructor(this);
   }
 }
@@ -124,7 +124,7 @@ class TupleType extends Datatype {
   TupleType(this.components, Location location)
       : super(TypeTag.TUPLE_TYPE, location);
 
-  T visit<T>(TypeVisitor<T> v) {
+  T accept<T>(TypeVisitor<T> v) {
     return v.visitTuple(this);
   }
 }
@@ -132,7 +132,7 @@ class TupleType extends Datatype {
 class InvalidType extends Datatype {
   InvalidType(Location location) : super(TypeTag.INVALID_TYPE, location);
 
-  T visit<T>(TypeVisitor<T> v) {
+  T accept<T>(TypeVisitor<T> v) {
     return v.visitInvalid(this);
   }
 }
@@ -145,7 +145,7 @@ class TypeParameter extends Datatype implements TypeDeclaration {
   TypeParameter(this.name, Location location)
       : super(TypeTag.QUANTIFIER, location);
 
-  T visit<T>(TypeVisitor<T> v) {
+  T accept<T>(TypeVisitor<T> v) {
     return v.visitTypeParameter(this);
   }
 }
@@ -157,7 +157,7 @@ class TypeVariable extends Datatype {
   TypeVariable(this.name, Location location)
       : super(TypeTag.VARIABLE, location);
 
-  T visit<T>(TypeVisitor<T> v) {
+  T accept<T>(TypeVisitor<T> v) {
     return v.visitTypeVariable(this);
   }
 }

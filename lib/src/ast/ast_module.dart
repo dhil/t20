@@ -27,57 +27,63 @@ abstract class ModuleVisitor<T> {
 }
 
 abstract class ModuleMember {
-  T visit<T>(ModuleVisitor<T> v);
+  final ModuleTag tag;
+  Location location;
+
+  ModuleMember(this.tag, this.location);
+
+  T accept<T>(ModuleVisitor<T> v);
 }
 
-class ValueDeclaration implements TermDeclaration, ModuleMember {
+enum ModuleTag { DATATYPE_DEF, ERROR, FUNC_DEF, OPEN, TOP, TYPENAME, VALUE_DEF }
+
+class ValueDeclaration extends ModuleMember implements TermDeclaration {
   Name name;
   Datatype type;
   Expression body;
-  Location location;
 
-  ValueDeclaration(this.name, this.body, this.location);
-  T visit<T>(ModuleVisitor<T> v) {
+  ValueDeclaration(this.name, this.body, Location location)
+      : super(ModuleTag.VALUE_DEF, location);
+  T accept<T>(ModuleVisitor<T> v) {
     return v.visitValue(this);
   }
 }
 
-class FunctionDeclaration implements TermDeclaration, ModuleMember {
+class FunctionDeclaration extends ModuleMember implements TermDeclaration {
   Name name;
   Datatype type;
   List<Pattern> parameters;
   List<Expression> body;
-  Location location;
 
-  FunctionDeclaration(this.name, this.parameters, this.body, this.location);
+  FunctionDeclaration(this.name, this.parameters, this.body, Location location)
+      : super(ModuleTag.FUNC_DEF, location);
 
-  T visit<T>(ModuleVisitor<T> v) {
+  T accept<T>(ModuleVisitor<T> v) {
     return v.visitFunction(this);
   }
 }
 
-class DatatypeDeclaration implements TypeDeclaration, ModuleMember {
+class DatatypeDeclaration extends ModuleMember implements TypeDeclaration {
   Name name;
   List<TypeParameter> typeParameters;
   Map<Name, List<Datatype>> constructors;
   List<Name> deriving;
-  Location location;
 
-  DatatypeDeclaration(
-      this.name, this.typeParameters, this.constructors, this.deriving, this.location);
+  DatatypeDeclaration(this.name, this.typeParameters, this.constructors,
+      this.deriving, Location location)
+      : super(ModuleTag.DATATYPE_DEF, location);
 
-  T visit<T>(ModuleVisitor<T> v) {
+  T accept<T>(ModuleVisitor<T> v) {
     return v.visitDatatype(this);
   }
 }
 
-class Include implements ModuleMember {
+class Include extends ModuleMember {
   String module;
-  Location location;
 
-  Include(this.module, this.location);
+  Include(this.module, Location location) : super(ModuleTag.OPEN, location);
 
-  T visit<T>(ModuleVisitor<T> v) {
+  T accept<T>(ModuleVisitor<T> v) {
     return v.visitInclude(this);
   }
 }
@@ -94,40 +100,38 @@ class Include implements ModuleMember {
 //   }
 // }
 
-class TopModule implements ModuleMember {
-  Location location;
+class TopModule extends ModuleMember {
   List<ModuleMember> members;
   List<Map<Name, Map<Name, List<Datatype>>>> datatypes;
 
-  TopModule(this.members, this.location);
+  TopModule(this.members, Location location) : super(ModuleTag.TOP, location);
 
-  T visit<T>(ModuleVisitor<T> v) {
+  T accept<T>(ModuleVisitor<T> v) {
     return v.visitTopModule(this);
   }
 }
 
-class TypenameDeclaration implements TypeDeclaration, ModuleMember {
+class TypenameDeclaration extends ModuleMember implements TypeDeclaration {
   Name name;
   List<TypeParameter> typeParameters;
   Datatype rhs;
-  Location location;
 
-  TypenameDeclaration(this.name, this.typeParameters, this.rhs, this.location);
+  TypenameDeclaration(
+      this.name, this.typeParameters, this.rhs, Location location)
+      : super(ModuleTag.TYPENAME, location);
 
-  T visit<T>(ModuleVisitor<T> v) {
+  T accept<T>(ModuleVisitor<T> v) {
     return v.visitTypename(this);
   }
 }
 
-class ErrorModule implements ModuleMember {
+class ErrorModule extends ModuleMember {
   final LocatedError error;
-  final Location _location;
 
-  Location get location => _location ?? Location.dummy();
+  ErrorModule(this.error, [Location location = null])
+      : super(ModuleTag.ERROR, location == null ? Location.dummy() : location);
 
-  ErrorModule(this.error, [Location location = null]) : _location = location;
-
-  T visit<T>(ModuleVisitor<T> v) {
+  T accept<T>(ModuleVisitor<T> v) {
     return v.visitError(this);
   }
 }

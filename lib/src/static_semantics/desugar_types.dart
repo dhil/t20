@@ -13,6 +13,3 @@ class DesugarDatatypes {
     return Result(mod, <LocatedError>[]);
   }
 }
-
-class DatatypeDesugarer extends DefaultTypeVisitor<Datatype> {
-}

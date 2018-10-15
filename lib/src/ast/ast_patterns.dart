@@ -22,96 +22,112 @@ abstract class PatternVisitor<T> {
 }
 
 abstract class Pattern {
-  T visit<T>(PatternVisitor<T> v);
+  Location location;
+  final PatternTag tag;
+  Pattern(this.tag, this.location);
+
+  T accept<T>(PatternVisitor<T> v);
 }
 
-abstract class BaseValuePattern<T> implements Pattern {
-  Location location;
+enum PatternTag {
+  BOOL,
+  CONSTR,
+  ERROR,
+  HAS_TYPE,
+  INT,
+  STRING,
+  TUPLE,
+  VAR,
+  WILDCARD
+}
+
+abstract class BaseValuePattern<T> extends Pattern {
   T value;
 
-  BaseValuePattern(this.value, this.location);
+  BaseValuePattern(this.value, PatternTag tag, Location location)
+      : super(tag, location);
 }
 
 class BoolPattern extends BaseValuePattern<bool> {
-  BoolPattern(bool value, Location location) : super(value, location);
+  BoolPattern(bool value, Location location)
+      : super(value, PatternTag.BOOL, location);
 
-  T visit<T>(PatternVisitor<T> v) {
+  T accept<T>(PatternVisitor<T> v) {
     return v.visitBool(this);
   }
 }
 
-class ConstructorPattern implements Pattern {
-  Location location;
+class ConstructorPattern extends Pattern {
   Name name;
   List<VariablePattern> components;
 
-  ConstructorPattern(this.name, this.components, this.location);
+  ConstructorPattern(this.name, this.components, Location location)
+      : super(PatternTag.CONSTR, location);
   ConstructorPattern.nullary(Name name, Location location)
       : this(name, const <VariablePattern>[], location);
 
-  T visit<T>(PatternVisitor<T> v) {
+  T accept<T>(PatternVisitor<T> v) {
     return v.visitConstructor(this);
   }
 }
 
-class ErrorPattern implements Pattern {
-  Location location;
-  ErrorPattern(this.location);
+class ErrorPattern extends Pattern {
+  ErrorPattern(Location location) : super(PatternTag.ERROR, location);
 
-  T visit<T>(PatternVisitor<T> v) {
+  T accept<T>(PatternVisitor<T> v) {
     return v.visitError(this);
   }
 }
 
-class HasTypePattern implements Pattern {
+class HasTypePattern extends Pattern {
   Location location;
   Pattern pattern;
   Datatype type;
 
-  HasTypePattern(this.pattern, this.type, this.location);
+  HasTypePattern(this.pattern, this.type, Location location)
+      : super(PatternTag.HAS_TYPE, location);
 
-  T visit<T>(PatternVisitor<T> v) {
+  T accept<T>(PatternVisitor<T> v) {
     return v.visitHasType(this);
   }
 }
 
 class IntPattern extends BaseValuePattern<int> {
-  IntPattern(int value, Location location) : super(value, location);
+  IntPattern(int value, Location location)
+      : super(value, PatternTag.INT, location);
 
-  T visit<T>(PatternVisitor<T> v) {
+  T accept<T>(PatternVisitor<T> v) {
     return v.visitInt(this);
   }
 }
 
 class StringPattern extends BaseValuePattern<String> {
-  StringPattern(String value, Location location) : super(value, location);
+  StringPattern(String value, Location location)
+      : super(value, PatternTag.STRING, location);
 
-  T visit<T>(PatternVisitor<T> v) {
+  T accept<T>(PatternVisitor<T> v) {
     return v.visitString(this);
   }
 }
 
-class TuplePattern implements Pattern {
-  Location location;
+class TuplePattern extends Pattern {
   List<NamePattern> components;
 
-  TuplePattern(this.components, this.location);
+  TuplePattern(this.components, Location location)
+      : super(PatternTag.TUPLE, location);
 
-  T visit<T>(PatternVisitor<T> v) {
+  T accept<T>(PatternVisitor<T> v) {
     return v.visitTuple(this);
   }
 }
 
-abstract class NamePattern implements Pattern {
-  Location location;
-}
+abstract class NamePattern implements Pattern {}
 
-class VariablePattern implements TermDeclaration, NamePattern {
-  Location location;
+class VariablePattern extends Pattern implements TermDeclaration, NamePattern {
   Datatype type;
   Name name;
 
-  VariablePattern(this.name, this.location, {bool isSynthetic = false});
+  VariablePattern(this.name, Location location, {bool isSynthetic = false}) : super(PatternTag.VAR, location);
   factory VariablePattern.synthetic(
       [Location location = null, String prefix = "x"]) {
     if (location == null) location = Location.dummy();
@@ -125,17 +141,15 @@ class VariablePattern implements TermDeclaration, NamePattern {
     return VariablePattern(Name(name, location), location, isSynthetic: false);
   }
 
-  T visit<T>(PatternVisitor<T> v) {
+  T accept<T>(PatternVisitor<T> v) {
     return v.visitVariable(this);
   }
 }
 
-class WildcardPattern implements NamePattern {
-  Location location;
+class WildcardPattern extends Pattern implements NamePattern {
+  WildcardPattern(Location location) : super(PatternTag.WILDCARD, location);
 
-  WildcardPattern(this.location);
-
-  T visit<T>(PatternVisitor<T> v) {
+  T accept<T>(PatternVisitor<T> v) {
     return v.visitWildcard(this);
   }
 }

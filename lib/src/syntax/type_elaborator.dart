@@ -120,11 +120,11 @@ class TypeElaborator extends BaseElaborator<Datatype> {
 
     if (list.length == 2) {
       // Nullary function.
-      Datatype codomain = list[1].visit(this);
+      Datatype codomain = list[1].accept<Datatype>(this);
       return FunctionType.thunk(codomain, list.location);
     } else {
       // N-ary function.
-      Datatype codomain = list.last.visit(this);
+      Datatype codomain = list.last.accept<Datatype>(this);
       List<Datatype> domain = new List<Datatype>();
       for (int i = 1; i < list.length - 1; i++) {
         domain.add(expect<Sexp, Datatype>(signatureDatatype, list[i],
@@ -193,7 +193,7 @@ class TypeElaborator extends BaseElaborator<Datatype> {
     // If the list is a singleton, then apply the elaboration rule for atoms on
     // [constr].
     if (list.length == 1) {
-      return constr.visit(this);
+      return constr.accept<Datatype>(this);
     }
 
     if (!isValidIdentifier(constr.value)) {

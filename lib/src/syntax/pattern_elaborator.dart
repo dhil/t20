@@ -120,7 +120,7 @@ class PatternElaborator extends BaseElaborator<Pattern> {
   Result<Pattern, LocatedError> constructorPattern(Sexp sexp) {
     assert(sexp != null);
     ConstructorPatternElaborator elab = new ConstructorPatternElaborator();
-    Pattern pat = sexp.visit(elab);
+    Pattern pat = sexp.accept<Pattern>(elab);
     return Result(pat, elab.errors);
   }
 

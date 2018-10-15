@@ -13,7 +13,7 @@ import 'errors/error_reporting.dart';
 import 'errors/errors.dart';
 import 'io/bytestream.dart';
 import 'result.dart';
-import 'static_semantics/scope.dart';
+import 'static_semantics/desugar_types.dart';
 import 'syntax/elaborator.dart';
 import 'syntax/parse_sexp.dart';
 
@@ -57,10 +57,10 @@ bool compile(List<String> filePaths, Settings settings) {
       }
 
       // Check static semantics.
-      Result<ModuleMember, LocatedError> nameResult =
-          new NameRefiner().refine(elabResult.result);
-      if (!nameResult.wasSuccessful) {
-        report(nameResult.errors);
+      Result<ModuleMember, LocatedError> desugarResult =
+          DesugarDatatypes.desugar(elabResult.result);
+      if (!desugarResult.wasSuccessful) {
+        report(desugarResult.errors);
         return false;
       }
     }

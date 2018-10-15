@@ -350,28 +350,28 @@ abstract class BaseElaborator<T> implements SyntaxElaborator<T> {
   Result<Datatype, LocatedError> datatype(Sexp sexp) {
     assert(sexp != null);
     TypeElaborator elab = new BelowToplevelTypeElaborator();
-    Datatype type = sexp.visit(elab);
+    Datatype type = sexp.accept<Datatype>(elab);
     return Result<Datatype, LocatedError>(type, elab.errors);
   }
 
   Result<Datatype, LocatedError> signatureDatatype(Sexp sexp) {
     assert(sexp != null);
     TypeElaborator elab = new TypeElaborator();
-    Datatype type = sexp.visit(elab);
+    Datatype type = sexp.accept<Datatype>(elab);
     return Result(type, elab.errors);
   }
 
   Result<Expression, LocatedError> expression(Sexp sexp) {
     assert(sexp != null);
     ExpressionElaborator elab = new ExpressionElaborator();
-    Expression exp = sexp.visit(elab);
+    Expression exp = sexp.accept<Expression>(elab);
     return Result<Expression, LocatedError>(exp, elab.errors);
   }
 
   Result<Pattern, LocatedError> pattern(Sexp sexp) {
     assert(sexp != null);
     PatternElaborator elab = new PatternElaborator();
-    Pattern pat = sexp.visit(elab);
+    Pattern pat = sexp.accept<Pattern>(elab);
     return Result<Pattern, LocatedError>(pat, elab.errors);
   }
 }

@@ -30,19 +30,38 @@ abstract class ExpressionVisitor<T> {
 }
 
 abstract class Expression {
-  T visit<T>(ExpressionVisitor<T> v);
+  final ExpTag tag;
+  Location location;
+
+  Expression(this.tag, this.location);
+
+  T accept<T>(ExpressionVisitor<T> v);
+}
+
+enum ExpTag {
+  BOOL,
+  INT,
+  STRING,
+  APPLY,
+  IF,
+  LAMBDA,
+  LET,
+  MATCH,
+  TUPLE,
+  VAR,
+  TYPE_ASCRIPTION
 }
 
 /** Constants. **/
-abstract class Constant extends Expression {}
+abstract class Constant<T> extends Expression {
+  T value;
+  Constant(this.value, ExpTag tag, Location location) : super(tag, location);
+}
 
-class BoolLit implements Constant {
-  bool value;
-  Location location;
+class BoolLit extends Constant<bool> {
+  BoolLit(bool value, Location location) : super(value, ExpTag.BOOL, location);
 
-  BoolLit(this.value, this.location);
-
-  T visit<T>(ExpressionVisitor<T> v) {
+  T accept<T>(ExpressionVisitor<T> v) {
     return v.visitBool(this);
   }
 
@@ -50,126 +69,118 @@ class BoolLit implements Constant {
   static const String F_LITERAL = "#f";
 }
 
-class IntLit implements Constant {
-  Location location;
-  int value;
+class IntLit extends Constant<int> {
+  IntLit(int value, Location location) : super(value, ExpTag.INT, location);
 
-  IntLit(this.value, this.location);
-
-  T visit<T>(ExpressionVisitor<T> v) {
+  T accept<T>(ExpressionVisitor<T> v) {
     return v.visitInt(this);
   }
 }
 
-class StringLit implements Constant {
-  Location location;
-  String value;
+class StringLit extends Constant<String> {
+  StringLit(String value, Location location) : super(value, ExpTag.STRING, location);
 
-  StringLit(this.value, this.location);
-
-  T visit<T>(ExpressionVisitor<T> v) {
+  T accept<T>(ExpressionVisitor<T> v) {
     return v.visitString(this);
   }
 }
 
-class Apply implements Expression {
-  Location location;
+class Apply extends Expression {
   Expression abstractor;
   List<Expression> arguments;
 
-  Apply(this.abstractor, this.arguments, this.location);
+  Apply(this.abstractor, this.arguments, Location location)
+      : super(ExpTag.APPLY, location);
 
-  T visit<T>(ExpressionVisitor<T> v) {
+  T accept<T>(ExpressionVisitor<T> v) {
     return v.visitApply(this);
   }
 }
 
-class Variable implements Expression {
-  Location location;
+class Variable extends Expression {
   Name id;
 
-  Variable(this.id, this.location);
+  Variable(this.id, Location location) : super(ExpTag.VAR, location);
 
-  T visit<T>(ExpressionVisitor<T> v) {
+  T accept<T>(ExpressionVisitor<T> v) {
     return v.visitVariable(this);
   }
 }
 
-class If implements Expression {
-  Location location;
+class If extends Expression {
   Expression condition;
   Expression thenBranch;
   Expression elseBranch;
 
-  If(this.condition, this.thenBranch, this.elseBranch, this.location);
+  If(this.condition, this.thenBranch, this.elseBranch, Location location)
+      : super(ExpTag.IF, location);
 
-  T visit<T>(ExpressionVisitor<T> v) {
+  T accept<T>(ExpressionVisitor<T> v) {
     return v.visitIf(this);
   }
 }
 
 enum LetKind { Parallel, Sequential }
 
-class Let implements Expression {
-  Location location;
+class Let extends Expression {
   LetKind _kind;
   List<Pair<Pattern, Expression>> valueBindings;
   List<Expression> body;
 
   LetKind get kind => _kind;
 
-  Let(this._kind, this.valueBindings, this.body, this.location);
+  Let(this._kind, this.valueBindings, this.body, Location location)
+      : super(ExpTag.LET, location);
 
-  T visit<T>(ExpressionVisitor<T> v) {
+  T accept<T>(ExpressionVisitor<T> v) {
     return v.visitLet(this);
   }
 }
 
-class Lambda implements Expression {
-  Location location;
+class Lambda extends Expression {
   List<Pattern> parameters;
   List<Expression> body;
 
-  Lambda(this.parameters, this.body, this.location);
+  Lambda(this.parameters, this.body, Location location)
+      : super(ExpTag.LAMBDA, location);
 
-  T visit<T>(ExpressionVisitor<T> v) {
+  T accept<T>(ExpressionVisitor<T> v) {
     return v.visitLambda(this);
   }
 }
 
-class Match implements Expression {
-  Location location;
+class Match extends Expression {
   Expression scrutinee;
   List<Pair<Pattern, List<Expression>>> cases;
 
-  Match(this.scrutinee, this.cases, this.location);
+  Match(this.scrutinee, this.cases, Location location)
+      : super(ExpTag.MATCH, location);
 
-  T visit<T>(ExpressionVisitor<T> v) {
+  T accept<T>(ExpressionVisitor<T> v) {
     return v.visitMatch(this);
   }
 }
 
-class Tuple implements Expression {
-  SpanLocation location;
+class Tuple extends Expression {
   List<Expression> components;
 
-  Tuple(this.components, this.location);
+  Tuple(this.components, Location location) : super(ExpTag.TUPLE, location);
 
-  T visit<T>(ExpressionVisitor<T> v) {
+  T accept<T>(ExpressionVisitor<T> v) {
     return v.visitTuple(this);
   }
 
   bool get isUnit => components.length == 0;
 }
 
-class TypeAscription implements Expression {
-  Location location;
+class TypeAscription extends Expression {
   Datatype type;
   Expression exp;
 
-  TypeAscription(this.exp, this.type, this.location);
+  TypeAscription(this.exp, this.type, Location location)
+      : super(ExpTag.TYPE_ASCRIPTION, location);
 
-  T visit<T>(ExpressionVisitor<T> v) {
+  T accept<T>(ExpressionVisitor<T> v) {
     return v.visitTypeAscription(this);
   }
 }

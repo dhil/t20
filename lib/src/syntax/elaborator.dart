@@ -16,7 +16,7 @@ import 'module_elaborator.dart';
 class Elaborator {
   Result<ModuleMember, LocatedError> elaborate(Sexp program) {
     ModuleElaborator elab = new ModuleElaborator();
-    ModuleMember ast = program.visit<ModuleMember>(elab);
+    ModuleMember ast = program.accept<ModuleMember>(elab);
     List<LocatedError> errors = elab.errors ?? [];
     Result<ModuleMember, LocatedError> result =
         new Result<ModuleMember, LocatedError>(ast, errors);

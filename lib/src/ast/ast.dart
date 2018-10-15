@@ -268,35 +268,51 @@ export 'ast_types.dart';
 //   }
 // }
 
-// abstract class ModuleIterator implements ModuleVisitor<Null> {
-//   ExpressionVisitor<Null> expIterator;
-//   PatternVisitor<Null> patIterator;
-//   TypeVisitor<Null> typeIterator;
+// typedef ModTransformer<M> = M Function(ModuleMember);
 
-//   ModuleIterator(this.expIterator, this.patIterator, this.typeIterator);
+// abstract class ModuleTransformer<T,E,M,P> implements ModuleVisitor<M> {
+//   ExpressionVisitor<E> expv;
+//   PatternVisitor<P> patv;
+//   TypeVisitor<T> typev;
+//   ModTransformer<M> transform;
 
-//   void iterate(ModuleMember mod) {
-//     mod.visit<Null>(this);
-//   }
-  
-//   Null visitDatatype(DatatypeDeclaration decl) {
-//   }
+//   ModuleTransformer(this.transform);
 
-//   Null visitError(ErrorModule err) {
+//   M visitDatatype(DatatypeDeclaration decl) {
+//     return transform(decl);
 //   }
 
-//   Null visitFunction(FunctionDeclaration decl) {
+//   M visitError(ErrorModule err) {
+//     return transform(err);
 //   }
 
-//   Null visitInclude(Include include) {
+//   M visitFunction(FunctionDeclaration decl) {
+//     // declareValue(decl.name, decl);
+//     return transform(decl);
 //   }
 
-//   Null visitTopModule(TopModule mod) {
+//   M visitInclude(Include include) {
+//     return transform(include);
 //   }
 
-//   Null visitTypename(TypenameDeclaration decl) {
+//   M visitTopModule(TopModule mod) {
+//     return transform(mod);
 //   }
 
-//   Null visitValue(ValueDeclaration decl) {
+//   M visitTypename(TypenameDeclaration decl) {
+//     // declareType(decl.name, decl);
+//     return transform(decl);
 //   }
+
+//   M visitValue(ValueDeclaration decl) {
+//     // declareValue(dec.name, decl);
+//     return transform(decl);
+//   }
+
+//   // void declareType(Name name, TypeDeclaration decl) {
+
+//   // }
+
+//   // void declareValue(Name name, TermDeclaration decl) {
+//   // }
 // }

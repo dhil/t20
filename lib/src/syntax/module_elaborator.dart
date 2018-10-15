@@ -89,7 +89,7 @@ class ModuleElaborator extends BaseElaborator<ModuleMember> {
     assert(toplevel != null);
     List<ModuleMember> members = new List<ModuleMember>();
     for (int i = 0; i < toplevel.sexps.length; i++) {
-      ModuleMember member = toplevel.sexps[i].visit(this);
+      ModuleMember member = toplevel.sexps[i].accept<ModuleMember>(this);
       if (member != null) {
         // The [signature] and [datatypeDeclaration] methods are allowed to return null.
         members.add(member);
