@@ -229,6 +229,7 @@ class TermEval extends TermAlgebra<Evaluable, Null> {
   Evaluable pair(Evaluable a, Evaluable b) => EvaluablePair(a, b);
 }
 
+// Another attempt using anonymous functions.
 typedef Evaluator = Value Function(Map<String, Value>);
 
 class TermEval0 extends TermAlgebra<Evaluator, Null> {
@@ -321,6 +322,35 @@ class NullAlgebra extends TypeAlgebra<Null> {
   Null product(Null a, Null b) => null;
 }
 
+// Monoid interface.
+abstract class Monoid<A> {
+  A empty();
+  A compose(A x, A y);
+}
+
+class SetMonoid<T> implements Monoid<Set<T>> {
+  Set<T> empty() => new Set<T>();
+  Set<T> compose(Set<T> a, Set<T> b) => a.union(b);
+}
+
+// Queries.
+abstract class TermQuery<Exp> implements TermAlgebra<Exp, Null> {
+  Monoid<Exp> m();
+  Exp var_(String _) => m().empty();
+  Exp intlit(int _) => m().empty();
+  Exp lam(Pair<String, Null> binder, Exp body) => body;
+  Exp app(Exp f, Exp arg) => m().compose(f, arg);
+  Exp pair(Exp a, Exp b) => m().compose(a, b);
+}
+
+class FreeVars extends TermQuery<Set<String>> {
+  Monoid<Set<String>> m() => new SetMonoid();
+
+  Set<String> var_(String name) => new Set<String>()..add(name);
+  Set<String> lam(Pair<String, Null> binder, Set<String> body) =>
+      body.difference(new Set<String>()..add(binder.$1));
+}
+
 // Examples.
 Exp identity<Exp, Type>(TermAlgebra<Exp, Type> tm, TypeAlgebra<Type> ty) {
   return tm.lam(Pair("x", ty.integer()), tm.var_("x"));
@@ -361,4 +391,6 @@ void main() {
   print("${val.eval(initialEnv)}");
   Evaluator eval = example0(new TermEval0(), new NullAlgebra());
   print("${eval(initialEnv)}");
+  Set<String> fvs = example0(new FreeVars(), new NullAlgebra());
+  print(fvs.toString());
 }
