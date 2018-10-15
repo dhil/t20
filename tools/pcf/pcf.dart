@@ -229,6 +229,91 @@ class TermEval extends TermAlgebra<Evaluable, Null> {
   Evaluable pair(Evaluable a, Evaluable b) => EvaluablePair(a, b);
 }
 
+typedef Evaluator = Value Function(Map<String, Value>);
+
+class TermEval0 extends TermAlgebra<Evaluator, Null> {
+  Evaluator intlit(int x) => (_) => IntLit(x);
+  Evaluator var_(String name) => (Map<String, Value> env) {
+        if (env.containsKey(name)) {
+          return env[name];
+        } else {
+          throw "unbound variable $name.";
+        }
+      };
+  Evaluator lam(Pair<String, Null> binder, Evaluator body) =>
+      (Map<String, Value> env) {
+        return Closure(env, binder.$1, body);
+      };
+  Evaluator app(Evaluator fn, Evaluator arg) => (Map<String, Value> env) {
+        Value fval = fn(env);
+        Value argval = arg(env);
+        if (fval is Prim) {
+          Prim v = fval;
+          switch (v.name) {
+            case "_add":
+              return TermEval0._add(argval);
+            case "_fst":
+              return TermEval0._fst(argval);
+            case "_snd":
+              return TermEval0._snd(argval);
+            case "_println":
+              return TermEval0._println(argval);
+            default:
+              throw "primitive error.";
+          }
+        }
+
+        return TermEval0._call(fval, argval);
+      };
+  Evaluator pair(Evaluator a, Evaluator b) => (Map<String, Value> env) {
+        return VPair(a(env), b(env));
+      };
+
+  // Auxiliary functions for application of user-defined and built-in functions.
+  static Value _call(Value fval, Value argval) {
+    if (fval is Closure) {
+      Closure<Evaluator> clo = fval;
+      Map<String, Value> fenv = clo.env;
+      fenv[clo.binder] = argval;
+      return clo.comp(fenv);
+    } else {
+      throw "evaluation error.";
+    }
+  }
+
+  static Value _add(Value argval) {
+    if (argval is VPair) {
+      if (argval.$1 is IntLit && argval.$2 is IntLit) {
+        IntLit x = argval.$1 as IntLit;
+        IntLit y = argval.$2 as IntLit;
+        return IntLit(x.n + y.n);
+      } else {
+        throw "type error.";
+      }
+    } else {
+      throw "evaluation error (argument is not a pair).";
+    }
+  }
+
+  static Value _fst(Value argval) {
+    throw "not yet implemented.";
+  }
+
+  static Value _snd(Value argval) {
+    throw "not yet implemented.";
+  }
+
+  static Value _println(Value argval) {
+    print("$argval");
+    return Unit();
+  }
+
+  // Value lam(Pair<String, Null> binder, Value body) =>
+  //     EvaluableLam(binder.$1, body);
+  // Value app(Evaluable fn, Evaluable arg) => EvaluableApp(fn, arg);
+  // Value pair(Evaluable a, Evaluable b) => EvaluablePair(a, b);
+}
+
 class NullAlgebra extends TypeAlgebra<Null> {
   Null arrow(Null domain, Null codomain) => null;
   Null integer() => null;
@@ -274,4 +359,6 @@ void main() {
   initialEnv["_println"] = Prim("_println");
   initialEnv["_add"] = Prim("_add");
   print("${val.eval(initialEnv)}");
+  Evaluator eval = example0(new TermEval0(), new NullAlgebra());
+  print("${eval(initialEnv)}");
 }
