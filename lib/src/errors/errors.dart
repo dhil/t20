@@ -286,3 +286,12 @@ class MissingAccompanyingDefinitionError extends LocatedError
     return "The signature '$name' is missing an accompanying definition";
   }
 }
+
+class MultipleDerivingError extends LocatedError implements ElaborationError, HasLength {
+  int get length => "derive!".length;
+  MultipleDerivingError(Location location) : super(location);
+
+  String toString() {
+    return "Multiple deriving clauses.";
+  }
+}

@@ -2,6 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import '../errors/errors.dart' show LocatedError;
 import '../location.dart' show Location;
 import '../unicode.dart' as unicode;
 import '../utils.dart' show Gensym;

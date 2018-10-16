@@ -13,10 +13,12 @@ import 'errors/error_reporting.dart';
 import 'errors/errors.dart';
 import 'io/bytestream.dart';
 import 'result.dart';
-import 'static_semantics/desugar_types.dart';
-import 'syntax/elaborator.dart';
+// import 'static_semantics/desugar_types.dart';
+// import 'syntax/elaborator.dart';
 import 'syntax/parse_sexp.dart';
-// import 'syntax/alt/elaboration.dart';
+import 'syntax/alt/elaboration.dart';
+import 'ast/algebra.dart';
+import 'ast/nullalgebras.dart';
 
 bool compile(List<String> filePaths, Settings settings) {
   RandomAccessFile currentFile;
@@ -45,25 +47,25 @@ bool compile(List<String> filePaths, Settings settings) {
       }
 
       // Elaborate.
-      Result<ModuleMember, T20Error> elabResult =
-          new Elaborator().elaborate(parseResult.result);
-      if (!elabResult.wasSuccessful) {
-        report(elabResult.errors);
-        return false;
-      }
+      // Result<ModuleMember, T20Error> elabResult =
+      //     new Elaborator().elaborate(parseResult.result);
+      // if (!elabResult.wasSuccessful) {
+      //   report(elabResult.errors);
+      //   return false;
+      // }
 
-      // Exit now, if requested.
-      if (settings.exitAfter == "elaborator") {
-        return elabResult.wasSuccessful;
-      }
+      // // Exit now, if requested.
+      // if (settings.exitAfter == "elaborator") {
+      //   return elabResult.wasSuccessful;
+      // }
 
-      // Check static semantics.
-      Result<ModuleMember, LocatedError> desugarResult =
-          DesugarDatatypes.desugar(elabResult.result);
-      if (!desugarResult.wasSuccessful) {
-        report(desugarResult.errors);
-        return false;
-      }
+      // // Check static semantics.
+      // Result<ModuleMember, LocatedError> desugarResult =
+      //     DesugarDatatypes.desugar(elabResult.result);
+      // if (!desugarResult.wasSuccessful) {
+      //   report(desugarResult.errors);
+      //   return false;
+      // }
     }
   } catch (err, stack) {
     if (currentFile != null) currentFile.closeSync();
