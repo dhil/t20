@@ -16,6 +16,7 @@ import 'result.dart';
 import 'static_semantics/desugar_types.dart';
 import 'syntax/elaborator.dart';
 import 'syntax/parse_sexp.dart';
+// import 'syntax/alt/elaboration.dart';
 
 bool compile(List<String> filePaths, Settings settings) {
   RandomAccessFile currentFile;

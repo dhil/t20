@@ -6,7 +6,7 @@ import '../fp.dart' show Pair;
 import '../location.dart' show Location;
 
 abstract class ModuleAlgebra<Mod, Exp, Pat, Typ> {
-  Mod datatype(Pair<String, List<String>> name,
+  Mod datatype(Pair<String, List<Typ>> name,
       List<Pair<String, List<Typ>>> constructors, List<String> deriving,
       {Location location});
 
@@ -15,10 +15,10 @@ abstract class ModuleAlgebra<Mod, Exp, Pat, Typ> {
   Mod typename(Pair<String, List<String>> name, Typ type, {Location location});
   Mod signature(String name, Typ type, {Location location});
 
-  Mod error(Object error);
+  Mod error(Object error, {Location location});
 }
 
-abstract class ExprAlgebra<Exp, Pat, Typ> {
+abstract class ExpAlgebra<Exp, Pat, Typ> {
   // Constants.
   Exp boolean(bool b, {Location location});
   Exp integer(int n, {Location location});
@@ -33,6 +33,8 @@ abstract class ExprAlgebra<Exp, Pat, Typ> {
       {Location location});
   Exp match(Exp scrutinee, List<Pair<Pat, Exp>> cases, {Location location});
   Exp typeAscription(Exp exp, Typ type, {Location location});
+
+  Exp error(Object error, {Location location});
 }
 
 abstract class PatternAlgebra<Pat, Typ> {
@@ -44,6 +46,8 @@ abstract class PatternAlgebra<Pat, Typ> {
   Pat var_(String name, {Location location});
   Pat constr(String name, List<Pat> parameters, {Location location});
   Pat tuple(List<Pat> components, {Location location});
+
+  Pat error(Object error, {Location location});
 }
 
 abstract class TypeAlgebra<Typ> {
@@ -51,8 +55,11 @@ abstract class TypeAlgebra<Typ> {
   Typ boolean({Location location});
   Typ string({Location location});
   Typ var_(String name, {Location location});
+  Typ typeParameter(String name, {Location location});
   Typ forall(List<String> quantifiers, Typ type, {Location location});
   Typ arrow(Typ domain, Typ codomain, {Location location});
   Typ constr(String name, List<Typ> arguments, {Location location});
   Typ tuple(List<Typ> components, {Location location});
+
+  Typ error(Object error, {Location location});
 }
