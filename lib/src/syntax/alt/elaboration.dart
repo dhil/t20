@@ -25,14 +25,14 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
   Result elaborate(Sexp sexp);
 
   // Combinators.
-  T expect<S extends Sexp, T>(Elab<S, T> elab, S sexp, {int index = -1}) {
-    assert(elab != null && sexp != null);
-    if (sexp is SList && index >= 0) {
-      return elab((sexp as SList)[index]);
-    } else {
-      return elab(sexp);
-    }
-  }
+  // T expect<S extends Sexp, T>(Elab<S, T> elab, S sexp, {int index = -1}) {
+  //   assert(elab != null && sexp != null);
+  //   if (sexp is SList && index >= 0) {
+  //     return elab((sexp as SList)[index]);
+  //   } else {
+  //     return elab(sexp);
+  //   }
+  // }
 
   // Result expectSelf<S extends Sexp>(S sexp, {int index = -1}) {
   //   assert(sexp != null);
@@ -278,7 +278,7 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
     assert(sexp != null);
     if (sexp is SList) {
       SList list = sexp;
-      Name name = expect<Sexp, Name>(typeName, list[0]);
+      Name name = typeName(list[0]);
       List<Name> qs = expectMany<SList, Name>(quantifier, list, start: 1);
       return Pair<Name, List<Name>>(name, qs);
     } else {
@@ -305,7 +305,7 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
       Toplevel toplevel = program;
       List<Mod> results = new List<Mod>(toplevel.sexps.length);
       for (int i = 0; i < toplevel.sexps.length; i++) {
-        results[i] = expect<Sexp, Mod>(moduleMember, toplevel.sexps[i]);
+        results[i] = moduleMember(toplevel.sexps[i]);
       }
       return results;
     } else {
@@ -361,17 +361,17 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
             BadSyntaxError(list[3].location, <String>[list.closingBracket()]));
       }
       Atom atom = list[1];
-      Name ident = expect<Atom, Name>(termName, atom);
-      Exp body = expect<Sexp, Exp>(expression, list[2]);
+      Name ident = termName(atom);
+      Exp body = expression(list[2]);
       return mod.value(ident, body);
     } else if (list[1] is SList) {
       // (define (name P*) E).
       SList list0 = list[1]; // TODO find a better name than 'list0'.
       if (list0.length > 0 && list0[0] is Atom) {
         Atom atom = list0[0] as Atom;
-        Name ident = expect<Atom, Name>(termName, atom);
+        Name ident = termName(atom);
         List<Pat> parameters = expectMany<SList, Pat>(pattern, list0, start: 1);
-        Exp body = expect<SList, Exp>(expression, list, index: 2);
+        Exp body = expression(list[2]);
         return mod.function(ident, parameters, body, location: list.location);
       } else {
         return mod.error(BadSyntaxError(
@@ -391,8 +391,7 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
           list.location.end, const <String>["data type definition"]));
     }
 
-    Pair<Name, List<Name>> name =
-        expect<Sexp, Pair<Name, List<Name>>>(parameterisedTypeName, list[1]);
+    Pair<Name, List<Name>> name = parameterisedTypeName(list[1]);
 
     // Parse any constructors and the potential deriving clause.
     List<Pair<Name, List<Typ>>> constructors =
@@ -411,7 +410,7 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
             }
           } else {
             // Data constructor.
-            Name name = expect<Atom, Name>(dataConstructorName, atom);
+            Name name = dataConstructorName(atom);
             List<Typ> types =
                 expectMany<SList, Typ>(datatype, clause, start: 1);
             constructors.add(Pair<Name, List<Typ>>(name, types));
@@ -442,9 +441,8 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
         return mod.error(BadSyntaxError(list[3].location));
       }
     } else {
-      Pair<Name, List<Name>> name =
-          expect<Sexp, Pair<Name, List<Name>>>(parameterisedTypeName, list[1]);
-      Typ type = expect<Sexp, Typ>(datatype, list[2]);
+      Pair<Name, List<Name>> name = parameterisedTypeName(list[1]);
+      Typ type = datatype(list[2]);
       return mod.typename(name, type, location: list.location);
     }
   }
@@ -470,8 +468,8 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
     // (: name T)
     if (list[1] is Atom) {
       Atom atom = list[1];
-      Name name = expect<Atom, Name>(termName, atom);
-      Typ type = expect<Sexp, Typ>(datatype, list[2]);
+      Name name = termName(atom);
+      Typ type = datatype(list[2]);
       return mod.signature(name, type, location: list.location);
     } else {
       return mod
@@ -530,12 +528,12 @@ class TypeElaborator<Name, Typ>
         return typ.string(location: loc);
       default:
         if (isValidTypeVariableName(value)) {
-          Name name = expect<Atom, Name>(typeVariableName, atom);
+          Name name = typeVariableName(atom);
           return typ.var_(name, location: loc);
         } else {
           // Must be a user-defined type (i.e. nullary type application).
           if (isValidTypeConstructorName(value)) {
-            Name name = expect<Atom, Name>(typeName, atom);
+            Name name = typeName(atom);
             return typ.constr(name, <Typ>[], location: loc);
           } else {
             // Error: invalid type.
@@ -618,7 +616,7 @@ class TypeElaborator<Name, Typ>
 
   Typ typeConstructor(Atom head, SList list) {
     assert(list != null);
-    Name constructorName = expect<Atom, Name>(typeName, head);
+    Name constructorName = typeName(head);
     List<Typ> typeArguments = expectManySelf<Sexp>(list, start: 1);
 
     return typ.constr(constructorName, typeArguments, location: list.location);
@@ -697,7 +695,7 @@ class ExpressionElaborator<Name, Exp, Pat, Typ>
     }
 
     // Otherwise it is a variable.
-    Name name = expect<Atom, Name>(termName, atom);
+    Name name = termName(atom);
     return exp.var_(name, location: location);
   }
 
@@ -806,7 +804,7 @@ class ExpressionElaborator<Name, Exp, Pat, Typ>
             return exp.error(
                 BadSyntaxError(binding.location, const <String>["binding"]));
           } else {
-            Pat binder = expect<Sexp, Pat>(pattern, binding[0]);
+            Pat binder = pattern(binding[0]);
             Exp body = elaborate(binding[1]);
             bindingPairs.add(Pair<Pat, Exp>(binder, body));
           }
@@ -857,6 +855,140 @@ class ExpressionElaborator<Name, Exp, Pat, Typ>
     Exp abstractor = elaborate(list[0]);
     List<Exp> arguments = expectManySelf<Sexp>(list, start: 1);
     return exp.apply(abstractor, arguments, location: list.location);
+  }
+}
+
+class PatternElaborator<Name, Pat, Typ>
+    extends BaseElaborator<Pat, Name, Null, Null, Pat, Typ> {
+  PatternElaborator(NameAlgebra<Name> name, PatternAlgebra<Name, Pat, Typ> pat,
+      TypeAlgebra<Name, Typ> typ)
+      : super(name, null, null, pat, typ);
+
+  Pat elaborate(Sexp sexp, {bool allowHasType = true}) {
+    assert(sexp != null);
+    if (sexp is Atom) {
+      return basicPattern(sexp);
+    } else if (sexp is SList) {
+      return allowHasType
+          ? hasTypeOrCompoundPattern(sexp)
+          : compoundPattern(sexp);
+    } else if (sexp is StringLiteral) {
+      return stringPattern(sexp);
+    } else {
+      return pat
+          .error(BadSyntaxError(sexp.location, const <String>["pattern"]));
+    }
+  }
+
+  Pat basicPattern(Atom atom) {
+    assert(atom != null);
+    String value = atom.value;
+    Location location = atom.location;
+
+    // May be an integer literal.
+    if (isValidNumber(value)) {
+      int denotation = int.parse(value);
+      return pat.integer(denotation, location: location);
+    }
+
+    // Might be a boolean.
+    if (isValidBoolean(value)) {
+      return pat.boolean(denoteBool(value), location: location);
+    }
+
+    // Otherwise attempt to parse it as a name pattern (includes wildcard).
+    return namePattern(atom);
+  }
+
+  Pat hasTypeOrCompoundPattern(SList list) {
+    if (list.length == 0) {
+      return pat
+          .error(BadSyntaxError(list.location.end, const <String>["pattern"]));
+    }
+
+    // Has type pattern.
+    // [P : T]
+    if (list.length > 1 && list[1] is Atom && (list[1] as Atom).value == ":") {
+      return hasType(list[1], list);
+    }
+
+    // Attempt to parse it as constructor.
+    return compoundPattern(list);
+  }
+
+  Pat compoundPattern(SList list) {
+    assert(list != null);
+    if (list.length == 0) {
+      return pat
+          .error(BadSyntaxError(list.location.end, const <String>["pattern"]));
+    }
+
+    if (list[0] is Atom) {
+      Atom atom = list[0];
+      // It may be a tuple pattern.
+      if (atom.value == SpecialForm.tuple) {
+        return tuplePattern(atom, list);
+      }
+
+      // ... otherwise it might be a user-defined constructor pattern.
+      return constructorPattern(atom, list);
+    }
+    return pat.error(BadSyntaxError(
+        list[0].location, const <String>["constructor pattern"]));
+  }
+
+  Pat stringPattern(StringLiteral lit) {
+    assert(lit != null);
+    // TODO parse string literal.
+    return pat.string(lit.value, location: lit.location);
+  }
+
+  Pat hasType(Atom colon, SList list) {
+    assert(colon.value == ":");
+    if (list.length < 3 || list.length > 3) {
+      if (list.length < 3) {
+        return pat.error(BadSyntaxError(
+            list.location.end, const <String>["has type pattern"]));
+      } else {
+        return pat.error(
+            BadSyntaxError(list[3].location, <String>[list.closingBracket()]));
+      }
+    }
+
+    Pat pat0 = elaborate(list[0], allowHasType: false);
+    Typ type = datatype(list[2]);
+    return pat.hasType(pat0, type, location: list.location);
+  }
+
+  Pat namePattern(Sexp sexp) {
+    assert(sexp != null);
+    if (sexp is Atom) {
+      Atom atom = sexp;
+      if (isWildcard(atom.value)) {
+        return pat.wildcard(location: atom.location);
+      } else if (isValidTermName(atom.value)) {
+        Name name = termName(atom);
+        return pat.var_(name, location: atom.location);
+      }
+    } else {
+      return pat.error(BadSyntaxError(sexp.location));
+    }
+  }
+
+  Pat constructorPattern(Atom head, SList list) {
+    assert(head != null && list != null);
+    if (isValidDataConstructorName(head.value)) {
+      Name name = dataConstructorName(head);
+      List<Pat> pats = expectMany<Sexp, Pat>(namePattern, list, start: 1);
+      return pat.constr(name, pats, location: list.location);
+    } else {
+      return pat.error(BadSyntaxError(head.location));
+    }
+  }
+
+  Pat tuplePattern(Atom head, SList list) {
+    List<Pat> pats = expectMany<Sexp, Pat>(namePattern, list, start: 1);
+    return pat.tuple(pats, location: list.location);
   }
 }
 
