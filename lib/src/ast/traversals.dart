@@ -51,7 +51,7 @@ abstract class GMorphism {
 }
 
 // Generic reductive traversals.
-abstract class Fold<Name, Mod, Exp, Pat, Typ> {
+abstract class Fold<Name, Mod, Exp, Pat, Typ> extends TAlgebra<Name, Mod, Exp, Pat, Typ> {
   // A specialised monoid for each sort.
   Monoid<Mod> get mod;
   Monoid<Exp> get exp;
