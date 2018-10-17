@@ -11,23 +11,24 @@ abstract class ModuleAlgebra<Name, Mod, Exp, Pat, Typ> {
       List<Pair<Name, List<Typ>>> constructors, List<Name> deriving,
       {Location location});
 
-  Mod value(Name name, Exp body, {Location location});
-  Mod function(Name name, List<Pat> parameters, Exp body, {Location location});
+  Mod valueDef(Name name, Exp body, {Location location});
+  Mod functionDef(Name name, List<Pat> parameters, Exp body, {Location location});
+  Mod module(List<Mod> members, {Location location});
   Mod typename(Pair<Name, List<Name>> name, Typ type, {Location location});
   Mod signature(Name name, Typ type, {Location location});
 
-  Mod error(LocatedError error, {Location location});
+  Mod errorModule(LocatedError error, {Location location});
 }
 
 enum BindingMethod { Parallel, Sequential }
 
 abstract class ExpAlgebra<Name, Exp, Pat, Typ> {
   // Constants.
-  Exp boolean(bool b, {Location location});
-  Exp integer(int n, {Location location});
-  Exp string(String s, {Location location});
+  Exp boolLit(bool b, {Location location});
+  Exp intLit(int n, {Location location});
+  Exp stringLit(String s, {Location location});
 
-  Exp var_(Name name, {Location location});
+  Exp varExp(Name name, {Location location});
   Exp apply(Exp fn, List<Exp> arguments, {Location location});
   Exp lambda(List<Pat> parameters, Exp body, {Location location});
   Exp let(List<Pair<Pat, Exp>> bindings, Exp body,
@@ -39,34 +40,34 @@ abstract class ExpAlgebra<Name, Exp, Pat, Typ> {
   Exp match(Exp scrutinee, List<Pair<Pat, Exp>> cases, {Location location});
   Exp typeAscription(Exp exp, Typ type, {Location location});
 
-  Exp error(LocatedError error, {Location location});
+  Exp errorExp(LocatedError error, {Location location});
 }
 
 abstract class PatternAlgebra<Name, Pat, Typ> {
-  Pat hasType(Pat pattern, Typ type, {Location location});
-  Pat boolean(bool b, {Location location});
-  Pat integer(int n, {Location location});
-  Pat string(String s, {Location location});
+  Pat hasTypePattern(Pat pattern, Typ type, {Location location});
+  Pat boolPattern(bool b, {Location location});
+  Pat intPattern(int n, {Location location});
+  Pat stringPattern(String s, {Location location});
   Pat wildcard({Location location});
-  Pat var_(Name name, {Location location});
-  Pat constr(Name name, List<Pat> parameters, {Location location});
-  Pat tuple(List<Pat> components, {Location location});
+  Pat varPattern(Name name, {Location location});
+  Pat constrPattern(Name name, List<Pat> parameters, {Location location});
+  Pat tuplePattern(List<Pat> components, {Location location});
 
-  Pat error(LocatedError error, {Location location});
+  Pat errorPattern(LocatedError error, {Location location});
 }
 
 abstract class TypeAlgebra<Name, Typ> {
-  Typ integer({Location location});
-  Typ boolean({Location location});
-  Typ string({Location location});
-  Typ var_(Name name, {Location location});
+  Typ intType({Location location});
+  Typ boolType({Location location});
+  Typ stringType({Location location});
+  Typ typeVar(Name name, {Location location});
   // Typ typeParameter(Name name, {Location location});
-  Typ forall(List<Name> quantifiers, Typ type, {Location location});
-  Typ arrow(List<Typ> domain, Typ codomain, {Location location});
-  Typ constr(Name name, List<Typ> arguments, {Location location});
-  Typ tuple(List<Typ> components, {Location location});
+  Typ forallType(List<Name> quantifiers, Typ type, {Location location});
+  Typ arrowType(List<Typ> domain, Typ codomain, {Location location});
+  Typ typeConstr(Name name, List<Typ> arguments, {Location location});
+  Typ tupleType(List<Typ> components, {Location location});
 
-  Typ error(LocatedError error, {Location location});
+  Typ errorType(LocatedError error, {Location location});
 }
 
 abstract class NameAlgebra<Name> {
@@ -78,5 +79,14 @@ abstract class NameAlgebra<Name> {
   // Option<Name> lookupTermName(String name);
   // Option<Name> lookupTypeName(String name);
 
-  Name error(LocatedError error, {Location location});
+  Name errorName(LocatedError error, {Location location});
 }
+
+// One algebra to rule them all...
+abstract class TAlgebra<Name, Mod, Exp, Pat, Typ>
+    implements
+        NameAlgebra<Name>,
+        ModuleAlgebra<Name, Mod, Exp, Pat, Typ>,
+        ExpAlgebra<Name, Exp, Pat, Typ>,
+        PatternAlgebra<Name, Pat, Typ>,
+        TypeAlgebra<Name, Typ> {}

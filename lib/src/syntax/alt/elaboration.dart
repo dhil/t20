@@ -14,13 +14,15 @@ import '../sexp.dart';
 typedef Elab<S extends Sexp, T> = T Function(S);
 
 abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
-  final NameAlgebra<Name> name;
-  final ModuleAlgebra<Name, Mod, Exp, Pat, Typ> mod;
-  final ExpAlgebra<Name, Exp, Pat, Typ> exp;
-  final PatternAlgebra<Name, Pat, Typ> pat;
-  final TypeAlgebra<Name, Typ> typ;
+  // final NameAlgebra<Name> name;
+  // final ModuleAlgebra<Name, Mod, Exp, Pat, Typ> mod;
+  // final ExpAlgebra<Name, Exp, Pat, Typ> exp;
+  // final PatternAlgebra<Name, Pat, Typ> pat;
+  // final TypeAlgebra<Name, Typ> typ;
+  final TAlgebra<Name, Mod, Exp, Pat, Typ> alg;
 
-  BaseElaborator(this.name, this.mod, this.exp, this.pat, this.typ);
+  // BaseElaborator(this.name, this.mod, this.exp, this.pat, this.typ);
+  BaseElaborator(this.alg);
 
   Result elaborate(Sexp sexp);
 
@@ -47,10 +49,10 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
       {int start = 0, int end = -1}) {
     assert(elab != null && list != null && start >= 0);
     if (end < 0) end = list.length;
-    int len = end - start;
-    List<T> results = new List<T>(len >= 0 ? len : 0);
+    final int len = end - start;
+    final List<T> results = new List<T>(len >= 0 ? len : 0);
     for (int i = start; i < end; i++) {
-      results[len - i] = elab(list[i]);
+      results[i - start] = elab(list[i]);
     }
     return results;
   }
@@ -59,26 +61,26 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
       {int start = 0, int end = -1}) {
     assert(list != null && start >= 0);
     if (end < 0) end = list.length;
-    int len = end - start;
+    final int len = end - start;
     List<Result> results = new List<Result>(len >= 0 ? len : 0);
     for (int i = start; i < end; i++) {
-      results[len - i] = elaborate(list[i]);
+      results[i - start] = elaborate(list[i]);
     }
     return results;
   }
 
-  List<T> expectManyOne<S extends Sexp, T>(Elab<S, T> elab, SList list,
-      {int start = 0, int end = -1, ErrorNode<T> error}) {
-    assert(elab != null && list != null && start >= 0);
-    List<T> results = expectMany<S, T>(elab, list, start: start, end: end);
-    if (results.length == 0) {
-      return <T>[
-        error != null ? error.make(BadSyntaxError(list.location.end)) : null
-      ];
-    } else {
-      return results;
-    }
-  }
+  // List<T> expectManyOne<S extends Sexp, T>(Elab<S, T> elab, SList list,
+  //     {int start = 0, int end = -1, ErrorNode<T> error}) {
+  //   assert(elab != null && list != null && start >= 0);
+  //   List<T> results = expectMany<S, T>(elab, list, start: start, end: end);
+  //   if (results.length == 0) {
+  //     return <T>[
+  //       error != null ? error.make(BadSyntaxError(list.location.end)) : null
+  //     ];
+  //   } else {
+  //     return results;
+  //   }
+  // }
 
   // Atom validators.
   final Set<int> allowedIdentSymbols = Set.of(const <int>[
@@ -221,18 +223,18 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
   Name termName(Atom sexp) {
     assert(sexp != null);
     if (isValidTermName(sexp.value)) {
-      return name.termName(sexp.value, location: sexp.location);
+      return alg.termName(sexp.value, location: sexp.location);
     } else {
-      return name.error(BadSyntaxError(sexp.location));
+      return alg.errorName(BadSyntaxError(sexp.location));
     }
   }
 
   Name typeName(Atom sexp) {
     assert(sexp != null);
     if (isValidTypeConstructorName(sexp.value)) {
-      return name.typeName(sexp.value, location: sexp.location);
+      return alg.typeName(sexp.value, location: sexp.location);
     } else {
-      return name.error(BadSyntaxError(sexp.location));
+      return alg.errorName(BadSyntaxError(sexp.location));
     }
   }
 
@@ -243,20 +245,22 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
   Name typeVariableName(Atom sexp) {
     assert(sexp != null);
     if (isValidTypeVariableName(sexp.value)) {
-      return name.typeName(sexp.value);
+      return alg.typeName(sexp.value);
     } else {
-      return name.error(BadSyntaxError(sexp.location));
+      return alg.errorName(BadSyntaxError(sexp.location));
     }
   }
 
   Exp expression(Sexp sexp) {
     assert(sexp != null);
-    return null;
+    return new ExpressionElaborator(alg).elaborate(sexp);
+    // return new ExpressionElaborator(name, exp, pat, typ).elaborate(sexp);
   }
 
   Pat pattern(Sexp sexp) {
     assert(sexp != null);
-    return null;
+    return new PatternElaborator(alg).elaborate(sexp);
+    // return new PatternElaborator(name, pat, typ).elaborate(sexp);
   }
 
   // Typ signatureDatatype(Sexp sexp) {
@@ -266,12 +270,12 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
 
   Typ datatype(Sexp sexp) {
     assert(sexp != null);
-    return new TypeElaborator(name, typ).elaborate(sexp);
+    return new TypeElaborator(alg).elaborate(sexp);
+    // return new TypeElaborator(name, typ).elaborate(sexp);
   }
 
   Name quantifier(Sexp sexp) {
-    assert(sexp != null);
-    return null;
+    return typeVariableName(sexp);
   }
 
   Pair<Name, List<Name>> parameterisedTypeName(Sexp sexp) {
@@ -279,11 +283,11 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
     if (sexp is SList) {
       SList list = sexp;
       Name name = typeName(list[0]);
-      List<Name> qs = expectMany<SList, Name>(quantifier, list, start: 1);
+      List<Name> qs = expectMany<Sexp, Name>(quantifier, list, start: 1);
       return Pair<Name, List<Name>>(name, qs);
     } else {
       return Pair<Name, List<Name>>(
-          name.error(BadSyntaxError(
+          alg.errorName(BadSyntaxError(
               sexp.location, const <String>["identifier and quantifiers"])),
           <Name>[]);
     }
@@ -291,23 +295,24 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
 }
 
 class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
-    extends BaseElaborator<List<Mod>, Name, Mod, Exp, Pat, Typ> {
-  ModuleElaborator(
-      NameAlgebra<Name> name,
-      ModuleAlgebra<Name, Mod, Exp, Pat, Typ> mod,
-      ExpAlgebra<Name, Exp, Pat, Typ> exp,
-      PatternAlgebra<Name, Pat, Typ> pat,
-      TypeAlgebra<Name, Typ> typ)
-      : super(name, mod, exp, pat, typ);
+    extends BaseElaborator<Mod, Name, Mod, Exp, Pat, Typ> {
+  // ModuleElaborator(
+  //     NameAlgebra<Name> name,
+  //     ModuleAlgebra<Name, Mod, Exp, Pat, Typ> mod,
+  //     ExpAlgebra<Name, Exp, Pat, Typ> exp,
+  //     PatternAlgebra<Name, Pat, Typ> pat,
+  //     TypeAlgebra<Name, Typ> typ)
+  //     : super(name, mod, exp, pat, typ);
+  ModuleElaborator(TAlgebra<Name, Mod, Exp, Pat, Typ> alg) : super(alg);
 
-  List<Mod> elaborate(Sexp program) {
+  Mod elaborate(Sexp program) {
     if (program is Toplevel) {
       Toplevel toplevel = program;
       List<Mod> results = new List<Mod>(toplevel.sexps.length);
       for (int i = 0; i < toplevel.sexps.length; i++) {
         results[i] = moduleMember(toplevel.sexps[i]);
       }
-      return results;
+      return alg.module(results, location:program.location);
     } else {
       throw "unhandled."; // TODO use a proper exception.
     }
@@ -332,7 +337,7 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
             case ":":
               return signature(atom, list);
             default:
-              return mod.error(BadSyntaxError(atom.location, <String>[
+              return alg.errorModule(BadSyntaxError(atom.location, <String>[
                 "define",
                 "define-datatype",
                 "define-typename",
@@ -343,42 +348,42 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
         }
       }
     }
-    return mod.error(NakedExpressionAtToplevelError(sexp.location));
+    return alg.errorModule(NakedExpressionAtToplevelError(sexp.location));
   }
 
   Mod valueDefinition(Atom head, SList list) {
     assert(head.value == "define");
 
     if (list.length < 3) {
-      return mod.error(BadSyntaxError(list.location.end,
+      return alg.errorModule(BadSyntaxError(list.location.end,
           <String>["value definition", "function definition"]));
     }
 
     if (list[1] is Atom) {
       // (define name E).
       if (list.length > 3) {
-        return mod.error(
+        return alg.errorModule(
             BadSyntaxError(list[3].location, <String>[list.closingBracket()]));
       }
       Atom atom = list[1];
       Name ident = termName(atom);
       Exp body = expression(list[2]);
-      return mod.value(ident, body);
+      return alg.valueDef(ident, body);
     } else if (list[1] is SList) {
       // (define (name P*) E).
       SList list0 = list[1]; // TODO find a better name than 'list0'.
       if (list0.length > 0 && list0[0] is Atom) {
         Atom atom = list0[0] as Atom;
         Name ident = termName(atom);
-        List<Pat> parameters = expectMany<SList, Pat>(pattern, list0, start: 1);
+        List<Pat> parameters = expectMany<Sexp, Pat>(pattern, list0, start: 1);
         Exp body = expression(list[2]);
-        return mod.function(ident, parameters, body, location: list.location);
+        return alg.functionDef(ident, parameters, body, location: list.location);
       } else {
-        return mod.error(BadSyntaxError(
+        return alg.errorModule(BadSyntaxError(
             list0.location, <String>["identifier and parameter list"]));
       }
     } else {
-      return mod.error(BadSyntaxError(list[1].location,
+      return alg.errorModule(BadSyntaxError(list[1].location,
           <String>["identifier", "identifier and parameter list"]));
     }
   }
@@ -387,11 +392,18 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
     assert(head.value == "define-datatype");
     // (define-datatype name (K T*)* or (define-datatype (name q+) (K T*)*
     if (list.length < 2) {
-      return mod.error(BadSyntaxError(
+      return alg.errorModule(BadSyntaxError(
           list.location.end, const <String>["data type definition"]));
     }
 
-    Pair<Name, List<Name>> name = parameterisedTypeName(list[1]);
+    Pair<Name, List<Name>> name;
+    if (list[1] is Atom) {
+      name = Pair<Name, List<Name>>(typeName(list[1]), <Name>[]);
+    } else if (list[1] is SList) {
+      name = parameterisedTypeName(list[1]);
+    } else {
+      return alg.errorModule(BadSyntaxError(list[1].location));
+    }
 
     // Parse any constructors and the potential deriving clause.
     List<Pair<Name, List<Typ>>> constructors =
@@ -406,28 +418,28 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
             if (deriving == null) {
               deriving = expectMany(typeName, clause, start: 1);
             } else {
-              return mod.error(MultipleDerivingError(atom.location));
+              return alg.errorModule(MultipleDerivingError(atom.location));
             }
           } else {
             // Data constructor.
             Name name = dataConstructorName(atom);
             List<Typ> types =
-                expectMany<SList, Typ>(datatype, clause, start: 1);
+                expectMany<Sexp, Typ>(datatype, clause, start: 1);
             constructors.add(Pair<Name, List<Typ>>(name, types));
           }
         } else {
-          return mod.error(BadSyntaxError(list.location, const <String>[
+          return alg.errorModule(BadSyntaxError(list.location, const <String>[
             "data constructor definition",
             "deriving clause"
           ]));
         }
       } else {
-        return mod.error(BadSyntaxError(list.location,
+        return alg.errorModule(BadSyntaxError(list.location,
             const <String>["data constructor definition", "deriving clause"]));
       }
     }
     deriving ??= <Name>[];
-    return mod.datatype(name, constructors, deriving, location: list.location);
+    return alg.datatype(name, constructors, deriving, location: list.location);
   }
 
   Mod typename(Atom head, SList list) {
@@ -436,14 +448,14 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
     // or (define-typename (name q+) T
     if (list.length < 3 || list.length > 3) {
       if (list.length < 3) {
-        return mod.error(BadSyntaxError(list.location.end));
+        return alg.errorModule(BadSyntaxError(list.location.end));
       } else {
-        return mod.error(BadSyntaxError(list[3].location));
+        return alg.errorModule(BadSyntaxError(list[3].location));
       }
     } else {
       Pair<Name, List<Name>> name = parameterisedTypeName(list[1]);
       Typ type = datatype(list[2]);
-      return mod.typename(name, type, location: list.location);
+      return alg.typename(name, type, location: list.location);
     }
   }
 
@@ -457,10 +469,10 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
     assert(colon.value == ":");
     if (list.length < 3 || list.length > 3) {
       if (list.length < 3) {
-        return mod.error(
+        return alg.errorModule(
             BadSyntaxError(list.location.end, const <String>["signature"]));
       } else {
-        return mod.error(
+        return alg.errorModule(
             BadSyntaxError(list[3].location, <String>[list.closingBracket()]));
       }
     }
@@ -470,10 +482,9 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
       Atom atom = list[1];
       Name name = termName(atom);
       Typ type = datatype(list[2]);
-      return mod.signature(name, type, location: list.location);
+      return alg.signature(name, type, location: list.location);
     } else {
-      return mod
-          .error(BadSyntaxError(list[1].location, const <String>["signature"]));
+      return alg.errorModule(BadSyntaxError(list[1].location, const <String>["signature"]));
     }
   }
 }
@@ -499,9 +510,10 @@ class Typenames {
 }
 
 class TypeElaborator<Name, Typ>
-    extends BaseElaborator<Typ, Name, Null, Null, Null, Typ> {
-  TypeElaborator(NameAlgebra<Name> name, TypeAlgebra<Name, Typ> typ)
-      : super(name, null, null, null, typ);
+    extends BaseElaborator<Typ, Name, Object, Object, Object, Typ> {
+  // TypeElaborator(NameAlgebra<Name> name, TypeAlgebra<Name, Typ> typ)
+  //     : super(name, null, null, null, typ);
+  TypeElaborator(TAlgebra<Name, Object, Object, Object, Typ> alg) : super(alg);
 
   Typ elaborate(Sexp sexp) {
     if (sexp is Atom) {
@@ -511,7 +523,7 @@ class TypeElaborator<Name, Typ>
       SList list = sexp;
       return higherType(list);
     } else {
-      return typ.error(BadSyntaxError(sexp.location, const <String>["type"]));
+      return alg.errorType(BadSyntaxError(sexp.location, const <String>["type"]));
     }
   }
 
@@ -521,23 +533,23 @@ class TypeElaborator<Name, Typ>
     String value = atom.value;
     switch (value) {
       case Typenames.boolean:
-        return typ.boolean(location: loc);
+        return alg.boolType(location: loc);
       case Typenames.integer:
-        return typ.integer(location: loc);
+        return alg.intType(location: loc);
       case Typenames.string:
-        return typ.string(location: loc);
+        return alg.stringType(location: loc);
       default:
         if (isValidTypeVariableName(value)) {
           Name name = typeVariableName(atom);
-          return typ.var_(name, location: loc);
+          return alg.typeVar(name, location: loc);
         } else {
           // Must be a user-defined type (i.e. nullary type application).
           if (isValidTypeConstructorName(value)) {
             Name name = typeName(atom);
-            return typ.constr(name, <Typ>[], location: loc);
+            return alg.typeConstr(name, <Typ>[], location: loc);
           } else {
             // Error: invalid type.
-            return typ.error(BadSyntaxError(loc, const <String>["type"]));
+            return alg.errorType(BadSyntaxError(loc, const <String>["type"]));
           }
         }
     }
@@ -567,8 +579,8 @@ class TypeElaborator<Name, Typ>
       return typeConstructor(head, list);
     } else {
       // Error empty.
-      return typ
-          .error(BadSyntaxError(list.location.end, const <String>["type"]));
+      return alg
+          .errorType(BadSyntaxError(list.location.end, const <String>["type"]));
     }
   }
 
@@ -576,21 +588,21 @@ class TypeElaborator<Name, Typ>
     assert(arrow.value == Typenames.arrow);
     if (list.length < 2) {
       // Error: -> requires at least one argument.
-      return typ.error(BadSyntaxError(list.location, const <String>["type"]));
+      return alg.errorType(BadSyntaxError(list.location, const <String>["type"]));
     }
 
     if (list.length == 2) {
       // Nullary function.
       Typ codomain = elaborate(list[1]);
-      return typ.arrow(<Typ>[], codomain, location: list.location);
+      return alg.arrowType(<Typ>[], codomain, location: list.location);
     } else {
       // N-ary function.
       List<Typ> domain = new List<Typ>(list.length - 2);
       for (int i = 1; i < list.length - 1; i++) {
-        domain.add(elaborate(list[i]));
+        domain[i - 1] = elaborate(list[i]);
       }
       Typ codomain = elaborate(list.last);
-      return typ.arrow(domain, codomain, location: list.location);
+      return alg.arrowType(domain, codomain, location: list.location);
     }
   }
 
@@ -598,18 +610,18 @@ class TypeElaborator<Name, Typ>
     assert(forall.value == Typenames.forall);
     if (list.length < 3 || list.length > 3) {
       if (list.length < 3) {
-        return typ.error(BadSyntaxError(list.location.end));
+        return alg.errorType(BadSyntaxError(list.location.end));
       } else {
-        return typ.error(BadSyntaxError(list[3].location));
+        return alg.errorType(BadSyntaxError(list[3].location));
       }
     }
 
     if (list[1] is SList) {
-      List<Name> qs = expectMany<SList, Name>(quantifier, list[1]);
+      List<Name> qs = expectMany<Sexp, Name>(quantifier, list[1]);
       Typ type = elaborate(list[2]);
-      return typ.forall(qs, type, location: list.location);
+      return alg.forallType(qs, type, location: list.location);
     } else {
-      return typ.error(BadSyntaxError(
+      return alg.errorType(BadSyntaxError(
           list[1].location, const <String>["list of quantifiers"]));
     }
   }
@@ -618,17 +630,13 @@ class TypeElaborator<Name, Typ>
     assert(list != null);
     Name constructorName = typeName(head);
     List<Typ> typeArguments = expectManySelf<Sexp>(list, start: 1);
-
-    return typ.constr(constructorName, typeArguments, location: list.location);
+    return alg.typeConstr(constructorName, typeArguments, location: list.location);
   }
 
   Typ tupleType(Atom head, SList list) {
     assert(head.value == Typenames.tuple);
-    List<Typ> components = new List<Typ>(list.length - 1);
-    for (int i = 1; i < list.length; i++) {
-      components.add(elaborate(list[i]));
-    }
-    return typ.tuple(components, location: list.location);
+    List<Typ> components = expectManySelf<Sexp>(list, start: 1);
+    return alg.tupleType(components, location: list.location);
   }
 }
 
@@ -656,13 +664,14 @@ class SpecialForm {
 }
 
 class ExpressionElaborator<Name, Exp, Pat, Typ>
-    extends BaseElaborator<Exp, Name, Null, Exp, Pat, Typ> {
-  ExpressionElaborator(
-      NameAlgebra<Name> name,
-      ExpAlgebra<Name, Exp, Pat, Typ> exp,
-      PatternAlgebra<Name, Pat, Typ> pat,
-      TypeAlgebra<Name, Typ> typ)
-      : super(name, null, exp, pat, typ);
+extends BaseElaborator<Exp, Name, Object, Exp, Pat, Typ> {
+  // ExpressionElaborator(
+  //     NameAlgebra<Name> name,
+  //     ExpAlgebra<Name, Exp, Pat, Typ> exp,
+  //     PatternAlgebra<Name, Pat, Typ> pat,
+  //     TypeAlgebra<Name, Typ> typ)
+  //     : super(name, null, exp, pat, typ);
+  ExpressionElaborator(TAlgebra<Name, Object, Exp, Pat, Typ> alg) : super(alg);
 
   Exp elaborate(Sexp sexp) {
     assert(sexp != null);
@@ -673,8 +682,8 @@ class ExpressionElaborator<Name, Exp, Pat, Typ>
     } else if (sexp is StringLiteral) {
       return stringlit(sexp);
     } else {
-      return exp
-          .error(BadSyntaxError(sexp.location, const <String>["expression"]));
+      return alg
+          .errorExp(BadSyntaxError(sexp.location, const <String>["expression"]));
     }
   }
 
@@ -686,24 +695,24 @@ class ExpressionElaborator<Name, Exp, Pat, Typ>
     // Might be an integer.
     if (isValidNumber(value)) {
       int denotation = int.parse(value);
-      return exp.integer(denotation, location: location);
+      return alg.intLit(denotation, location: location);
     }
 
     // Might be a boolean.
     if (isValidBoolean(value)) {
-      return exp.boolean(denoteBool(value), location: location);
+      return alg.boolLit(denoteBool(value), location: location);
     }
 
     // Otherwise it is a variable.
     Name name = termName(atom);
-    return exp.var_(name, location: location);
+    return alg.varExp(name, location: location);
   }
 
   Exp compoundExp(SList list) {
     assert(list != null);
 
     if (list.length == 0) {
-      return exp.error(BadSyntaxError(
+      return alg.errorExp(BadSyntaxError(
           list.location, const <String>["a special form", "an application"]));
     }
 
@@ -735,21 +744,21 @@ class ExpressionElaborator<Name, Exp, Pat, Typ>
   Exp stringlit(StringLiteral lit) {
     assert(lit != null);
     // TODO: parse `lit.value'.
-    return exp.string(lit.value, location: lit.location);
+    return alg.stringLit(lit.value, location: lit.location);
   }
 
   Exp ifthenelse(Atom head, SList list) {
     assert(head.value == SpecialForm.ifthenelse);
     // An if expression consists of exactly 3 constituents.
     if (list.length < 4) {
-      return exp.error(BadSyntaxError(list.location.end,
+      return alg.errorExp(BadSyntaxError(list.location.end,
           const <String>["a then-clause and an else-clause"]));
     }
 
     Exp condition = elaborate(list[1]);
     Exp thenBranch = elaborate(list[2]);
     Exp elseBranch = elaborate(list[3]);
-    return exp.ifthenelse(condition, thenBranch, elseBranch,
+    return alg.ifthenelse(condition, thenBranch, elseBranch,
         location: list.location);
   }
 
@@ -757,18 +766,18 @@ class ExpressionElaborator<Name, Exp, Pat, Typ>
     assert(lam.value == SpecialForm.lambda);
     if (list.length < 3 || list.length > 3) {
       if (list.length < 3) {
-        return exp.error(BadSyntaxError(list.location.end));
+        return alg.errorExp(BadSyntaxError(list.location.end));
       } else {
-        return exp.error(BadSyntaxError(list[3].location));
+        return alg.errorExp(BadSyntaxError(list[3].location));
       }
     }
 
     if (list[1] is SList) {
       List<Pat> parameters = expectMany<Sexp, Pat>(pattern, list[1], start: 0);
       Exp body = elaborate(list[2]);
-      return exp.lambda(parameters, body, location: list.location);
+      return alg.lambda(parameters, body, location: list.location);
     } else {
-      return exp.error(
+      return alg.errorExp(
           BadSyntaxError(list[1].location, const <String>["pattern list"]));
     }
   }
@@ -777,7 +786,7 @@ class ExpressionElaborator<Name, Exp, Pat, Typ>
     assert(head.value == SpecialForm.let || head.value == SpecialForm.letstar);
 
     if (list.length < 3) {
-      return exp.error(BadSyntaxError(list.location.end, const <String>[
+      return alg.errorExp(BadSyntaxError(list.location.end, const <String>[
         "a non-empty sequence of bindings followed by a non-empty sequence of expressions"
       ]));
     }
@@ -801,23 +810,23 @@ class ExpressionElaborator<Name, Exp, Pat, Typ>
         if (bindings[i] is SList) {
           SList binding = bindings[i];
           if (binding.length != 2) {
-            return exp.error(
+            return alg.errorExp(
                 BadSyntaxError(binding.location, const <String>["binding"]));
           } else {
             Pat binder = pattern(binding[0]);
             Exp body = elaborate(binding[1]);
-            bindingPairs.add(Pair<Pat, Exp>(binder, body));
+            bindingPairs[i] = Pair<Pat, Exp>(binder, body);
           }
         } else {
-          return exp.error(
+          return alg.errorExp(
               BadSyntaxError(bindings.location, const <String>["bindings"]));
         }
       }
       Exp body = elaborate(list[2]);
-      return exp.let(bindingPairs, body,
+      return alg.let(bindingPairs, body,
           bindingMethod: method, location: list.location);
     } else {
-      return exp.error(
+      return alg.errorExp(
           BadSyntaxError(list[1].location, const <String>["binding list"]));
     }
   }
@@ -825,7 +834,7 @@ class ExpressionElaborator<Name, Exp, Pat, Typ>
   Exp match(Atom head, SList list) {
     assert(head.value == SpecialForm.match);
     if (list.length < 2) {
-      return exp.error(BadSyntaxError(list.location.end, const <String>[
+      return alg.errorExp(BadSyntaxError(list.location.end, const <String>[
         "an expression followed by a sequence of match clauses"
       ]));
     }
@@ -834,19 +843,38 @@ class ExpressionElaborator<Name, Exp, Pat, Typ>
     // Parse any cases.
     List<Pair<Pat, Exp>> cases = new List<Pair<Pat, Exp>>(list.length - 2);
     for (int i = 2; i < list.length; i++) {
-      // TODO.
+      if (list[i] is SList) {
+        SList clause = list[i];
+        if (clause.length == 2) {
+          Pat lhs = pattern(clause[0]);
+          Exp rhs = expression(clause[1]);
+          cases[i - 2] = new Pair<Pat, Exp>(lhs, rhs);
+        } else {
+          if (clause.length > 2) {
+            return alg.errorExp(BadSyntaxError(
+                clause[2].location, <String>[clause.closingBracket()]));
+          } else {
+            return alg.errorExp(BadSyntaxError(clause.location,
+                const <String>["pattern and an asscoicated case body"]));
+          }
+        }
+      } else {
+        return alg.errorExp(BadSyntaxError(list[i].location,
+            const <String>["pattern and an associated case body"]));
+      }
     }
-    return exp.match(scrutinee, cases, location: list.location);
+    return alg.match(scrutinee, cases, location: list.location);
   }
 
   Exp tuple(Atom head, SList list) {
     assert(head.value == SpecialForm.tuple);
     List<Exp> components = expectManySelf<Sexp>(list, start: 1);
-    return exp.tuple(components, location: list.location);
+    return alg.tuple(components, location: list.location);
   }
 
   Exp typeAscription(Atom head, SList list) {
     assert(head.value == SpecialForm.typeAscription);
+    // TODO.
     return null;
   }
 
@@ -854,15 +882,16 @@ class ExpressionElaborator<Name, Exp, Pat, Typ>
     assert(list != null);
     Exp abstractor = elaborate(list[0]);
     List<Exp> arguments = expectManySelf<Sexp>(list, start: 1);
-    return exp.apply(abstractor, arguments, location: list.location);
+    return alg.apply(abstractor, arguments, location: list.location);
   }
 }
 
 class PatternElaborator<Name, Pat, Typ>
-    extends BaseElaborator<Pat, Name, Null, Null, Pat, Typ> {
-  PatternElaborator(NameAlgebra<Name> name, PatternAlgebra<Name, Pat, Typ> pat,
-      TypeAlgebra<Name, Typ> typ)
-      : super(name, null, null, pat, typ);
+extends BaseElaborator<Pat, Name, Object, Object, Pat, Typ> {
+  // PatternElaborator(NameAlgebra<Name> name, PatternAlgebra<Name, Pat, Typ> pat,
+  //     TypeAlgebra<Name, Typ> typ)
+  //     : super(name, null, null, pat, typ);
+  PatternElaborator(TAlgebra<Name, Object, Object, Pat, Typ> alg) : super(alg);
 
   Pat elaborate(Sexp sexp, {bool allowHasType = true}) {
     assert(sexp != null);
@@ -875,8 +904,8 @@ class PatternElaborator<Name, Pat, Typ>
     } else if (sexp is StringLiteral) {
       return stringPattern(sexp);
     } else {
-      return pat
-          .error(BadSyntaxError(sexp.location, const <String>["pattern"]));
+      return alg
+          .errorPattern(BadSyntaxError(sexp.location, const <String>["pattern"]));
     }
   }
 
@@ -888,12 +917,12 @@ class PatternElaborator<Name, Pat, Typ>
     // May be an integer literal.
     if (isValidNumber(value)) {
       int denotation = int.parse(value);
-      return pat.integer(denotation, location: location);
+      return alg.intPattern(denotation, location: location);
     }
 
     // Might be a boolean.
     if (isValidBoolean(value)) {
-      return pat.boolean(denoteBool(value), location: location);
+      return alg.boolPattern(denoteBool(value), location: location);
     }
 
     // Otherwise attempt to parse it as a name pattern (includes wildcard).
@@ -902,8 +931,8 @@ class PatternElaborator<Name, Pat, Typ>
 
   Pat hasTypeOrCompoundPattern(SList list) {
     if (list.length == 0) {
-      return pat
-          .error(BadSyntaxError(list.location.end, const <String>["pattern"]));
+      return alg
+          .errorPattern(BadSyntaxError(list.location.end, const <String>["pattern"]));
     }
 
     // Has type pattern.
@@ -919,8 +948,8 @@ class PatternElaborator<Name, Pat, Typ>
   Pat compoundPattern(SList list) {
     assert(list != null);
     if (list.length == 0) {
-      return pat
-          .error(BadSyntaxError(list.location.end, const <String>["pattern"]));
+      return alg
+          .errorPattern(BadSyntaxError(list.location.end, const <String>["pattern"]));
     }
 
     if (list[0] is Atom) {
@@ -933,31 +962,31 @@ class PatternElaborator<Name, Pat, Typ>
       // ... otherwise it might be a user-defined constructor pattern.
       return constructorPattern(atom, list);
     }
-    return pat.error(BadSyntaxError(
+    return alg.errorPattern(BadSyntaxError(
         list[0].location, const <String>["constructor pattern"]));
   }
 
   Pat stringPattern(StringLiteral lit) {
     assert(lit != null);
     // TODO parse string literal.
-    return pat.string(lit.value, location: lit.location);
+    return alg.stringPattern(lit.value, location: lit.location);
   }
 
   Pat hasType(Atom colon, SList list) {
     assert(colon.value == ":");
     if (list.length < 3 || list.length > 3) {
       if (list.length < 3) {
-        return pat.error(BadSyntaxError(
+        return alg.errorPattern(BadSyntaxError(
             list.location.end, const <String>["has type pattern"]));
       } else {
-        return pat.error(
+        return alg.errorPattern(
             BadSyntaxError(list[3].location, <String>[list.closingBracket()]));
       }
     }
 
     Pat pat0 = elaborate(list[0], allowHasType: false);
     Typ type = datatype(list[2]);
-    return pat.hasType(pat0, type, location: list.location);
+    return alg.hasTypePattern(pat0, type, location: list.location);
   }
 
   Pat namePattern(Sexp sexp) {
@@ -965,13 +994,13 @@ class PatternElaborator<Name, Pat, Typ>
     if (sexp is Atom) {
       Atom atom = sexp;
       if (isWildcard(atom.value)) {
-        return pat.wildcard(location: atom.location);
+        return alg.wildcard(location: atom.location);
       } else if (isValidTermName(atom.value)) {
         Name name = termName(atom);
-        return pat.var_(name, location: atom.location);
+        return alg.varPattern(name, location: atom.location);
       }
     } else {
-      return pat.error(BadSyntaxError(sexp.location));
+      return alg.errorPattern(BadSyntaxError(sexp.location));
     }
   }
 
@@ -980,15 +1009,15 @@ class PatternElaborator<Name, Pat, Typ>
     if (isValidDataConstructorName(head.value)) {
       Name name = dataConstructorName(head);
       List<Pat> pats = expectMany<Sexp, Pat>(namePattern, list, start: 1);
-      return pat.constr(name, pats, location: list.location);
+      return alg.constrPattern(name, pats, location: list.location);
     } else {
-      return pat.error(BadSyntaxError(head.location));
+      return alg.errorPattern(BadSyntaxError(head.location));
     }
   }
 
   Pat tuplePattern(Atom head, SList list) {
     List<Pat> pats = expectMany<Sexp, Pat>(namePattern, list, start: 1);
-    return pat.tuple(pats, location: list.location);
+    return alg.tuplePattern(pats, location: list.location);
   }
 }
 

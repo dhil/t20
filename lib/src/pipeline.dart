@@ -19,6 +19,7 @@ import 'syntax/parse_sexp.dart';
 import 'syntax/alt/elaboration.dart';
 import 'ast/algebra.dart';
 import 'ast/nullalgebras.dart';
+import 'ast/traversals.dart';
 
 bool compile(List<String> filePaths, Settings settings) {
   RandomAccessFile currentFile;
@@ -66,6 +67,25 @@ bool compile(List<String> filePaths, Settings settings) {
       //   report(desugarResult.errors);
       //   return false;
       // }
+      // List<LocatedError> errors = new ModuleElaborator<
+      //             List<LocatedError>,
+      //             List<LocatedError>,
+      //             List<LocatedError>,
+      //             List<LocatedError>,
+      //             List<LocatedError>>(
+      //         new CollectNameErrors(),
+      //         new CollectModuleErrors(),
+      //         new CollectExpErrors(),
+      //         new CollectPatternErrors(),
+      //         new CollectTypeErrors())
+      //     .elaborate(parseResult.result);
+      // if (errors.length > 0) {
+      //   report(errors);
+      //   return false;
+      // }
+      Null nil =
+          new ModuleElaborator<Null, Null, Null, Null, Null>(new NullAlgebra())
+              .elaborate(parseResult.result);
     }
   } catch (err, stack) {
     if (currentFile != null) currentFile.closeSync();
