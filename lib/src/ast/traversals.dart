@@ -42,16 +42,29 @@ class ListMonoid<T> implements Monoid<List<T>> {
 //       Pair<T, T>(_m.compose(x.$1, y.$1), _m.compose(x.$2, y.$2));
 // }
 
-abstract class Morphism<S, T> {
-  T apply(S x);
+// abstract class Morphism<S, T> {
+
+//   const factory Morphism.of(T Function(S) f) = _FuncMorphism<S, T>;
+//   T apply(S x);
+// }
+
+class Morphism<S, T> {
+  final T Function(S) _f;
+  const Morphism.of(this._f);
+  T apply(S x) => _f(x);
 }
 
-abstract class GMorphism {
-  Morphism<S, T> generate<S, T>();
+class Endomorphism<S> extends Morphism<S, S> {
+  const Endomorphism.of(S Function(S) f) : super.of(f);
 }
+
+// abstract class GMorphism {
+//   Morphism<S, T> generate<S, T>();
+// }
 
 // Generic reductive traversals.
-abstract class Fold<Name, Mod, Exp, Pat, Typ> extends TAlgebra<Name, Mod, Exp, Pat, Typ> {
+abstract class Catamorphism<Name, Mod, Exp, Pat, Typ>
+    extends TAlgebra<Name, Mod, Exp, Pat, Typ> {
   // A specialised monoid for each sort.
   Monoid<Mod> get mod;
   Monoid<Exp> get exp;
@@ -67,11 +80,40 @@ abstract class Fold<Name, Mod, Exp, Pat, Typ> extends TAlgebra<Name, Mod, Exp, P
   Morphism<Exp, Mod> get exp2mod;
 
   // Derived converters.
-  Morphism<Name, Mod> get name2mod;
-  Morphism<Name, Exp> get name2exp;
-  Morphism<Pat, Mod> get pat2mod;
-  Morphism<Name, Pat> get name2pat;
-  Morphism<Typ, Mod> get typ2mod;
+  Morphism<Name, Mod> _name2mod;
+  Morphism<Name, Mod> get name2mod {
+    _name2mod ??= Morphism<Name, Mod>.of(
+        (Name name) => exp2mod.apply(name2exp.apply(name)));
+    return _name2mod;
+  }
+
+  Morphism<Name, Exp> _name2exp;
+  Morphism<Name, Exp> get name2exp {
+    _name2exp ??= Morphism<Name, Exp>.of(
+        (Name name) => typ2exp.apply(name2typ.apply(name)));
+    return _name2exp;
+  }
+
+  Morphism<Pat, Mod> _pat2mod;
+  Morphism<Pat, Mod> get pat2mod {
+    _pat2mod ??=
+        Morphism<Pat, Mod>.of((Pat p) => exp2mod.apply(pat2exp.apply(p)));
+    return _pat2mod;
+  }
+
+  Morphism<Name, Pat> _name2pat;
+  Morphism<Name, Pat> get name2pat {
+    _name2pat ??= Morphism<Name, Pat>.of(
+        (Name name) => typ2pat.apply(name2typ.apply(name)));
+    return _name2pat;
+  }
+
+  Morphism<Typ, Mod> _typ2mod;
+  Morphism<Typ, Mod> get typ2mod {
+    _typ2mod ??=
+        Morphism<Typ, Mod>.of((Typ typ) => exp2mod.apply(typ2exp.apply(typ)));
+    return _typ2mod;
+  }
 
   Mod datatype(Pair<Name, List<Name>> binder,
       List<Pair<Name, List<Typ>>> constructors, List<Name> deriving,
@@ -167,12 +209,16 @@ abstract class Fold<Name, Mod, Exp, Pat, Typ> extends TAlgebra<Name, Mod, Exp, P
     Name r0 = quantifiers.fold(name.empty, name.compose);
     return typ.compose(name2typ.apply(r0), type);
   }
+
   Typ arrowType(List<Typ> domain, Typ codomain, {Location location}) {
     Typ acc = domain.fold(typ.empty, typ.compose);
     return typ.compose(acc, codomain);
   }
-  Typ typeConstr(Name name, List<Typ> arguments, {Location location}) => arguments.fold(name2typ.apply(name), typ.compose);
-  Typ tupleType(List<Typ> components, {Location location}) => components.fold(typ.empty, typ.compose);
+
+  Typ typeConstr(Name name, List<Typ> arguments, {Location location}) =>
+      arguments.fold(name2typ.apply(name), typ.compose);
+  Typ tupleType(List<Typ> components, {Location location}) =>
+      components.fold(typ.empty, typ.compose);
   Typ errorType(LocatedError error, {Location location}) => typ.empty;
 
   Name termName(String ident, {Location location}) => name.empty;
@@ -180,24 +226,41 @@ abstract class Fold<Name, Mod, Exp, Pat, Typ> extends TAlgebra<Name, Mod, Exp, P
   Name errorName(LocatedError error, {Location location}) => name.empty;
 }
 
-abstract class Reduce<TResult> extends Fold<TResult, TResult, TResult, TResult, TResult> {
-  Monoid<TResult> get mod;
-  Monoid<TResult> get exp;
-  Monoid<TResult> get name;
-  Monoid<TResult> get pat;
-  Monoid<TResult> get typ;
+abstract class Reduction<T> extends Catamorphism<T, T, T, T, T> {
+  Monoid<T> get m;
+
+  Monoid<T> get mod => m;
+  Monoid<T> get exp => m;
+  Monoid<T> get name => m;
+  Monoid<T> get pat => m;
+  Monoid<T> get typ => m;
 
   // Primitive converters.
-  Morphism<TResult, TResult> get name2typ;
-  Morphism<TResult, TResult> get typ2pat;
-  Morphism<TResult, TResult> get typ2exp;
-  Morphism<TResult, TResult> get pat2exp;
-  Morphism<TResult, TResult> get exp2mod;
-
-  // TODO.
+  static T _id<T>(T x) => x;
+  Endomorphism<T> id = Endomorphism<T>.of(_id);
+  Endomorphism<T> get name2typ => id;
+  Endomorphism<T> get typ2pat => id;
+  Endomorphism<T> get typ2exp => id;
+  Endomorphism<T> get pat2exp => id;
+  Endomorphism<T> get exp2mod => id;
 }
 
 // Error accumulator.
+class ErrorCollector extends Reduction<List<LocatedError>> {
+  final ListMonoid<LocatedError> _m = new ListMonoid<LocatedError>();
+  Monoid<List<LocatedError>> get m => _m;
+
+  List<LocatedError> errorModule(LocatedError error, {Location location}) =>
+      <LocatedError>[error];
+  List<LocatedError> errorExp(LocatedError error, {Location location}) =>
+      <LocatedError>[error];
+  List<LocatedError> errorPattern(LocatedError error, {Location location}) =>
+      <LocatedError>[error];
+  List<LocatedError> errorType(LocatedError error, {Location location}) =>
+      <LocatedError>[error];
+  List<LocatedError> errorName(LocatedError error, {Location location}) =>
+      <LocatedError>[error];
+}
 
 // abstract class ReduceModule<TResult>
 //     extends ModuleAlgebra<TResult, TResult, TResult, TResult, TResult> {

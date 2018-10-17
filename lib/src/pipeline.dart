@@ -83,9 +83,15 @@ bool compile(List<String> filePaths, Settings settings) {
       //   report(errors);
       //   return false;
       // }
-      Null nil =
-          new ModuleElaborator<Null, Null, Null, Null, Null>(new NullAlgebra())
-              .elaborate(parseResult.result);
+      // Null nil =
+      //     new ModuleElaborator<Null, Null, Null, Null, Null>(new NullAlgebra())
+      //         .elaborate(parseResult.result);
+      List<LocatedError> errors = new ModuleElaborator(new ErrorCollector())
+          .elaborate(parseResult.result);
+      if (errors.length > 0) {
+        report(errors);
+        return false;
+      }
     }
   } catch (err, stack) {
     if (currentFile != null) currentFile.closeSync();
