@@ -92,6 +92,10 @@ bool compile(List<String> filePaths, Settings settings) {
         report(errors);
         return false;
       }
+      bool checkInvariant = new ModuleElaborator(new CheckSignatureHasForall()).elaborate(parseResult.result);
+      if (!checkInvariant) {
+        return false;
+      }
     }
   } catch (err, stack) {
     if (currentFile != null) currentFile.closeSync();
