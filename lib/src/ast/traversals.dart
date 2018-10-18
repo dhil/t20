@@ -674,12 +674,25 @@ class ResolvedName {
 }
 
 class NameContext {
-  static NameContext _instance;
-  NameContext() {
+  final Map<String, int> nameEnv;
+  final Map<String, int> tynameEnv;
+
+  NameContext(this.nameEnv, this.tynameEnv) {
     ResolvedName._sharedPool ??= new StringPool();
+  }
+
+  StringPool get sharedPool => ResolvedName._sharedPool;
+
+  ResolvedName addTermName(String name, {Location location}) {
+    return null;
+  }
+
+  ResolvedName addTypeName(String name, {Location location}) {
+    return null;
   }
 }
 
-class NameResolver<Mod, Exp, Pat, Typ> extends ContextualTransformation<NameContext, ResolvedName, Mod, Exp, Pat, Typ> {
+class NameResolver<Mod, Exp, Pat, Typ> extends ContextualTransformation<
+    NameContext, ResolvedName, Mod, Exp, Pat, Typ> {
   TAlgebra<ResolvedName, Mod, Exp, Pat, Typ> get alg => null;
 }
