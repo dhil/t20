@@ -292,6 +292,17 @@ class MultipleDerivingError extends LocatedError implements ElaborationError, Ha
   MultipleDerivingError(Location location) : super(location);
 
   String toString() {
-    return "Multiple deriving clauses.";
+    return "Multiple deriving clauses";
+  }
+}
+
+class UnboundNameError extends LocatedError implements ElaborationError, HasLength {
+  final String name;
+  int get length => name.length;
+
+  UnboundNameError(this.name, Location location) : super(location);
+
+  String toString() {
+    return "Unbound name";
   }
 }

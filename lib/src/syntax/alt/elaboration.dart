@@ -308,6 +308,7 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
 
 class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
     extends BaseElaborator<Mod, Name, Mod, Exp, Pat, Typ> {
+  final Set<String> declaredDatatypes = new Set<String>();
   // ModuleElaborator(
   //     NameAlgebra<Name> name,
   //     ModuleAlgebra<Name, Mod, Exp, Pat, Typ> mod,

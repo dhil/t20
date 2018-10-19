@@ -62,6 +62,7 @@ function runtests()
       FAILURES=$(($FAILURES + 1))
       echo -e "\033[1;31m$CROSS\033[0m ${elapsed_str}$test"
       echo "command: $cmd"
+      echo "exit code: $actual"
       echo -n "stdout:"
       if [[ -s $stdout_log ]]; then
         echo ""

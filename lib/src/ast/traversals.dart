@@ -7,7 +7,6 @@ import 'dart:collection';
 import '../errors/errors.dart' show LocatedError;
 import '../fp.dart' show Pair;
 import '../location.dart';
-import '../string_pool.dart';
 
 import 'algebra.dart';
 
@@ -18,6 +17,11 @@ abstract class Magma<R> {
 
 abstract class Monoid<R> implements Magma<R> {
   R get empty;
+}
+
+class NullMonoid<T> implements Monoid<T> {
+  T get empty => null;
+  T compose(T x, T y) => null;
 }
 
 class SetMonoid<T> implements Monoid<Set<T>> {
@@ -641,7 +645,7 @@ abstract class ContextualTransformation<C, Name, Mod, Exp, Pat, Typ>
   Transformer<C, Typ> arrowType(
           List<Transformer<C, Typ>> domain, Transformer<C, Typ> codomain,
           {Location location}) =>
-      (C c) => alg.arrowType(domain.map((f) => f(c)), codomain(c),
+      (C c) => alg.arrowType(domain.map((f) => f(c)).toList(), codomain(c),
           location: location);
   Transformer<C, Typ> typeConstr(
           Transformer<C, Name> name, List<Transformer<C, Typ>> arguments,
@@ -663,36 +667,10 @@ abstract class ContextualTransformation<C, Name, Mod, Exp, Pat, Typ>
       (C _) => alg.errorName(error, location: location);
 }
 
-class ResolvedName {
-  static StringPool _sharedPool;
-  final int intern;
-  final int id;
-  final Location location;
-  const ResolvedName._(this.intern, this.id, this.location);
+// Source name extractor.
+// class SourceNameExtractor extends NameAlgebra<String> {
+//   String termName(String name, {Location location}) => name;
+//   String typeName(String name, {Location location}) => name;
 
-  String get sourceName => _sharedPool[intern];
-}
-
-class NameContext {
-  final Map<String, int> nameEnv;
-  final Map<String, int> tynameEnv;
-
-  NameContext(this.nameEnv, this.tynameEnv) {
-    ResolvedName._sharedPool ??= new StringPool();
-  }
-
-  StringPool get sharedPool => ResolvedName._sharedPool;
-
-  ResolvedName addTermName(String name, {Location location}) {
-    return null;
-  }
-
-  ResolvedName addTypeName(String name, {Location location}) {
-    return null;
-  }
-}
-
-class NameResolver<Mod, Exp, Pat, Typ> extends ContextualTransformation<
-    NameContext, ResolvedName, Mod, Exp, Pat, Typ> {
-  TAlgebra<ResolvedName, Mod, Exp, Pat, Typ> get alg => null;
-}
+//   String errorName(LocatedError error, {Location location}) => null;
+// }

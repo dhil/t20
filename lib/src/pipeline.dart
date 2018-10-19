@@ -13,7 +13,7 @@ import 'errors/error_reporting.dart';
 import 'errors/errors.dart';
 import 'io/bytestream.dart';
 import 'result.dart';
-// import 'static_semantics/desugar_types.dart';
+import 'static_semantics/name_resolution.dart';
 // import 'syntax/elaborator.dart';
 import 'syntax/parse_sexp.dart';
 import 'syntax/alt/elaboration.dart';
@@ -86,14 +86,24 @@ bool compile(List<String> filePaths, Settings settings) {
       // Null nil =
       //     new ModuleElaborator<Null, Null, Null, Null, Null>(new NullAlgebra())
       //         .elaborate(parseResult.result);
-      List<LocatedError> errors = new ModuleElaborator(new ErrorCollector())
-          .elaborate(parseResult.result);
+      // List<LocatedError> errors = new ModuleElaborator(new ErrorCollector())
+      //     .elaborate(parseResult.result);
+      // if (errors.length > 0) {
+      //   report(errors);
+      //   return false;
+      // }
+      // bool checkInvariant = new ModuleElaborator(new CheckSignatureHasForall()).elaborate(parseResult.result);
+      // if (!checkInvariant) {
+      //   return false;
+      // }
+      List<LocatedError> errors = new ModuleElaborator(new NameResolver<
+              List<LocatedError>,
+              List<LocatedError>,
+              List<LocatedError>,
+              List<LocatedError>>.closed(new ResolvedErrorCollector()))
+          .elaborate(parseResult.result)(NameContext.empty());
       if (errors.length > 0) {
         report(errors);
-        return false;
-      }
-      bool checkInvariant = new ModuleElaborator(new CheckSignatureHasForall()).elaborate(parseResult.result);
-      if (!checkInvariant) {
         return false;
       }
     }
