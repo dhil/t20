@@ -8,11 +8,17 @@ class Location {
   final Uri uri;
   final int startOffset;
 
-  const Location(this.uri, this.startOffset);
+  static Location _primInstance;
 
+  const Location(this.uri, this.startOffset);
   const factory Location.span(Uri uri, int startOffset, int endOffset) =
       SpanLocation;
   factory Location.dummy([String sourceName]) = DummyLocation;
+  factory Location.primitive() {
+    _primInstance ??= PrimitiveLocation();
+    return _primInstance;
+  }
+
 
   String toString() {
     return "<$uri:$startOffset>";
@@ -40,5 +46,13 @@ class DummyLocation extends Location {
 
   String toString() {
     return "<$sourceName:$startOffset>";
+  }
+}
+
+class PrimitiveLocation extends Location {
+  PrimitiveLocation() : super(Uri.dataFromString(""), -1);
+
+  String toString() {
+    return "<primitive>";
   }
 }

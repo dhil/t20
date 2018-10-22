@@ -303,6 +303,6 @@ class UnboundNameError extends LocatedError implements ElaborationError, HasLeng
   UnboundNameError(this.name, Location location) : super(location);
 
   String toString() {
-    return "Unbound name";
+    return "Undeclared name '$name'";
   }
 }

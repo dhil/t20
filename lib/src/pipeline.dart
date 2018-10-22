@@ -7,6 +7,7 @@ library t20.pipeline;
 import 'dart:io';
 
 import '../settings.dart';
+import 'builtins.dart';
 import 'ast/ast.dart';
 import 'compilation_unit.dart';
 import 'errors/error_reporting.dart';
@@ -97,11 +98,12 @@ bool compile(List<String> filePaths, Settings settings) {
       //   return false;
       // }
       List<LocatedError> errors = new ModuleElaborator(new NameResolver<
-              List<LocatedError>,
-              List<LocatedError>,
-              List<LocatedError>,
-              List<LocatedError>>.closed(new ResolvedErrorCollector()))
-          .elaborate(parseResult.result)(NameContext.empty());
+                  List<LocatedError>,
+                  List<LocatedError>,
+                  List<LocatedError>,
+                  List<LocatedError>>(Builtin.termNameMap, Builtin.typeNameMap,
+              new ResolvedErrorCollector()))
+          .elaborate(parseResult.result)(NameContext.withBuiltins());
       if (errors.length > 0) {
         report(errors);
         return false;

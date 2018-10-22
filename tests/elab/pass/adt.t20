@@ -5,6 +5,9 @@
   [nil]
   (derive! Map Fold))
 
+;; HACK: Declare `list-concat' to silence the name resolver.
+(: list-concat (-> (List 'a) (List 'a) (List 'a)))
+
 ;; Modelling cards.
 (define-datatype Suit
   [Clubs]

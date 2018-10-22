@@ -343,6 +343,8 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
               return valueDefinition(atom, list);
             case "define-datatype":
               return datatypeDefinition(atom, list);
+            case "define-datatypes":
+              return datatypesDefinition(atom, list);
             case "define-typename":
               return typename(atom, list);
             case "open":
@@ -402,57 +404,158 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
     }
   }
 
+  Mod datatypesDefinition(Atom head, SList list) {
+    assert(head.value == "define-datatypes");
+    List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> defs =
+        new List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>();
+    for (int i = 1; i < list.length; i++) {
+      Sum<LocatedError, Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>
+          result = parseDatatypeDecl(list, 0);
+      if (result.isLeft) {
+        LocatedError err = result.value as LocatedError;
+        return alg.errorModule(err);
+      } else {
+        Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>> def = result.value
+            as Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>;
+        defs.add(def);
+      }
+    }
+    // TODO parse deriving.
+    return alg.mutualDatatypes(defs, null, location: list.location);
+  }
+
   Mod datatypeDefinition(Atom head, SList list) {
     assert(head.value == "define-datatype");
+
+    int end = list.length;
+    List<Name> deriving;
+    if (list.length > 2) {
+      if (list.last is SList) {
+        SList clause = list.last;
+        if (clause[0] is Atom) {
+          Atom atom = clause[0];
+          if (atom.value == "derive!") {
+            end = end - 1;
+            deriving = expectMany<Atom, Name>(typeName, clause,
+                start: 1); // TODO fix demote type argument to Sexp.
+          } else {
+            deriving = <Name>[];
+          }
+        }
+      }
+    }
+
+    Sum<LocatedError, Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>
+        result = parseDatatypeDecl(list, 1, end);
+    if (result.isLeft) {
+      LocatedError err = result.value as LocatedError;
+      return alg.errorModule(err);
+    } else {
+      Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>> def =
+          result.value as Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>;
+      return alg.datatype(def.$1, def.$2, def.$3, deriving,
+          location: list.location);
+    }
+    // // (define-datatype name (K T*)* or (define-datatype (name q+) (K T*)*
+    // if (list.length < 2) {
+    //   return alg.errorModule(BadSyntaxError(
+    //       list.location.end, const <String>["data type definition"]));
+    // }
+
+    // // Parse any constructors and the potential deriving clause.
+    // List<Pair<Name, List<Typ>>> constructors =
+    //     new List<Pair<Name, List<Typ>>>();
+    // List<Name> deriving;
+    // for (int i = 2; i < list.length; i++) {
+    //   if (list[i] is SList) {
+    //     SList clause = list[i];
+    //     if (clause.length > 0 && clause[0] is Atom) {
+    //       Atom atom = clause[0] as Atom;
+    //       if (atom.value == "derive!") {
+    //         if (deriving == null) {
+    //           deriving = expectMany(typeName, clause, start: 1);
+    //         } else {
+    //           return alg.errorModule(MultipleDerivingError(atom.location));
+    //         }
+    //       } else {
+    //         // Data constructor.
+    //         Name name = dataConstructorName(atom);
+    //         List<Typ> types = expectMany<Sexp, Typ>(datatype, clause, start: 1);
+    //         constructors.add(Pair<Name, List<Typ>>(name, types));
+    //       }
+    //     } else {
+    //       return alg.errorModule(BadSyntaxError(list.location, const <String>[
+    //         "data constructor definition",
+    //         "deriving clause"
+    //       ]));
+    //     }
+    //   } else {
+    //     return alg.errorModule(BadSyntaxError(list.location,
+    //         const <String>["data constructor definition", "deriving clause"]));
+    //   }
+    // }
+    // deriving ??= <Name>[];
+    // return alg.datatype(name, typeParameters, constructors, deriving,
+    //     location: list.location);
+  }
+
+  Sum<LocatedError, Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>
+      parseDatatypeDecl(SList list, int start, [int end = -1]) {
+    assert(list != null && start >= 0);
+    if (end < 0) end = list.length;
     // (define-datatype name (K T*)* or (define-datatype (name q+) (K T*)*
-    if (list.length < 2) {
-      return alg.errorModule(BadSyntaxError(
+    if (list.length - start == 0) {
+      return Sum.inl(BadSyntaxError(
           list.location.end, const <String>["data type definition"]));
     }
 
-    Pair<Name, List<Name>> name;
-    if (list[1] is Atom) {
-      name = Pair<Name, List<Name>>(typeName(list[1]), <Name>[]);
-    } else if (list[1] is SList) {
-      name = parameterisedTypeName(list[1]);
+    Name name;
+    List<Name> typeParameters;
+    if (list[start] is Atom) {
+      Pair<Name, List<Name>> result =
+          Pair<Name, List<Name>>(typeName(list[start]), <Name>[]);
+      name = result.$1;
+      typeParameters = result.$2;
+    } else if (list[start] is SList) {
+      Pair<Name, List<Name>> result = parameterisedTypeName(list[start]);
+      name = result.$1;
+      typeParameters = result.$2;
     } else {
-      return alg.errorModule(BadSyntaxError(list[1].location));
+      return Sum.inl(BadSyntaxError(list[start].location));
     }
 
-    // Parse any constructors and the potential deriving clause.
+    // Parse any constructors.
     List<Pair<Name, List<Typ>>> constructors =
         new List<Pair<Name, List<Typ>>>();
-    List<Name> deriving;
-    for (int i = 2; i < list.length; i++) {
+    for (int i = start + 1; i < end; i++) {
       if (list[i] is SList) {
         SList clause = list[i];
-        if (clause.length > 0 && clause[0] is Atom) {
+        if (clause.length == 0) {
+          return Sum.inl(BadSyntaxError(list.location.end,
+              const <String>["data constructor definition"]));
+        }
+
+        if (clause[0] is Atom) {
           Atom atom = clause[0] as Atom;
-          if (atom.value == "derive!") {
-            if (deriving == null) {
-              deriving = expectMany(typeName, clause, start: 1);
-            } else {
-              return alg.errorModule(MultipleDerivingError(atom.location));
-            }
-          } else {
-            // Data constructor.
-            Name name = dataConstructorName(atom);
-            List<Typ> types = expectMany<Sexp, Typ>(datatype, clause, start: 1);
-            constructors.add(Pair<Name, List<Typ>>(name, types));
-          }
+          // Data constructor.
+          Name name = dataConstructorName(atom);
+          List<Typ> types = expectMany<Sexp, Typ>(datatype, clause, start: 1);
+          constructors.add(Pair<Name, List<Typ>>(name, types));
         } else {
-          return alg.errorModule(BadSyntaxError(list.location, const <String>[
-            "data constructor definition",
-            "deriving clause"
-          ]));
+          return Sum.inl(BadSyntaxError(
+              list.location, const <String>["data constructor definition"]));
         }
       } else {
-        return alg.errorModule(BadSyntaxError(list.location,
-            const <String>["data constructor definition", "deriving clause"]));
+        return Sum.inl(BadSyntaxError(
+            list.location, const <String>["data constructor definition"]));
       }
     }
-    deriving ??= <Name>[];
-    return alg.datatype(name, constructors, deriving, location: list.location);
+
+    Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>> result =
+        Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>(
+            name, typeParameters, constructors);
+
+    return Sum.inr(result);
   }
 
   Mod typename(Atom head, SList list) {
@@ -466,9 +569,9 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
         return alg.errorModule(BadSyntaxError(list[3].location));
       }
     } else {
-      Pair<Name, List<Name>> name = parameterisedTypeName(list[1]);
+      Pair<Name, List<Name>> result = parameterisedTypeName(list[1]);
       Typ type = datatype(list[2]);
-      return alg.typename(name, type, location: list.location);
+      return alg.typename(result.$1, result.$2, type, location: list.location);
     }
   }
 

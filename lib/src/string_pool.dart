@@ -4,14 +4,12 @@
 
 import 'dart:collection' show Map;
 
-import 'unicode.dart' as unicode;
-
 class StringPool {
   final Map<int,String> _pool = new Map<int,String>();
   final int bitmask = 0x3F;
 
   int intern(String s) {
-    int id = s.hashCode;
+    final int id = computeIntern(s);
     _pool[id] = s;
     return id;
   }
@@ -23,5 +21,9 @@ class StringPool {
 
   String operator[](int internId) {
     return _pool[internId];
+  }
+
+  int computeIntern(String s) {
+    return s.hashCode;
   }
 }

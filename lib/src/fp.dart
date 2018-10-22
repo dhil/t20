@@ -79,3 +79,11 @@ class Pair<A, B> {
   A get $1 => fst;
   B get $2 => snd;
 }
+
+class Triple<A, B, C> extends Pair<A, B> {
+  final C thd;
+
+  const Triple(A fst, B snd, this.thd) : super(fst, snd);
+
+  C get $3 => thd;
+}

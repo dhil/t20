@@ -1,0 +1,10 @@
+;; Mutually recursive datatypes.
+
+(define-datatypes
+  {(Tree 'a)
+   [empty]
+   [node 'a (Forest 'a)]}
+  {(Forest 'a)
+   [nil]
+   [cons (Tree 'a) (Forest 'a)]}
+  (derive! Mappable Foldable))
