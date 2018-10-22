@@ -11,7 +11,7 @@ import '../errors/errors.dart'
         LocatedError,
         MultipleDeclarationsError,
         UnboundNameError;
-import '../fp.dart' show Pair;
+import '../fp.dart' show Pair, Triple;
 import '../location.dart';
 import '../string_pool.dart';
 import '../utils.dart' show Gensym;
@@ -211,55 +211,105 @@ class NameResolver<Mod, Exp, Pat, Typ>
             location: location);
       };
 
-    // Transformer<C, Mod> mutualDatatypes(
-    //       List<
-    //               Triple<
-    //                   Transformer<C, Name>,
-    //                   List<Transformer<C, Name>>,
-    //                   List<
-    //                       Pair<Transformer<C, Name>,
-    //                           List<Transformer<C, Typ>>>>>>
-    //           defs,
-    //       List<Transformer<C, Name>> deriving,
-    //       {Location location}) =>
-    //   (C c) {
-    //     List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> defs0 =
-    //         new List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>(
-    //             defs.length);
+  Transformer<NameContext, Mod> mutualDatatypes(
+          List<
+                  Triple<
+                      Transformer<NameContext, Name>,
+                      List<Transformer<NameContext, Name>>,
+                      List<
+                          Pair<Transformer<NameContext, Name>,
+                              List<Transformer<NameContext, Typ>>>>>>
+              defs,
+          List<Transformer<NameContext, Name>> deriving,
+          {Location location}) =>
+      (NameContext ctxt) {
+        // Two passes:
+        // 1) Resolve all binders.
+        // 2) Resolve bodies.
+        List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> defs0 =
+            new List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>(
+                defs.length);
 
-    //     for (int i = 0; i < defs0.length; i++) {
-    //       Triple<Transformer<C, Name>, List<Transformer<C, Name>>,
-    //               List<Pair<Transformer<C, Name>, List<Transformer<C, Typ>>>>>
-    //           def = defs[i];
+        // First pass.
+        Set<int> idents = new Set<int>();
+        List<Name> binders = new List<Name>(defs.length);
+        for (int i = 0; i < defs0.length; i++) {
+          Triple<
+              Transformer<NameContext, Name>,
+              List<Transformer<NameContext, Name>>,
+              List<
+                  Pair<Transformer<NameContext, Name>,
+                      List<Transformer<NameContext, Typ>>>>> def = defs[i];
 
-    //       Name binder = def.$1(c);
-    //       List<Name> typeParameters = def.$2.map((f) => f(c)).toList();
+          Name binder = resolveBinder(def.$1);
+          if (idents.contains(binder.intern)) {
+            return alg.errorModule(
+                MultipleDeclarationsError(binder.sourceName, binder.location),
+                location: binder.location);
+          } else {
+            ctxt = ctxt.addTypeName(binder);
+          }
+          binders[i] = binder;
+        }
 
-    //       List<Pair<Transformer<C, Name>, List<Transformer<C, Typ>>>>
-    //           constructors = def.$3;
-    //       List<Pair<Name, List<Typ>>> constructors0 =
-    //           new List<Pair<Name, List<Typ>>>(constructors.length);
-    //       for (int j = 0; j < constructors0.length; j++) {
-    //         Pair<Transformer<C, Name>, List<Transformer<C, Typ>>> constructor =
-    //             constructors[j];
-    //         Name cname = constructor.$1(c);
-    //         List<Typ> types = new List<Typ>(constructor.$2.length);
-    //         for (int k = 0; k < types.length; k++) {
-    //           types[k] = constructors[j].$2[j](c);
-    //         }
-    //         constructors0[j] = new Pair<Name, List<Typ>>(cname, types);
-    //       }
-    //       defs0[i] = Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>(
-    //           binder, typeParameters, constructors0);
-    //     }
+        // Second pass.
+        idents = new Set<int>();
+        for (int i = 0; i < defs0.length; i++) {
+          Triple<
+              Transformer<NameContext, Name>,
+              List<Transformer<NameContext, Name>>,
+              List<
+                  Pair<Transformer<NameContext, Name>,
+                      List<Transformer<NameContext, Typ>>>>> def = defs[i];
+          NameContext ctxt0 = ctxt;
 
-    //     List<Name> deriving0 = new List<Name>(deriving.length);
-    //     for (int i = 0; i < deriving0.length; i++) {
-    //       deriving0[i] = deriving[i](c);
-    //     }
+          List<Name> typeParameters = new List<Name>(def.$2.length);
+          for (int j = 0; j < typeParameters.length; j++) {
+            Name param = resolveBinder(def.$2[j]);
+            if (idents.contains(param.intern)) {
+              return alg.errorModule(
+                  MultipleDeclarationsError(param.sourceName, param.location),
+                  location: param.location);
+            } else {
+              typeParameters.add(param);
+              ctxt0 = ctxt0.addTypeName(param);
+            }
+          }
 
-    //     return alg.mutualDatatypes(defs0, deriving0, location: location);
-    //   };
+          List<
+              Pair<Transformer<NameContext, Name>,
+                  List<Transformer<NameContext, Typ>>>> constructors = def.$3;
+          List<Pair<Name, List<Typ>>> constructors0 =
+              new List<Pair<Name, List<Typ>>>(constructors.length);
+          for (int j = 0; j < constructors0.length; j++) {
+            Pair<Transformer<NameContext, Name>,
+                    List<Transformer<NameContext, Typ>>> constructor =
+                constructors[j];
+            Name cname = resolveLocal<Name>(constructor.$1, ctxt0);
+            if (globals.containsKey(cname.intern)) {
+              return alg.errorModule(
+                  MultipleDeclarationsError(cname.sourceName, cname.location),
+                  location: cname.location);
+            }
+            globals[cname.intern] = cname;
+
+            List<Typ> types = new List<Typ>(constructor.$2.length);
+            for (int k = 0; k < types.length; k++) {
+              types[k] = resolveLocal<Typ>(constructors[j].$2[j], ctxt0);
+            }
+            constructors0[j] = new Pair<Name, List<Typ>>(cname, types);
+          }
+          defs0[i] = Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>(
+              binders[i], typeParameters, constructors0);
+        }
+
+        List<Name> deriving0 = new List<Name>(deriving.length);
+        for (int i = 0; i < deriving0.length; i++) {
+          deriving0[i] = resolveLocal<Name>(deriving[i], ctxt);
+        }
+
+        return alg.mutualDatatypes(defs0, deriving0, location: location);
+      };
 
   Transformer<NameContext, Mod> valueDef(Transformer<NameContext, Name> name,
           Transformer<NameContext, Exp> body,
@@ -332,7 +382,8 @@ class NameResolver<Mod, Exp, Pat, Typ>
 
         // Type aliases cannot be recursive.
         final Name binder0 = resolveBinder(binder);
-        return alg.typename(binder0, typeParameters0, type0, location: location);
+        return alg.typename(binder0, typeParameters0, type0,
+            location: location);
       };
 
   Transformer<NameContext, Mod> signature(Transformer<NameContext, Name> name,

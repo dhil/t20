@@ -406,9 +406,33 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
 
   Mod datatypesDefinition(Atom head, SList list) {
     assert(head.value == "define-datatypes");
+
+    if (list.length < 2) {
+      return alg.errorModule(BadSyntaxError(
+          list.location.end, const <String>["data type definition group"]));
+    }
+
+    int end = list.length;
+    List<Name> deriving;
+    if (list.length > 2) {
+      if (list.last is SList) {
+        SList clause = list.last;
+        if (clause[0] is Atom) {
+          Atom atom = clause[0];
+          if (atom.value == "derive!") {
+            end = end - 1;
+            deriving = expectMany<Atom, Name>(typeName, clause,
+                start: 1); // TODO fix demote type argument to Sexp.
+          } else {
+            deriving = <Name>[];
+          }
+        }
+      }
+    }
+
     List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> defs =
         new List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>();
-    for (int i = 1; i < list.length; i++) {
+    for (int i = 1; i < end; i++) {
       Sum<LocatedError, Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>
           result = parseDatatypeDecl(list, 0);
       if (result.isLeft) {
@@ -420,8 +444,8 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
         defs.add(def);
       }
     }
-    // TODO parse deriving.
-    return alg.mutualDatatypes(defs, null, location: list.location);
+
+    return alg.mutualDatatypes(defs, deriving, location: list.location);
   }
 
   Mod datatypeDefinition(Atom head, SList list) {
