@@ -30,7 +30,9 @@ final Map<String, String> _rawBuiltins = {
   "error": "(forall 'a (-> String 'a))",
 
   // Specials.
-  "map": "(forall ('a 'b) (=> (Mappable 'm) (-> (-> 'a 'b) ('m 'a) ('m 'b))))"
+  "map": "(forall ('a 'b) (=> (Mappable 'm) (-> (-> 'a 'b) ('m 'a) ('m 'b))))",
+  "foldr": "(forall ('a 'b) (=> (Foldable 'f) (-> (-> 'a 'b 'b) ('f 'a) 'b 'b)))",
+  "foldl": "(forall ('a 'b) (=> (Foldable 'f) (-> (-> 'a 'b 'a) 'a ('f 'b) 'a)))"
 };
 
 final Map<int, Name> _builtinsNameMap =
