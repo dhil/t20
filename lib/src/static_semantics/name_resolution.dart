@@ -116,8 +116,8 @@ class PatternBindingContext extends BindingContext {
 
 class NameResolver<Mod, Exp, Pat, Typ> extends ContextualTransformation<
     NameContext, Name, Pair<NameContext, Mod>, Exp, Pat, Typ> {
-  final TAlgebra<Name, Pair<NameContext, Mod>, Exp, Pat, Typ> _alg;
-  TAlgebra<Name, Pair<NameContext, Mod>, Exp, Pat, Typ> get alg => _alg;
+  final TAlgebra<Name, Mod, Exp, Pat, Typ> _alg;
+  TAlgebra<Name, Mod, Exp, Pat, Typ> get alg => _alg;
 
   final BindingContext bindingContext = new BindingContext();
   final Map<int, Name> signatureMap = new Map<int, Name>();
