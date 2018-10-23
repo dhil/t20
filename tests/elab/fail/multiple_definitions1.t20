@@ -1,0 +1,5 @@
+;; Defining the same thing twice.
+
+(: foo Int)
+(define foo 42)
+(define foo 40)

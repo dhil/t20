@@ -160,21 +160,21 @@ abstract class Catamorphism<Name, Mod, Exp, Pat, Typ>
     return _typ2mod;
   }
 
-  Mod datatype(Name binder, List<Name> typeParameters,
-      List<Pair<Name, List<Typ>>> constructors, List<Name> deriving,
-      {Location location}) {
-    Name r0 = typeParameters.fold(binder, name.compose);
-    Typ r1 = name2typ.apply(r0);
-    for (int i = 0; i < constructors.length; i++) {
-      Typ seed = typ.compose(r1, name2typ.apply(constructors[i].$1));
-      r1 = constructors[i].$2.fold(seed, typ.compose);
-    }
-    Mod r2 = typ2mod.apply(r1);
-    Name r3 = deriving.fold(name.empty, name.compose);
-    return mod.compose(r2, name2mod.apply(r3));
-  }
+  // Mod datatype(Name binder, List<Name> typeParameters,
+  //     List<Pair<Name, List<Typ>>> constructors, List<Name> deriving,
+  //     {Location location}) {
+  //   Name r0 = typeParameters.fold(binder, name.compose);
+  //   Typ r1 = name2typ.apply(r0);
+  //   for (int i = 0; i < constructors.length; i++) {
+  //     Typ seed = typ.compose(r1, name2typ.apply(constructors[i].$1));
+  //     r1 = constructors[i].$2.fold(seed, typ.compose);
+  //   }
+  //   Mod r2 = typ2mod.apply(r1);
+  //   Name r3 = deriving.fold(name.empty, name.compose);
+  //   return mod.compose(r2, name2mod.apply(r3));
+  // }
 
-  Mod mutualDatatypes(
+  Mod datatypes(
       List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> defs,
       List<Name> deriving,
       {Location location}) {
@@ -364,17 +364,21 @@ class SigInfoMonoid<Name> implements Monoid<SigInfo<Name>> {
   }
 }
 
-class ComputeSigInfo<Name> extends Reduction<SigInfo<Name>> {
-  final SigInfoMonoid<Name> _m = new SigInfoMonoid<Name>();
-  Monoid<SigInfo<Name>> get m => _m;
+class ComputeSigInfo extends Reduction<SigInfo<String>> {
+  final SigInfoMonoid<String> _m = new SigInfoMonoid<String>();
+  Monoid<SigInfo<String>> get m => _m;
 
-  SigInfo<Name> forallType(List<SigInfo<Name>> quantifiers, SigInfo<Name> type,
+  SigInfo<String> forallType(List<SigInfo<String>> quantifiers, SigInfo<String> type,
       {Location location}) {
-    SigInfo<Name> si = quantifiers.fold(m.empty, m.compose);
-    Set<Name> bvs = si
+    SigInfo<String> si = quantifiers.fold(m.empty, m.compose);
+    Set<String> bvs = si
         .freeVariables; // It's a bit unfortunate that the "bound names" are the "free names".
-    Set<Name> fvs = type.freeVariables.difference(bvs);
-    return SigInfo<Name>(true, fvs, bvs);
+    Set<String> fvs = type.freeVariables.difference(bvs);
+    return SigInfo<String>(true, fvs, bvs);
+  }
+
+  SigInfo<String> typeName(String ident, {Location location}) {
+    return SigInfo<String>(false, new Set<String>()..add(ident), new Set<String>());
   }
 }
 
@@ -389,12 +393,12 @@ class CheckSignatureHasForall extends Reduction<bool> {
 
   bool module(List<bool> members, {Location location}) =>
       members.every((b) => b == true);
-  bool datatype(bool binder, List<bool> typeParameters,
-          List<Pair<bool, List<bool>>> constructors, List<bool> deriving,
-          {Location location}) =>
-      true;
+  // bool datatype(bool binder, List<bool> typeParameters,
+  //         List<Pair<bool, List<bool>>> constructors, List<bool> deriving,
+  //         {Location location}) =>
+  //     true;
 
-  bool mutualDatatypes(
+  bool datatypes(
           List<Triple<bool, List<bool>, List<Pair<bool, List<bool>>>>> defs,
           List<bool> deriving,
           {Location location}) =>
@@ -418,17 +422,17 @@ abstract class Transformation<Name, Mod, Exp, Pat, Typ>
     extends TAlgebra<Name, Mod, Exp, Pat, Typ> {
   TAlgebra<Name, Mod, Exp, Pat, Typ> get alg;
 
-  Mod datatype(Name binder, List<Name> typeParameters,
-          List<Pair<Name, List<Typ>>> constructors, List<Name> deriving,
-          {Location location}) =>
-      alg.datatype(binder, typeParameters, constructors, deriving,
-          location: location);
+  // Mod datatype(Name binder, List<Name> typeParameters,
+  //         List<Pair<Name, List<Typ>>> constructors, List<Name> deriving,
+  //         {Location location}) =>
+  //     alg.datatype(binder, typeParameters, constructors, deriving,
+  //         location: location);
 
-  Mod mutualDatatypes(
+  Mod datatypes(
           List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> defs,
           List<Name> deriving,
           {Location location}) =>
-      alg.mutualDatatypes(defs, deriving, location: location);
+      alg.datatypes(defs, deriving, location: location);
 
   Mod valueDef(Name name, Exp body, {Location location}) =>
       alg.valueDef(name, body, location: location);
@@ -522,32 +526,32 @@ abstract class ContextualTransformation<C, Name, Mod, Exp, Pat, Typ>
         Transformer<C, Exp>, Transformer<C, Pat>, Transformer<C, Typ>> {
   TAlgebra<Name, Mod, Exp, Pat, Typ> get alg;
 
-  Transformer<C, Mod> datatype(
-          Transformer<C, Name> binder,
-          List<Transformer<C, Name>> typeParameters,
-          List<Pair<Transformer<C, Name>, List<Transformer<C, Typ>>>>
-              constructors,
-          List<Transformer<C, Name>> deriving,
-          {Location location}) =>
-      (C c) {
-        Name binder0 = binder(c);
-        List<Name> typeParameters0 = typeParameters.map((f) => f(c)).toList();
-        List<Pair<Name, List<Typ>>> constructors0 =
-            new List<Pair<Name, List<Typ>>>(constructors.length);
-        for (int i = 0; i < constructors0.length; i++) {
-          Name cname = constructors[i].$1(c);
-          List<Typ> types = new List<Typ>(constructors[i].$2.length);
-          for (int j = 0; j < types.length; j++) {
-            types[j] = constructors[i].$2[j](c);
-          }
-          constructors0[i] = new Pair<Name, List<Typ>>(cname, types);
-        }
-        List<Name> deriving0 = deriving.map((f) => f(c)).toList();
-        return alg.datatype(binder0, typeParameters0, constructors0, deriving0,
-            location: location);
-      };
+  // Transformer<C, Mod> datatype(
+  //         Transformer<C, Name> binder,
+  //         List<Transformer<C, Name>> typeParameters,
+  //         List<Pair<Transformer<C, Name>, List<Transformer<C, Typ>>>>
+  //             constructors,
+  //         List<Transformer<C, Name>> deriving,
+  //         {Location location}) =>
+  //     (C c) {
+  //       Name binder0 = binder(c);
+  //       List<Name> typeParameters0 = typeParameters.map((f) => f(c)).toList();
+  //       List<Pair<Name, List<Typ>>> constructors0 =
+  //           new List<Pair<Name, List<Typ>>>(constructors.length);
+  //       for (int i = 0; i < constructors0.length; i++) {
+  //         Name cname = constructors[i].$1(c);
+  //         List<Typ> types = new List<Typ>(constructors[i].$2.length);
+  //         for (int j = 0; j < types.length; j++) {
+  //           types[j] = constructors[i].$2[j](c);
+  //         }
+  //         constructors0[i] = new Pair<Name, List<Typ>>(cname, types);
+  //       }
+  //       List<Name> deriving0 = deriving.map((f) => f(c)).toList();
+  //       return alg.datatype(binder0, typeParameters0, constructors0, deriving0,
+  //           location: location);
+  //     };
 
-  Transformer<C, Mod> mutualDatatypes(
+  Transformer<C, Mod> datatypes(
           List<
                   Triple<
                       Transformer<C, Name>,
@@ -594,7 +598,7 @@ abstract class ContextualTransformation<C, Name, Mod, Exp, Pat, Typ>
           deriving0[i] = deriving[i](c);
         }
 
-        return alg.mutualDatatypes(defs0, deriving0, location: location);
+        return alg.datatypes(defs0, deriving0, location: location);
       };
 
   Transformer<C, Mod> valueDef(

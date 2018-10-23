@@ -248,7 +248,7 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
   Name typeVariableName(Atom sexp) {
     assert(sexp != null);
     if (isValidTypeVariableName(sexp.value)) {
-      return alg.typeName(sexp.value);
+      return alg.typeName(sexp.value, location:sexp.location);
     } else {
       return alg.errorName(BadSyntaxError(sexp.location));
     }
@@ -268,15 +268,19 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
 
   Typ signatureDatatype(Sexp sexp) {
     assert(sexp != null);
-    SigInfo<Name> si =
-        TypeElaborator<SigInfo<Name>, SigInfo<Name>>(new ComputeSigInfo<Name>())
+    SigInfo<String> si =
+        TypeElaborator<SigInfo<String>, SigInfo<String>>(new ComputeSigInfo())
             .elaborate(sexp);
     Typ sig = new TypeElaborator<Name, Typ>(alg).elaborate(sexp);
     if (si.hasExplicitForall) {
       return sig;
     } else {
-      List<Name> qs = si.boundVariables.union(si.freeVariables).toList();
-      return alg.forallType(qs, sig, location: sexp.location);
+      List<String> qs = si.boundVariables.union(si.freeVariables).toList();
+      List<Name> qs0 = new List<Name>(qs.length);
+      for (int i = 0; i < qs.length; i++) {
+        qs0[i] = alg.typeName(qs[i], location: Location.dummy());
+      }
+      return alg.forallType(qs0, sig, location: sexp.location);
     }
   }
 
@@ -294,9 +298,17 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
     assert(sexp != null);
     if (sexp is SList) {
       SList list = sexp;
-      Name name = typeName(list[0]);
-      List<Name> qs = expectMany<Sexp, Name>(quantifier, list, start: 1);
-      return Pair<Name, List<Name>>(name, qs);
+      if (list[0] is Atom) {
+        Atom atom = list[0];
+        Name name = typeName(atom);
+        List<Name> qs = expectMany<Sexp, Name>(quantifier, list, start: 1);
+        return Pair<Name, List<Name>>(name, qs);
+      } else {
+        return Pair<Name, List<Name>>(
+            alg.errorName(BadSyntaxError(
+                sexp.location, const <String>["identifier and quantifiers"])),
+            <Name>[]);
+      }
     } else {
       return Pair<Name, List<Name>>(
           alg.errorName(BadSyntaxError(
@@ -308,7 +320,6 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
 
 class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
     extends BaseElaborator<Mod, Name, Mod, Exp, Pat, Typ> {
-  final Set<String> declaredDatatypes = new Set<String>();
   // ModuleElaborator(
   //     NameAlgebra<Name> name,
   //     ModuleAlgebra<Name, Mod, Exp, Pat, Typ> mod,
@@ -355,6 +366,7 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
               return alg.errorModule(BadSyntaxError(atom.location, <String>[
                 "define",
                 "define-datatype",
+                "define-datatypes",
                 "define-typename",
                 "open",
                 ": (signature)"
@@ -434,7 +446,7 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
         new List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>();
     for (int i = 1; i < end; i++) {
       Sum<LocatedError, Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>
-          result = parseDatatypeDecl(list, 0);
+          result = parseDatatypeDecl(list[i], 0);
       if (result.isLeft) {
         LocatedError err = result.value as LocatedError;
         return alg.errorModule(err);
@@ -445,12 +457,13 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
       }
     }
 
-    return alg.mutualDatatypes(defs, deriving, location: list.location);
+    return alg.datatypes(defs, deriving, location: list.location);
   }
 
   Mod datatypeDefinition(Atom head, SList list) {
     assert(head.value == "define-datatype");
 
+    // (define-datatype name (K T*)* or (define-datatype (name q+) (K T*)*
     int end = list.length;
     List<Name> deriving;
     if (list.length > 2) {
@@ -477,50 +490,10 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
     } else {
       Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>> def =
           result.value as Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>;
-      return alg.datatype(def.$1, def.$2, def.$3, deriving,
-          location: list.location);
+      List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> defs =
+          <Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>[def];
+      return alg.datatypes(defs, deriving, location: list.location);
     }
-    // // (define-datatype name (K T*)* or (define-datatype (name q+) (K T*)*
-    // if (list.length < 2) {
-    //   return alg.errorModule(BadSyntaxError(
-    //       list.location.end, const <String>["data type definition"]));
-    // }
-
-    // // Parse any constructors and the potential deriving clause.
-    // List<Pair<Name, List<Typ>>> constructors =
-    //     new List<Pair<Name, List<Typ>>>();
-    // List<Name> deriving;
-    // for (int i = 2; i < list.length; i++) {
-    //   if (list[i] is SList) {
-    //     SList clause = list[i];
-    //     if (clause.length > 0 && clause[0] is Atom) {
-    //       Atom atom = clause[0] as Atom;
-    //       if (atom.value == "derive!") {
-    //         if (deriving == null) {
-    //           deriving = expectMany(typeName, clause, start: 1);
-    //         } else {
-    //           return alg.errorModule(MultipleDerivingError(atom.location));
-    //         }
-    //       } else {
-    //         // Data constructor.
-    //         Name name = dataConstructorName(atom);
-    //         List<Typ> types = expectMany<Sexp, Typ>(datatype, clause, start: 1);
-    //         constructors.add(Pair<Name, List<Typ>>(name, types));
-    //       }
-    //     } else {
-    //       return alg.errorModule(BadSyntaxError(list.location, const <String>[
-    //         "data constructor definition",
-    //         "deriving clause"
-    //       ]));
-    //     }
-    //   } else {
-    //     return alg.errorModule(BadSyntaxError(list.location,
-    //         const <String>["data constructor definition", "deriving clause"]));
-    //   }
-    // }
-    // deriving ??= <Name>[];
-    // return alg.datatype(name, typeParameters, constructors, deriving,
-    //     location: list.location);
   }
 
   Sum<LocatedError, Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>
@@ -559,7 +532,7 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
               const <String>["data constructor definition"]));
         }
 
-        if (clause[0] is Atom) {
+       if (clause[0] is Atom) {
           Atom atom = clause[0] as Atom;
           // Data constructor.
           Name name = dataConstructorName(atom);

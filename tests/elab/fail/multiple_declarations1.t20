@@ -1,4 +1,5 @@
 ;; Data constructors and top-level definition share the same namespace.
 (define-datatype Foo [bar])
 
+(: bar Int)
 (define bar 0)

@@ -10,12 +10,12 @@ import 'algebra.dart';
 
 class NullModule<Name, Exp, Pat, Typ>
     extends ModuleAlgebra<Name, Null, Exp, Pat, Typ> {
-  Null datatype(Name binder, List<Name> typeParameters,
-          List<Pair<Name, List<Typ>>> constructors, List<Name> deriving,
-          {Location location}) =>
-      null;
+  // Null datatype(Name binder, List<Name> typeParameters,
+  //         List<Pair<Name, List<Typ>>> constructors, List<Name> deriving,
+  //         {Location location}) =>
+  //     null;
 
-  Null mutualDatatypes(
+  Null datatypes(
           List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> defs,
           List<Name> deriving,
           {Location location}) =>

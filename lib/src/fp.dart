@@ -5,22 +5,22 @@
 // A collection of some basic functional programming structures or idioms.
 
 // Sum types.
-abstract class Sum<L,R> {
+abstract class Sum<L, R> {
   final dynamic _value;
   dynamic get value;
 
   const Sum._(this._value);
-  const factory Sum.inl(L data) = _Inl<L,R>;
-  const factory Sum.inr(R data) = _Inr<L,R>;
+  const factory Sum.inl(L data) = _Inl<L, R>;
+  const factory Sum.inr(R data) = _Inr<L, R>;
 
   bool get isLeft => false;
   bool get isRight => false;
 }
 
-class _Inl<L,R> extends Sum<L,R> {
+class _Inl<L, R> extends Sum<L, R> {
   const _Inl(L value) : super._(value);
 
-  L get value => value as L;
+  L get value => _value as L;
 
   bool get isLeft => true;
 
@@ -29,7 +29,7 @@ class _Inl<L,R> extends Sum<L,R> {
   }
 }
 
-class _Inr<L,R> extends Sum<L,R> {
+class _Inr<L, R> extends Sum<L, R> {
   const _Inr(R value) : super._(value);
 
   R get value => _value as R;

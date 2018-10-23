@@ -3,10 +3,11 @@
 (define-datatype (List 'a)
   [cons 'a (List 'a)]
   [nil]
-  (derive! Map Fold))
+  (derive! Mappable Foldable))
 
 ;; HACK: Declare `list-concat' to silence the name resolver.
 (: list-concat (-> (List 'a) (List 'a) (List 'a)))
+(define (list-concat xs ys) nil)
 
 ;; Modelling cards.
 (define-datatype Suit

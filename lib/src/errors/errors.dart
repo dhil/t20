@@ -248,6 +248,18 @@ class MultipleDeclarationsError extends LocatedError
   }
 }
 
+class MultipleDefinitionsError extends LocatedError
+    implements ElaborationError, HasLength {
+  final String name;
+  int get length => name.length;
+
+  MultipleDefinitionsError(this.name, Location location) : super(location);
+
+  String toString() {
+    return "Multiple definitions of '$name'";
+  }
+}
+
 class InvalidIdentifierError extends LocatedError
     implements SyntaxError, ElaborationError, HasLength {
   final String name;
@@ -287,7 +299,8 @@ class MissingAccompanyingDefinitionError extends LocatedError
   }
 }
 
-class MultipleDerivingError extends LocatedError implements ElaborationError, HasLength {
+class MultipleDerivingError extends LocatedError
+    implements ElaborationError, HasLength {
   int get length => "derive!".length;
   MultipleDerivingError(Location location) : super(location);
 
@@ -296,13 +309,14 @@ class MultipleDerivingError extends LocatedError implements ElaborationError, Ha
   }
 }
 
-class UnboundNameError extends LocatedError implements ElaborationError, HasLength {
+class UnboundNameError extends LocatedError
+    implements ElaborationError, HasLength {
   final String name;
   int get length => name.length;
 
   UnboundNameError(this.name, Location location) : super(location);
 
   String toString() {
-    return "Undeclared name '$name'";
+    return "Unbound value '$name'";
   }
 }

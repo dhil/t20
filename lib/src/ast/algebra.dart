@@ -7,10 +7,10 @@ import '../fp.dart' show Option, Pair, Triple;
 import '../location.dart' show Location;
 
 abstract class ModuleAlgebra<Name, Mod, Exp, Pat, Typ> {
-  Mod datatype(Name name, List<Name> typeParameters,
-      List<Pair<Name, List<Typ>>> constructors, List<Name> deriving,
-      {Location location});
-  Mod mutualDatatypes(
+  // Mod datatype(Name name, List<Name> typeParameters,
+  //     List<Pair<Name, List<Typ>>> constructors, List<Name> deriving,
+  //     {Location location});
+  Mod datatypes(
       List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> defs,
       List<Name> deriving,
       {Location location});

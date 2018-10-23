@@ -39,11 +39,26 @@ final Map<int, Name> _builtinsNameMap =
   return MapEntry<int, Name>(name.id, name);
 });
 
+final Set<String> _rawBuiltinTypes = Set<String>.of(<String>[
+  "Bool",
+  "Int",
+  "String",
+  "Foldable",
+  "Mappable",
+]);
+
+final Map<int, Name> _builtinsTypeMap = _rawBuiltinTypes
+    .fold(new Map<int, Name>(), (Map<int, Name> acc, String sourceName) {
+  final Name name = Name.primitive(sourceName);
+  acc[name.id] = name;
+  return acc;
+});
+
 class Builtin {
   // bool isPrimitive(String rawName) {
   //   return _rawBuiltins.contains(rawName);
   // }
 
   static Map<int, Name> get termNameMap => _builtinsNameMap;
-  static Map<int, Name> get typeNameMap => new Map<int, Name>();
+  static Map<int, Name> get typeNameMap => _builtinsTypeMap;
 }

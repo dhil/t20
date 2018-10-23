@@ -98,11 +98,10 @@ bool compile(List<String> filePaths, Settings settings) {
       //   return false;
       // }
       List<LocatedError> errors = new ModuleElaborator(new NameResolver<
-                  List<LocatedError>,
-                  List<LocatedError>,
-                  List<LocatedError>,
-                  List<LocatedError>>(Builtin.termNameMap, Builtin.typeNameMap,
-              new ResolvedErrorCollector()))
+              List<LocatedError>,
+              List<LocatedError>,
+              List<LocatedError>,
+              List<LocatedError>>(new ResolvedErrorCollector()))
           .elaborate(parseResult.result)(NameContext.withBuiltins());
       if (errors.length > 0) {
         report(errors);
