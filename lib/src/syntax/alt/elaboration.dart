@@ -158,18 +158,25 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
   bool isValidTypeVariableName(String name) {
     assert(name != null);
 
-    if (name.length < 2) return false;
+    if (name.length < 1) return false;
+
     int c = name.codeUnitAt(0);
-    int k = name.codeUnitAt(1);
-    if (c != unicode.APOSTROPHE) return false;
-    if (!unicode.isAsciiLetter(k)) return false;
-
-    for (int i = 1; i < name.length; i++) {
-      c = name.codeUnitAt(i);
-      if (!unicode.isAsciiLetter(c) && !unicode.isDigit(c)) return false;
+    if (c == unicode.APOSTROPHE) {
+      if (name.length < 2) return false;
+      for (int i = 1; i < name.length; i++) {
+        c = name.codeUnitAt(i);
+        if (!unicode.isAsciiLetter(c) && !unicode.isDigit(c)) return false;
+      }
+      return true;
+    } else if (unicode.isAsciiLower(c)) {
+      for (int i = 1; i < name.length; i++) {
+        c = name.codeUnitAt(i);
+        if (!unicode.isAsciiLetter(c) && !unicode.isDigit(c)) return false;
+      }
+      return true;
+    } else {
+      return false;
     }
-
-    return true;
   }
 
   bool isValidDataConstructorName(String name) {
@@ -248,7 +255,7 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
   Name typeVariableName(Atom sexp) {
     assert(sexp != null);
     if (isValidTypeVariableName(sexp.value)) {
-      return alg.typeName(sexp.value, location:sexp.location);
+      return alg.typeName(sexp.value, location: sexp.location);
     } else {
       return alg.errorName(BadSyntaxError(sexp.location));
     }
@@ -532,7 +539,7 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
               const <String>["data constructor definition"]));
         }
 
-       if (clause[0] is Atom) {
+        if (clause[0] is Atom) {
           Atom atom = clause[0] as Atom;
           // Data constructor.
           Name name = dataConstructorName(atom);

@@ -15,6 +15,7 @@ import '../errors/errors.dart'
         MultipleDefinitionsError,
         UnboundNameError;
 import '../fp.dart' show Pair, Triple;
+import '../immutable_collections.dart';
 import '../location.dart';
 import '../string_pool.dart';
 import '../utils.dart' show Gensym;
@@ -33,65 +34,43 @@ import '../ast/traversals.dart'
         Transformation,
         Transformer;
 
-// TODO unify globals and NameContext. For example, have globals being shared
-// amongst instances of NameContext.
 class NameContext {
-  final Map<int, int> typenames;
-  final Map<int, int> globals;
-  final Map<int, int> locals;
-  final Map<int, Name> signatures;
+  final ImmutableMap<int, int> types;
+  final ImmutableMap<int, int> vars;
 
-  NameContext(this.globals, this.locals, this.typenames, this.signatures);
+  NameContext(this.types, this.vars);
   NameContext.empty()
-      : this(new Map<int, int>(), new Map<int, int>(), new Map<int, int>(),
-            new Map<int, Name>());
-  NameContext.withBuiltins()
-      : this(
-            Builtin.termNameMap.map(
-                (int id, Name name) => MapEntry<int, int>(name.intern, id)),
-            new Map<int, int>(),
-            Builtin.typeNameMap.map(
-                (int id, Name name) => MapEntry<int, int>(name.intern, id)),
-            new Map<int, Name>());
-
-  NameContext addLocal(Name name, {Location location}) {
-    // TODO use a proper immutable map data structure.
-    final Map<int, int> locals0 = Map<int, int>.of(locals);
-    locals0[name.intern] = name.id;
-    return NameContext(globals, locals0, typenames, signatures);
+      : this(ImmutableMap<int, int>.empty(), ImmutableMap<int, int>.empty());
+  factory NameContext.withBuiltins() {
+    ImmutableMap<int, int> vars =
+        ImmutableMap<int, int>.of(Builtin.termNameMap);
+    ImmutableMap<int, int> types =
+        ImmutableMap<int, int>.of(Builtin.typeNameMap);
+    return NameContext(types, vars);
   }
 
-  NameContext addGlobal(Name name, {Location location}) {
-    globals[name.intern] = name.id;
-    return this;
+  NameContext addVar(Name name, {Location location}) {
+    final ImmutableMap<int, int> vars0 = vars.put(name.intern, name.id);
+    return NameContext(types, vars0);
   }
 
-  NameContext addSignature(Name name, {Location location}) {
-    signatures[name.intern] = name;
-    return this;
+  NameContext addType(Name name, {Location location}) {
+    final ImmutableMap<int, int> types0 = types.put(name.intern, name.id);
+    return NameContext(types0, vars);
   }
 
-  NameContext bindSignature(Name name, {Location location}) {
-    signatures[name.intern] = null;
-    return this;
-  }
-
-  NameContext addTypename(Name name, {Location location}) {
-    // Type names are global.
-    typenames[name.intern] = name.id;
-    return this;
+  NameContext includeTypes(ImmutableMap<int, int> otherTypes) {
+    ImmutableMap<int, int> types0 = types.union(otherTypes);
+    return NameContext(types0, vars);
   }
 
   Name resolve(String name, {Location location}) {
     int intern = computeIntern(name);
-    if (locals.containsKey(intern)) {
-      final int binderId = locals[intern];
+    if (vars.containsKey(intern)) {
+      final int binderId = vars.lookup(intern);
       return resolveAs(intern, binderId, location: location);
-    } else if (globals.containsKey(intern)) {
-      final int binderId = globals[intern];
-      return resolveAs(intern, binderId, location: location);
-    } else if (typenames.containsKey(name)) {
-      final int binderId = typenames[intern];
+    } else if (types.containsKey(intern)) {
+      final int binderId = types.lookup(intern);
       return resolveAs(intern, binderId, location: location);
     } else {
       return new Name.unresolved(name, location);
@@ -102,42 +81,26 @@ class NameContext {
     return new Name.of(intern, id, location);
   }
 
-  bool contains(String name) {
-    final int intern = computeIntern(name);
-    return isLocal(intern) || isGlobal(intern) || isTypename(intern);
+  bool containsVar(int intern) {
+    return vars.containsKey(intern);
   }
 
-  bool isGlobal(int intern) {
-    return globals.containsKey(intern);
-  }
-
-  bool isLocal(int intern) {
-    return locals.containsKey(intern);
-  }
-
-  bool isTypename(int intern) {
-    return typenames.containsKey(intern);
-  }
-
-  bool containsSignature(int intern) {
-    return signatures.containsKey(intern);
-  }
-
-  bool signatureHasAccompanyingDefinition(int intern) {
-    return containsSignature(intern) && signatures[intern] == null;
+  bool containsType(int intern) {
+    return types.containsKey(intern);
   }
 
   int computeIntern(String name) => Name.computeIntern(name);
 }
 
 class BindingContext extends NameContext {
-  BindingContext() : super(null, null, null, null);
+  BindingContext() : super(null, null);
 
   Name resolve(String name, {Location location}) {
-    return new Name.resolved(name, Gensym.freshInt(), location);
+    return Name.resolved(name, Gensym.freshInt(), location);
   }
 
-  bool contains(String _) => true;
+  bool containsVar(int _) => true;
+  bool containsType(int _) => true;
 }
 
 class PatternBindingContext extends BindingContext {
@@ -151,19 +114,15 @@ class PatternBindingContext extends BindingContext {
   }
 }
 
-class NameResolver<Mod, Exp, Pat, Typ>
-    extends ContextualTransformation<NameContext, Name, Mod, Exp, Pat, Typ> {
-  final TAlgebra<Name, Mod, Exp, Pat, Typ> _alg;
-  TAlgebra<Name, Mod, Exp, Pat, Typ> get alg => _alg;
-  final BindingContext bindingContext = new BindingContext();
-  // final Map<int, Name> globals;
-  // final Map<int, Name> declaredTypes;
+class NameResolver<Mod, Exp, Pat, Typ> extends ContextualTransformation<
+    NameContext, Name, Pair<NameContext, Mod>, Exp, Pat, Typ> {
+  final TAlgebra<Name, Pair<NameContext, Mod>, Exp, Pat, Typ> _alg;
+  TAlgebra<Name, Pair<NameContext, Mod>, Exp, Pat, Typ> get alg => _alg;
 
-  final List<Name> unresolved = new List<Name>();
+  final BindingContext bindingContext = new BindingContext();
+  final Map<int, Name> signatureMap = new Map<int, Name>();
 
   NameResolver(this._alg);
-  // NameResolver.closed(TAlgebra<Name, Mod, Exp, Pat, Typ> alg)
-  //     : this(new Map<int, Name>(), new Map<int, Name>(), alg);
 
   Name resolveBinder(Transformer<NameContext, Name> binder) {
     return binder(bindingContext);
@@ -199,66 +158,7 @@ class NameResolver<Mod, Exp, Pat, Typ>
     return obj(ctxt);
   }
 
-  // Transformer<NameContext, Mod> datatype(
-  //         Transformer<NameContext, Name> binder,
-  //         List<Transformer<NameContext, Name>> typeParameters,
-  //         List<
-  //                 Pair<Transformer<NameContext, Name>,
-  //                     List<Transformer<NameContext, Typ>>>>
-  //             constructors,
-  //         List<Transformer<NameContext, Name>> deriving,
-  //         {Location location}) =>
-  //     (NameContext ctxt) {
-  //       // As recursive data types are allowed, we immediately register the name.
-  //       Name binder0 = resolveBinder(binder);
-  //       if (datatypes.containsKey(binder0.intern)) {
-  //         return alg.errorModule(
-  //             MultipleDeclarationsError(binder0.sourceName, binder0.location),
-  //             location: binder0.location);
-  //       } else {
-  //         datatypes[binder0.intern] = binder0;
-  //         ctxt = ctxt.addTypeName(binder0);
-  //       }
-  //       final List<Name> qs = new List<Name>(typeParameters.length);
-  //       final Set<int> qsi = new Set<int>();
-  //       for (int i = 0; i < qs.length; i++) {
-  //         Name q = resolveBinder(typeParameters[i]);
-  //         if (qsi.contains(q.intern)) {
-  //           // TODO aggregate errors.
-  //           return alg.errorModule(
-  //               MultipleDeclarationsError(q.sourceName, q.location),
-  //               location: q.location);
-  //         } else {
-  //           qs[i] = q;
-  //           ctxt = ctxt.addTypeName(q);
-  //         }
-  //       }
-
-  //       // Register constructors.
-  //       final List<Pair<Name, List<Typ>>> constructors0 =
-  //           new List<Pair<Name, List<Typ>>>(constructors.length);
-  //       for (int i = 0; i < constructors0.length; i++) {
-  //         Name constrName = resolveBinder(constructors[i].$1);
-  //         // TODO check for duplicate.
-  //         globals[constrName.intern] = constrName;
-  //         List<Typ> types = new List<Typ>(constructors[i].$2.length);
-  //         for (int j = 0; j < types.length; j++) {
-  //           types[j] = resolveLocal<Typ>(constructors[i].$2[j], ctxt);
-  //         }
-  //         ctxt = ctxt.addTermName(constrName);
-  //         constructors0[i] = Pair<Name, List<Typ>>(constrName, types);
-  //       }
-  //       // Resolve deriving names.
-  //       final List<Name> deriving0 = new List<Name>(deriving.length);
-  //       for (int i = 0; i < deriving0.length; i++) {
-  //         deriving0[i] = resolveLocal<Name>(deriving[i], ctxt);
-  //       }
-
-  //       return alg.datatype(binder0, qs, constructors0, deriving0,
-  //           location: location);
-  //     };
-
-  Transformer<NameContext, Mod> datatypes(
+  Transformer<NameContext, Pair<NameContext, Mod>> datatypes(
           List<
                   Triple<
                       Transformer<NameContext, Name>,
@@ -278,7 +178,6 @@ class NameResolver<Mod, Exp, Pat, Typ>
                 defs.length);
 
         // First pass.
-        Set<int> idents = new Set<int>();
         List<Name> binders = new List<Name>(defs.length);
         for (int i = 0; i < defs0.length; i++) {
           Triple<
@@ -289,19 +188,17 @@ class NameResolver<Mod, Exp, Pat, Typ>
                       List<Transformer<NameContext, Typ>>>>> def = defs[i];
 
           Name binder = resolveBinder(def.$1);
-          if (idents.contains(binder.intern) ||
-              ctxt.isTypename(binder.intern)) {
+          if (ctxt.containsType(binder.intern)) {
             return alg.errorModule(
                 MultipleDeclarationsError(binder.sourceName, binder.location),
                 location: binder.location);
           } else {
-            ctxt = ctxt.addTypename(binder);
+            ctxt = ctxt.addType(binder);
           }
           binders[i] = binder;
         }
 
         // Second pass.
-        idents = new Set<int>();
         for (int i = 0; i < defs0.length; i++) {
           Triple<
               Transformer<NameContext, Name>,
@@ -314,13 +211,13 @@ class NameResolver<Mod, Exp, Pat, Typ>
           List<Name> typeParameters = new List<Name>(def.$2.length);
           for (int j = 0; j < typeParameters.length; j++) {
             Name param = resolveBinder(def.$2[j]);
-            if (idents.contains(param.intern)) {
+            if (ctxt.containsType(param.intern)) {
               return alg.errorModule(
                   MultipleDeclarationsError(param.sourceName, param.location),
                   location: param.location);
             } else {
               typeParameters[j] = param;
-              ctxt0 = ctxt0.addTypename(param);
+              ctxt0 = ctxt0.addType(param);
             }
           }
 
@@ -334,12 +231,12 @@ class NameResolver<Mod, Exp, Pat, Typ>
                     List<Transformer<NameContext, Typ>>> constructor =
                 constructors[j];
             Name cname = resolveBinder(constructor.$1);
-            if (ctxt.isGlobal(cname.intern)) {
+            if (ctxt.containsVar(cname.intern)) {
               return alg.errorModule(
                   MultipleDeclarationsError(cname.sourceName, cname.location),
                   location: cname.location);
             }
-            ctxt = ctxt.addGlobal(cname);
+            ctxt = ctxt.addVar(cname);
 
             List<Typ> types = new List<Typ>(constructor.$2.length);
             for (int k = 0; k < types.length; k++) {
@@ -357,10 +254,12 @@ class NameResolver<Mod, Exp, Pat, Typ>
           deriving0[i] = resolveLocal<Name>(deriving[i], ctxt);
         }
 
-        return alg.datatypes(defs0, deriving0, location: location);
+        return Pair<NameContext, Mod>(
+            ctxt, alg.datatypes(defs0, deriving0, location: location));
       };
 
-  Transformer<NameContext, Mod> valueDef(Transformer<NameContext, Name> name,
+  Transformer<NameContext, Pair<NameContext, Mod>> valueDef(
+          Transformer<NameContext, Name> name,
           Transformer<NameContext, Exp> body,
           {Location location}) =>
       (NameContext ctxt) {
@@ -369,19 +268,26 @@ class NameResolver<Mod, Exp, Pat, Typ>
         // Although [name] is global, we resolve as a "local" name, because it
         // must have a type signature that precedes it.
         Name name0 = resolveLocal<Name>(name, ctxt);
-        if (!ctxt.containsSignature(name0.intern)) {
-          return alg.errorModule(MissingAccompanyingSignatureError(
-              name0.sourceName, name0.location));
-        } else if (ctxt.signatureHasAccompanyingDefinition(name0.intern)) {
-          return alg.errorModule(
-              MultipleDefinitionsError(name0.sourceName, name0.location));
+        bool containsSignature = signatureMap.containsKey(name0.intern);
+        if (!containsSignature) {
+          return Pair<NameContext, Mod>(
+              ctxt,
+              alg.errorModule(MissingAccompanyingSignatureError(
+                  name0.sourceName, name0.location)));
+        } else if (containsSignature && signatureMap[name0.intern] == null) {
+          return Pair<NameContext, Mod>(
+              ctxt,
+              alg.errorModule(
+                  MultipleDefinitionsError(name0.sourceName, name0.location)));
         } else {
-          ctxt.bindSignature(name0);
-          return alg.valueDef(name0, body0, location: location);
+          ctxt = ctxt.addVar(name0);
+          signatureMap[name0.intern] = null;
+          return Pair<NameContext, Mod>(
+              ctxt, alg.valueDef(name0, body0, location: location));
         }
       };
 
-  Transformer<NameContext, Mod> functionDef(
+  Transformer<NameContext, Pair<NameContext, Mod>> functionDef(
           Transformer<NameContext, Name> name,
           List<Transformer<NameContext, Pat>> parameters,
           Transformer<NameContext, Exp> body,
@@ -389,6 +295,7 @@ class NameResolver<Mod, Exp, Pat, Typ>
       (NameContext ctxt) {
         // Resolve parameters.
         List<Pat> params = List<Pat>(parameters.length);
+        NameContext ctxt0 = ctxt;
         for (int i = 0; i < params.length; i++) {
           Pair<List<Name>, Pat> param = resolvePatternBinding(parameters[i]);
           Set<int> idents = new Set<int>();
@@ -402,34 +309,42 @@ class NameResolver<Mod, Exp, Pat, Typ>
                   location: paramName.location);
             } else {
               idents.add(paramName.intern);
-              ctxt = ctxt.addLocal(paramName);
+              ctxt0 = ctxt0.addVar(paramName);
             }
           }
           params[i] = param.$2;
         }
         // Resolve any names in [body] before resolving [name].
-        Exp body0 = resolveLocal<Exp>(body, ctxt);
+        Exp body0 = resolveLocal<Exp>(body, ctxt0);
         // Resolve function definition name as "local" name.
         Name name0 = resolveLocal<Name>(name, ctxt);
-        if (!ctxt.containsSignature(name0.intern)) {
-          return alg.errorModule(MissingAccompanyingSignatureError(
-              name0.sourceName, name0.location));
-        } else if (ctxt.signatureHasAccompanyingDefinition(name0.intern)) {
-          return alg.errorModule(
-              MultipleDefinitionsError(name0.sourceName, name0.location));
+        bool containsSignature = signatureMap.containsKey(name0.intern);
+        if (!containsSignature) {
+          return Pair<NameContext, Mod>(
+              ctxt,
+              alg.errorModule(MissingAccompanyingSignatureError(
+                  name0.sourceName, name0.location)));
+        } else if (containsSignature && signatureMap[name0.intern] == null) {
+          return Pair<NameContext, Mod>(
+              ctxt,
+              alg.errorModule(
+                  MultipleDefinitionsError(name0.sourceName, name0.location)));
         } else {
-          ctxt.bindSignature(name0);
-          return alg.functionDef(name0, params, body0, location: location);
+          ctxt = ctxt.addVar(name0);
+          signatureMap[name0.intern] = null;
+          return Pair<NameContext, Mod>(
+              ctxt, alg.functionDef(name0, params, body0, location: location));
         }
       };
 
-  Transformer<NameContext, Mod> typename(
+  Transformer<NameContext, Pair<NameContext, Mod>> typename(
           Transformer<NameContext, Name> binder,
           List<Transformer<NameContext, Name>> typeParameters,
           Transformer<NameContext, Typ> type,
           {Location location}) =>
       (NameContext ctxt) {
         // Resolve [typeParameters] first.
+        NameContext ctxt0 = ctxt;
         final List<Name> typeParameters0 =
             new List<Name>(typeParameters.length);
         Set<int> idents = new Set<int>();
@@ -437,49 +352,60 @@ class NameResolver<Mod, Exp, Pat, Typ>
           Name name = resolveBinder(typeParameters[i]);
           if (idents.contains(name.intern)) {
             // TODO aggregate errors.
-            return alg.errorModule(
-                MultipleDeclarationsError(name.sourceName, name.location),
-                location: name.location);
+            return Pair<NameContext, Mod>(
+                ctxt,
+                alg.errorModule(
+                    MultipleDeclarationsError(name.sourceName, name.location),
+                    location: name.location));
           } else {
             typeParameters0[i] = name;
-            ctxt = ctxt.addTypename(name);
+            ctxt0 = ctxt0.addType(name);
           }
         }
-        Typ type0 = resolveLocal<Typ>(type, ctxt);
+        Typ type0 = resolveLocal<Typ>(type, ctxt0);
 
         // Type aliases cannot be recursive.
         final Name binder0 = resolveBinder(binder);
-        ctxt = ctxt.addTypename(binder0);
-        return alg.typename(binder0, typeParameters0, type0,
-            location: location);
+        ctxt = ctxt.addType(binder0);
+        return Pair<NameContext, Mod>(ctxt,
+            alg.typename(binder0, typeParameters0, type0, location: location));
       };
 
-  Transformer<NameContext, Mod> signature(Transformer<NameContext, Name> name,
+  Transformer<NameContext, Pair<NameContext, Mod>> signature(
+          Transformer<NameContext, Name> name,
           Transformer<NameContext, Typ> type,
           {Location location}) =>
       (NameContext ctxt) {
         // Resolve the signature name, and register it as a global.
         Name name0 = resolveBinder(name);
-        if (ctxt.containsSignature(name0.intern)) {
-          return alg.errorModule(
-              DuplicateTypeSignatureError(name0.sourceName, name0.location),
-              location: name0.location);
-        } else if (ctxt.isGlobal(name0.intern)) {
-          ctxt = ctxt.addSignature(name0); // To avoid cascading errors.
-          return alg.errorModule(
-              MultipleDeclarationsError(name0.sourceName, name0.location),
-              location: name0.location);
+        // bool containsSignature = signatureMap.containsKey(name0.intern);
+        // if (containsSignature) {
+        //   return Pair<NameContext, Mod>(
+        //       ctxt,
+        //       alg.errorModule(
+        //           DuplicateTypeSignatureError(name0.sourceName, name0.location),
+        //           location: name0.location));
+        // } else
+
+        if (ctxt.containsVar(name0)) {
+          signatureMap[name0.intern] = name0; // To avoid cascading errors.
+          return Pair<NameContext, Mod>(
+              ctxt,
+              alg.errorModule(
+                  MultipleDeclarationsError(name0.sourceName, name0.location),
+                  location: name0.location));
         } else {
-          ctxt = ctxt.addGlobal(name0);
-          ctxt = ctxt.addSignature(name0);
+          signatureMap[name0.intern] = name0;
+          ctxt = ctxt.addVar(name0);
         }
-        return alg.signature(name0, resolveLocal<Typ>(type, ctxt),
-            location: location);
+        Typ type0 = resolveLocal<Typ>(type, ctxt);
+        return Pair<NameContext, Mod>(
+            ctxt, alg.signature(name0, type0, location: location));
       };
 
   Transformer<NameContext, Name> termName(String ident, {Location location}) =>
       (NameContext ctxt) {
-        if (ctxt.contains(ident)) {
+        if (ctxt.containsVar(ident)) {
           Name name = ctxt.resolve(ident, location: location);
           return name;
         } else {
@@ -510,7 +436,7 @@ class NameResolver<Mod, Exp, Pat, Typ>
                 location: paramName.location);
           } else {
             idents.add(paramName.intern);
-            ctxt = ctxt.addLocal(paramName);
+            ctxt = ctxt.addVar(paramName);
           }
         }
 
@@ -550,7 +476,7 @@ class NameResolver<Mod, Exp, Pat, Typ>
                       MultipleDeclarationsError(name.sourceName, name.location),
                       location: name.location);
                 } else {
-                  ctxt0 = ctxt0.addLocal(name);
+                  ctxt0 = ctxt0.addVar(name);
                 }
               }
             }
@@ -569,7 +495,7 @@ class NameResolver<Mod, Exp, Pat, Typ>
                       MultipleDeclarationsError(name.sourceName, name.location),
                       location: name.location);
                 } else {
-                  ctxt = ctxt.addLocal(name);
+                  ctxt = ctxt.addVar(name);
                 }
               }
 
@@ -609,7 +535,7 @@ class NameResolver<Mod, Exp, Pat, Typ>
               return alg.errorExp(MultipleDeclarationsError(
                   declaredName.sourceName, declaredName.location));
             } else {
-              ctxt0 = ctxt0.addLocal(declaredName);
+              ctxt0 = ctxt0.addVar(declaredName);
             }
           }
 
@@ -622,7 +548,7 @@ class NameResolver<Mod, Exp, Pat, Typ>
 
   Transformer<NameContext, Name> typeName(String ident, {Location location}) =>
       (NameContext ctxt) {
-        if (ctxt.contains(ident)) {
+        if (ctxt.containsType(ident)) {
           return ctxt.resolve(ident, location: location);
         } else {
           return alg.errorName(UnboundNameError(ident, location),
@@ -648,7 +574,7 @@ class NameResolver<Mod, Exp, Pat, Typ>
                 MultipleDeclarationsError(qname.sourceName, qname.location),
                 location: qname.location);
           } else {
-            ctxt = ctxt.addLocal(qname);
+            ctxt = ctxt.addType(qname);
             qs[i] = qname;
           }
         }
@@ -658,14 +584,15 @@ class NameResolver<Mod, Exp, Pat, Typ>
         return alg.forallType(qs, type0, location: location);
       };
 
-  Transformer<NameContext, Mod> module(
-          List<Transformer<NameContext, Mod>> members,
+  Transformer<NameContext, Pair<NameContext, Mod>> module(
+          List<Transformer<NameContext, Pair<NameContext, Mod>>> members,
           {Location location}) =>
       (NameContext ctxt) {
         final List<Mod> members0 = new List<Mod>();
         for (int i = 0; i < members.length; i++) {
-          Mod member = resolveLocal<Mod>(members[i], ctxt);
-          members0.add(member);
+          Pair<NameContext, Mod> result = members[i](ctxt);
+          ctxt = result.$1;
+          members0.add(result.$2);
         }
 
         // Check whether there are any signatures without an accompanying definition.
@@ -675,8 +602,15 @@ class NameResolver<Mod, Exp, Pat, Typ>
                 name.sourceName, name.location)));
           }
         });
-        return alg.module(members0, location: location);
+        return Pair<NameContext, Mod>(
+            ctxt, alg.module(members0, location: location));
       };
+
+  Transformer<NameContext, Pair<NameContext, Mod>> errorModule(
+          LocatedError error,
+          {Location location}) =>
+      (NameContext ctxt) => Pair<NameContext, Mod>(
+          ctxt, alg.errorModule(error, location: location));
 }
 
 class ResolvedErrorCollector extends Catamorphism<Name, List<LocatedError>,

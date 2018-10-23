@@ -22,6 +22,8 @@ import 'ast/algebra.dart';
 import 'ast/nullalgebras.dart';
 import 'ast/traversals.dart';
 
+import 'fp.dart';
+
 bool compile(List<String> filePaths, Settings settings) {
   RandomAccessFile currentFile;
   try {
@@ -97,16 +99,17 @@ bool compile(List<String> filePaths, Settings settings) {
       // if (!checkInvariant) {
       //   return false;
       // }
-      List<LocatedError> errors = new ModuleElaborator(new NameResolver<
+      // List<LocatedError>
+          var errors = new ModuleElaborator(new NameResolver<
+              Pair<NameContext,List<LocatedError>>,
               List<LocatedError>,
               List<LocatedError>,
-              List<LocatedError>,
-              List<LocatedError>>(new ResolvedErrorCollector()))
+              List<LocatedError>>(null /*new ResolvedErrorCollector()*/))
           .elaborate(parseResult.result)(NameContext.withBuiltins());
-      if (errors.length > 0) {
-        report(errors);
-        return false;
-      }
+      // if (errors.length > 0) {
+      //   report(errors);
+      //   return false;
+      // }
     }
   } catch (err, stack) {
     if (currentFile != null) currentFile.closeSync();
