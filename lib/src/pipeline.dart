@@ -100,12 +100,12 @@ bool compile(List<String> filePaths, Settings settings) {
       //   return false;
       // }
       // List<LocatedError>
-          var errors = new ModuleElaborator(new NameResolver<
-              Pair<NameContext,List<LocatedError>>,
-              List<LocatedError>,
-              List<LocatedError>,
-              List<LocatedError>>(null /*new ResolvedErrorCollector()*/))
-          .elaborate(parseResult.result)(NameContext.withBuiltins());
+          // var errors = new ModuleElaborator(new NameResolver<
+          //     Pair<NameContext,List<LocatedError>>,
+          //     List<LocatedError>,
+          //     List<LocatedError>,
+          //     List<LocatedError>>(null /*new ResolvedErrorCollector()*/))
+          // .elaborate(parseResult.result)(NameContext.withBuiltins());
       // if (errors.length > 0) {
       //   report(errors);
       //   return false;

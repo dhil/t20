@@ -24,7 +24,6 @@ class NamedOptions {
   static String get help => "help";
   static String get output => "output";
   static String get trace => "trace";
-  static String get type_check => "type-checking";
   static String get verbose => "verbose";
   static String get version => "version";
   static String get exit_after => "exit-after";
@@ -62,8 +61,6 @@ ArgParser _setupArgParser() {
   parser.addMultiOption(NamedOptions.trace,
       help: "Trace the operational behaviour of a component.",
       valueHelp: "elaborator,parser");
-  parser.addFlag(NamedOptions.type_check,
-      help: "Enable or disable type checking.", defaultsTo: true);
   parser.addFlag(NamedOptions.verbose,
       abbr: 'v',
       negatable: false,
