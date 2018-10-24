@@ -38,21 +38,6 @@ class ListMonoid<T> implements Monoid<List<T>> {
   }
 }
 
-// class PairMonoid<T> implements Monoid<Pair<T, T>> {
-//   final Monoid<T> _m;
-//   PairMonoid(this._m);
-
-//   Pair<T, T> get empty => Pair<T, T>(_m.empty, _m.empty);
-//   Pair<T, T> compose(Pair<T, T> x, Pair<T, T> y) =>
-//       Pair<T, T>(_m.compose(x.$1, y.$1), _m.compose(x.$2, y.$2));
-// }
-
-// abstract class Morphism<S, T> {
-
-//   const factory Morphism.of(T Function(S) f) = _FuncMorphism<S, T>;
-//   T apply(S x);
-// }
-
 class Morphism<S, T> {
   final T Function(S) _f;
   const Morphism.of(this._f);
@@ -62,10 +47,6 @@ class Morphism<S, T> {
 class Endomorphism<S> extends Morphism<S, S> {
   const Endomorphism.of(S Function(S) f) : super.of(f);
 }
-
-// abstract class GMorphism {
-//   Morphism<S, T> generate<S, T>();
-// }
 
 // Generic reductive traversals.
 abstract class TypeCatamorphism<Name, Typ> extends TypeAlgebra<Name, Typ> {
@@ -368,7 +349,8 @@ class ComputeSigInfo extends Reduction<SigInfo<String>> {
   final SigInfoMonoid<String> _m = new SigInfoMonoid<String>();
   Monoid<SigInfo<String>> get m => _m;
 
-  SigInfo<String> forallType(List<SigInfo<String>> quantifiers, SigInfo<String> type,
+  SigInfo<String> forallType(
+      List<SigInfo<String>> quantifiers, SigInfo<String> type,
       {Location location}) {
     SigInfo<String> si = quantifiers.fold(m.empty, m.compose);
     Set<String> bvs = si
@@ -378,7 +360,8 @@ class ComputeSigInfo extends Reduction<SigInfo<String>> {
   }
 
   SigInfo<String> typeName(String ident, {Location location}) {
-    return SigInfo<String>(false, new Set<String>()..add(ident), new Set<String>());
+    return SigInfo<String>(
+        false, new Set<String>()..add(ident), new Set<String>());
   }
 }
 
@@ -525,31 +508,6 @@ abstract class ContextualTransformation<C, Name, Mod, Exp, Pat, Typ>
     extends TAlgebra<Transformer<C, Name>, Transformer<C, Mod>,
         Transformer<C, Exp>, Transformer<C, Pat>, Transformer<C, Typ>> {
   TAlgebra<Name, Mod, Exp, Pat, Typ> get alg;
-
-  // Transformer<C, Mod> datatype(
-  //         Transformer<C, Name> binder,
-  //         List<Transformer<C, Name>> typeParameters,
-  //         List<Pair<Transformer<C, Name>, List<Transformer<C, Typ>>>>
-  //             constructors,
-  //         List<Transformer<C, Name>> deriving,
-  //         {Location location}) =>
-  //     (C c) {
-  //       Name binder0 = binder(c);
-  //       List<Name> typeParameters0 = typeParameters.map((f) => f(c)).toList();
-  //       List<Pair<Name, List<Typ>>> constructors0 =
-  //           new List<Pair<Name, List<Typ>>>(constructors.length);
-  //       for (int i = 0; i < constructors0.length; i++) {
-  //         Name cname = constructors[i].$1(c);
-  //         List<Typ> types = new List<Typ>(constructors[i].$2.length);
-  //         for (int j = 0; j < types.length; j++) {
-  //           types[j] = constructors[i].$2[j](c);
-  //         }
-  //         constructors0[i] = new Pair<Name, List<Typ>>(cname, types);
-  //       }
-  //       List<Name> deriving0 = deriving.map((f) => f(c)).toList();
-  //       return alg.datatype(binder0, typeParameters0, constructors0, deriving0,
-  //           location: location);
-  //     };
 
   Transformer<C, Mod> datatypes(
           List<
@@ -758,10 +716,520 @@ abstract class ContextualTransformation<C, Name, Mod, Exp, Pat, Typ>
       (C _) => alg.errorName(error, location: location);
 }
 
-// Source name extractor.
-// class SourceNameExtractor extends NameAlgebra<String> {
-//   String termName(String name, {Location location}) => name;
-//   String typeName(String name, {Location location}) => name;
+// Contextual transformation with an accumulator.
+typedef AccuTransformer<S, C, T> = Pair<S, T> Function(C);
 
-//   String errorName(LocatedError error, {Location location}) => null;
-// }
+abstract class AccumulatingContextualTransformation<S, C, Name, Mod, Exp, Pat,
+        Typ>
+    extends TAlgebra<
+        AccuTransformer<S, C, Name>,
+        AccuTransformer<S, C, Mod>,
+        AccuTransformer<S, C, Exp>,
+        AccuTransformer<S, C, Pat>,
+        AccuTransformer<S, C, Typ>> {
+  TAlgebra<Name, Mod, Exp, Pat, Typ> get alg;
+  Monoid<S> get m;
+
+  Pair<S, List<T>> transformList<T>(List<AccuTransformer<S, C, T>> xs, C ctxt,
+      [S initial]) {
+    S state = initial == null ? m.empty : initial;
+
+    final List<T> xs0 = new List<T>(xs.length);
+    for (int i = 0; i < xs0.length; i++) {
+      AccuTransformer<S, C, T> x = xs[i];
+      Pair<S, T> result = x(ctxt);
+      state = m.compose(state, result.$1);
+      xs0[i] = result.$2;
+    }
+
+    return Pair<S, List<T>>(state, xs0);
+  }
+
+  Pair<S, List<Pair<P, Q>>> transformPairList<P, Q>(
+      List<Pair<AccuTransformer<S, C, P>, AccuTransformer<S, C, Q>>> xs, C ctxt,
+      [S initial]) {
+    S state = initial == null ? m.empty : initial;
+
+    final List<Pair<P, Q>> xs0 = new List<Pair<P, Q>>(xs.length);
+    for (int i = 0; i < xs0.length; i++) {
+      final Pair<AccuTransformer<S, C, P>, AccuTransformer<S, C, Q>> x = xs[i];
+      final Pair<S, P> r0 = x.$1(ctxt);
+      final P p = r0.$2;
+      state = m.compose(state, r0.$1);
+
+      final Pair<S, Q> r1 = x.$2(ctxt);
+      final Q q = r1.$2;
+      state = m.compose(state, r1.$1);
+
+      xs0[i] = Pair<P, Q>(p, q);
+    }
+
+    return Pair<S, List<Pair<P, Q>>>(state, xs0);
+  }
+
+  AccuTransformer<S, C, Mod> datatypes(
+          List<
+                  Triple<
+                      AccuTransformer<S, C, Name>,
+                      List<AccuTransformer<S, C, Name>>,
+                      List<
+                          Pair<AccuTransformer<S, C, Name>,
+                              List<AccuTransformer<S, C, Typ>>>>>>
+              defs,
+          List<AccuTransformer<S, C, Name>> deriving,
+          {Location location}) =>
+      (C c) {
+        List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> defs0 =
+            new List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>(
+                defs.length);
+
+        S state = m.empty;
+        for (int i = 0; i < defs0.length; i++) {
+          Triple<
+              AccuTransformer<S, C, Name>,
+              List<AccuTransformer<S, C, Name>>,
+              List<
+                  Pair<AccuTransformer<S, C, Name>,
+                      List<AccuTransformer<S, C, Typ>>>>> def = defs[i];
+
+          final Pair<S, Name> r0 = def.$1(c);
+          state = m.compose(state, r0.$1);
+          final Name name0 = r0.$2;
+
+          final Pair<S, List<Name>> r1 = transformList<Name>(def.$2, c, state);
+          state = r1.$1;
+          final List<Name> typeParameters0 = r1.$2;
+
+          final List<
+              Pair<AccuTransformer<S, C, Name>,
+                  List<AccuTransformer<S, C, Typ>>>> constructors = def.$3;
+
+          final List<Pair<Name, List<Typ>>> constructors0 =
+              new List<Pair<Name, List<Typ>>>(constructors.length);
+
+          for (int j = 0; j < constructors0.length; j++) {
+            final Pair<AccuTransformer<S, C, Name>,
+                List<AccuTransformer<S, C, Typ>>> constructor = constructors[j];
+
+            final Pair<S, Name> r2 = constructor.$1(c);
+            state = m.compose(state, r2.$1);
+            final Name cname = r2.$2;
+
+            final Pair<S, List<Typ>> r3 =
+                transformList<Typ>(constructor.$2, c, state);
+            state = r3.$1;
+            final List<Typ> types = r3.$2;
+
+            final Pair<Name, List<Typ>> constructor0 =
+                Pair<Name, List<Typ>>(cname, types);
+            constructors0[j] = constructor0;
+          }
+
+          final Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>> def0 =
+              Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>(
+                  name0, typeParameters0, constructors0);
+
+          defs0[i] = def0;
+        }
+
+        final Pair<S, List<Name>> r4 = transformList<Name>(deriving, c, state);
+        state = r4.$1;
+        final List<Name> deriving0 = r4.$2;
+
+        return Pair<S, Mod>(
+            state, alg.datatypes(defs0, deriving0, location: location));
+      };
+
+  AccuTransformer<S, C, Mod> valueDef(
+          AccuTransformer<S, C, Name> name, AccuTransformer<S, C, Exp> body,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, Name> r0 = name(c);
+        S state = r0.$1;
+        final Name name0 = r0.$2;
+
+        final Pair<S, Exp> r1 = body(c);
+        state = m.compose(state, r1.$1);
+        final Exp body0 = r1.$2;
+
+        return Pair<S, Mod>(
+            state, alg.valueDef(name0, body0, location: location));
+      };
+
+  AccuTransformer<S, C, Mod> functionDef(
+          AccuTransformer<S, C, Name> name,
+          List<AccuTransformer<S, C, Pat>> parameters,
+          AccuTransformer<S, C, Exp> body,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, Name> r0 = name(c);
+        S state = r0.$1;
+        final Name name0 = r0.$2;
+
+        final Pair<S, List<Pat>> r1 = transformList<Pat>(parameters, c, state);
+        state = r1.$1;
+        final List<Pat> parameters0 = r1.$2;
+
+        final Pair<S, Exp> r2 = body(c);
+        state = m.compose(state, r2.$1);
+        final Exp body0 = r2.$2;
+
+        return Pair<S, Mod>(state,
+            alg.functionDef(name0, parameters0, body0, location: location));
+      };
+
+  AccuTransformer<S, C, Mod> module(List<AccuTransformer<S, C, Mod>> members,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, List<Mod>> r0 = transformList<Mod>(members, c);
+        final S state = r0.$1;
+        final List<Mod> members0 = r0.$2;
+
+        return Pair<S, Mod>(state, alg.module(members0, location: location));
+      };
+
+  AccuTransformer<S, C, Mod> typename(
+          AccuTransformer<S, C, Name> binder,
+          List<AccuTransformer<S, C, Name>> typeParameters,
+          AccuTransformer<S, C, Typ> type,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, Name> r0 = binder(c);
+        S state = r0.$1;
+        final Name binder0 = r0.$2;
+
+        final Pair<S, List<Name>> r1 =
+            transformList<Name>(typeParameters, c, state);
+        state = r1.$1;
+        final List<Name> typeParameters0 = r1.$2;
+
+        final Pair<S, Typ> r2 = type(c);
+        state = m.compose(state, r2.$1);
+        final Typ type0 = r2.$2;
+
+        return Pair<S, Mod>(state,
+            alg.typename(binder0, typeParameters0, type0, location: location));
+      };
+
+  AccuTransformer<S, C, Mod> signature(
+          AccuTransformer<S, C, Name> name, AccuTransformer<S, C, Typ> type,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, Name> r0 = name(c);
+        S state = r0.$1;
+        final Name name0 = r0.$2;
+
+        final Pair<S, Typ> r1 = type(c);
+        state = m.compose(state, r1.$1);
+        final Typ type0 = r1.$2;
+
+        return Pair<S, Mod>(
+            state, alg.signature(name0, type0, location: location));
+      };
+
+  AccuTransformer<S, C, Mod> errorModule(LocatedError error,
+          {Location location}) =>
+      (C _) =>
+          Pair<S, Mod>(m.empty, alg.errorModule(error, location: location));
+
+  AccuTransformer<S, C, Exp> boolLit(bool b, {Location location}) =>
+      (C _) => Pair<S, Exp>(m.empty, alg.boolLit(b, location: location));
+  AccuTransformer<S, C, Exp> intLit(int n, {Location location}) =>
+      (C _) => Pair<S, Exp>(m.empty, alg.intLit(n, location: location));
+  AccuTransformer<S, C, Exp> stringLit(String s, {Location location}) =>
+      (C _) => Pair<S, Exp>(m.empty, alg.stringLit(s, location: location));
+  AccuTransformer<S, C, Exp> varExp(AccuTransformer<S, C, Name> name,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, Name> result = name(c);
+        final S state = result.$1;
+        final Name name0 = result.$2;
+
+        return Pair<S, Exp>(state, alg.varExp(name0, location: location));
+      };
+
+  AccuTransformer<S, C, Exp> apply(AccuTransformer<S, C, Exp> fn,
+          List<AccuTransformer<S, C, Exp>> arguments,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, Exp> r0 = fn(c);
+        S state = r0.$1;
+        final Exp fn0 = r0.$2;
+
+        final Pair<S, List<Exp>> r1 = transformList<Exp>(arguments, c, state);
+        state = r1.$1;
+        final List<Exp> arguments0 = r1.$2;
+
+        return Pair<S, Exp>(
+            state, alg.apply(fn0, arguments0, location: location));
+      };
+
+  AccuTransformer<S, C, Exp> lambda(List<AccuTransformer<S, C, Pat>> parameters,
+          AccuTransformer<S, C, Exp> body,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, List<Pat>> r0 = transformList<Pat>(parameters, c);
+        S state = r0.$1;
+        final List<Pat> parameters0 = r0.$2;
+
+        final Pair<S, Exp> r1 = body(c);
+        state = m.compose(state, r1.$1);
+        final Exp body0 = r1.$2;
+
+        return Pair<S, Exp>(
+            state, alg.lambda(parameters0, body0, location: location));
+      };
+
+  AccuTransformer<S, C, Exp> let(
+          List<Pair<AccuTransformer<S, C, Pat>, AccuTransformer<S, C, Exp>>>
+              bindings,
+          AccuTransformer<S, C, Exp> body,
+          {BindingMethod bindingMethod = BindingMethod.Parallel,
+          Location location}) =>
+      (C c) {
+        final Pair<S, List<Pair<Pat, Exp>>> r0 =
+            transformPairList<Pat, Exp>(bindings, c);
+        S state = r0.$1;
+        final List<Pair<Pat, Exp>> bindings0 = r0.$2;
+
+        final Pair<S, Exp> r1 = body(c);
+        state = m.compose(state, r1.$1);
+        final Exp body0 = r1.$2;
+
+        return Pair<S, Exp>(
+            state,
+            alg.let(bindings0, body0,
+                bindingMethod: bindingMethod, location: location));
+      };
+
+  AccuTransformer<S, C, Exp> tuple(List<AccuTransformer<S, C, Exp>> components,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, List<Exp>> result = transformList<Exp>(components, c);
+        final S state = result.$1;
+        final List<Exp> components0 = result.$2;
+        return Pair<S, Exp>(state, alg.tuple(components0, location: location));
+      };
+
+  AccuTransformer<S, C, Exp> ifthenelse(
+          AccuTransformer<S, C, Exp> condition,
+          AccuTransformer<S, C, Exp> thenBranch,
+          AccuTransformer<S, C, Exp> elseBranch,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, Exp> r0 = condition(c);
+        S state = r0.$1;
+        final Exp condition0 = r0.$2;
+
+        final Pair<S, Exp> r1 = thenBranch(c);
+        state = m.compose(state, r1.$1);
+        final Exp thenBranch0 = r1.$2;
+
+        final Pair<S, Exp> r2 = elseBranch(c);
+        state = m.compose(state, r2.$1);
+        final Exp elseBranch0 = r2.$2;
+
+        return Pair<S, Exp>(
+            state,
+            alg.ifthenelse(condition0, thenBranch0, elseBranch0,
+                location: location));
+      };
+
+  AccuTransformer<S, C, Exp> match(
+          AccuTransformer<S, C, Exp> scrutinee,
+          List<Pair<AccuTransformer<S, C, Pat>, AccuTransformer<S, C, Exp>>>
+              cases,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, Exp> r0 = scrutinee(c);
+        S state = r0.$1;
+        final Exp scrutinee0 = r0.$2;
+
+        Pair<S, List<Pair<Pat, Exp>>> result =
+            transformPairList<Pat, Exp>(cases, c, state);
+        state = result.$1;
+        final List<Pair<Pat, Exp>> cases0 = result.$2;
+
+        return Pair<S, Exp>(
+            state, alg.match(scrutinee0, cases0, location: location));
+      };
+
+  AccuTransformer<S, C, Exp> typeAscription(
+          AccuTransformer<S, C, Exp> e, AccuTransformer<S, C, Typ> type,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, Exp> r0 = e(c);
+        S state = r0.$1;
+        final Exp exp0 = r0.$2;
+
+        final Pair<S, Typ> r1 = type(c);
+        state = m.compose(state, r1.$1);
+        final Typ type0 = r1.$2;
+
+        return Pair<S, Exp>(
+            state, alg.typeAscription(exp0, type0, location: location));
+      };
+
+  AccuTransformer<S, C, Exp> errorExp(LocatedError error,
+          {Location location}) =>
+      (C _) => Pair<S, Exp>(m.empty, alg.errorExp(error, location: location));
+
+  AccuTransformer<S, C, Pat> hasTypePattern(
+          AccuTransformer<S, C, Pat> pattern, AccuTransformer<S, C, Typ> type,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, Pat> r0 = pattern(c);
+        final Pat pattern0 = r0.$2;
+        S state = r0.$1;
+
+        final Pair<S, Typ> r1 = type(c);
+        state = m.compose(state, r1.$1);
+        final Typ type0 = r1.$2;
+
+        return Pair<S, Pat>(
+            state, alg.hasTypePattern(pattern0, type0, location: location));
+      };
+
+  AccuTransformer<S, C, Pat> boolPattern(bool b, {Location location}) =>
+      (C _) => Pair<S, Pat>(m.empty, alg.boolPattern(b, location: location));
+
+  AccuTransformer<S, C, Pat> intPattern(int n, {Location location}) =>
+      (C _) => Pair<S, Pat>(m.empty, alg.intPattern(n, location: location));
+
+  AccuTransformer<S, C, Pat> stringPattern(String s, {Location location}) =>
+      (C _) => Pair<S, Pat>(m.empty, alg.stringPattern(s, location: location));
+
+  AccuTransformer<S, C, Pat> wildcard({Location location}) =>
+      (C _) => Pair<S, Pat>(m.empty, alg.wildcard(location: location));
+
+  AccuTransformer<S, C, Pat> varPattern(AccuTransformer<S, C, Name> name,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, Name> result = name(c);
+        return Pair<S, Pat>(
+            result.$1, alg.varPattern(result.$2, location: location));
+      };
+
+  AccuTransformer<S, C, Pat> constrPattern(AccuTransformer<S, C, Name> name,
+          List<AccuTransformer<S, C, Pat>> parameters,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, Name> r0 = name(c);
+        S state = r0.$1;
+        Name name0 = r0.$2;
+
+        final Pair<S, List<Pat>> r1 = transformList<Pat>(parameters, c, state);
+        state = m.compose(state, r1.$1);
+        final List<Pat> parameters0 = r1.$2;
+
+        return Pair<S, Pat>(
+            state, alg.constrPattern(name0, parameters0, location: location));
+      };
+
+  AccuTransformer<S, C, Pat> tuplePattern(
+          List<AccuTransformer<S, C, Pat>> components,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, List<Pat>> result = transformList<Pat>(components, c);
+        return Pair<S, Pat>(
+            result.$1, alg.tuplePattern(result.$2, location: location));
+      };
+
+  AccuTransformer<S, C, Pat> errorPattern(LocatedError error,
+          {Location location}) =>
+      (C _) =>
+          Pair<S, Pat>(m.empty, alg.errorPattern(error, location: location));
+
+  AccuTransformer<S, C, Typ> intType({Location location}) => (C _) {
+        return Pair<S, Typ>(m.empty, alg.intType(location: location));
+      };
+  AccuTransformer<S, C, Typ> boolType({Location location}) => (C _) {
+        return Pair<S, Typ>(m.empty, alg.boolType(location: location));
+      };
+  AccuTransformer<S, C, Typ> stringType({Location location}) => (C _) {
+        return Pair<S, Typ>(m.empty, alg.stringType(location: location));
+      };
+
+  AccuTransformer<S, C, Typ> typeVar(AccuTransformer<S, C, Name> name,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, Name> result = name(c);
+        final S state = result.$1;
+        final Name name0 = result.$2;
+        return Pair<S, Typ>(state, alg.typeVar(name0, location: location));
+      };
+
+  AccuTransformer<S, C, Typ> forallType(
+          List<AccuTransformer<S, C, Name>> quantifiers,
+          AccuTransformer<S, C, Typ> type,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, List<Name>> r0 = transformList<Name>(quantifiers, c);
+        S state = r0.$1;
+        final List<Name> quantifiers0 = r0.$2;
+
+        final Pair<S, Typ> r1 = type(c);
+        state = m.compose(state, r1.$1);
+        final Typ type0 = r1.$2;
+
+        return Pair<S, Typ>(
+            state, alg.forallType(quantifiers0, type0, location: location));
+      };
+
+  AccuTransformer<S, C, Typ> arrowType(List<AccuTransformer<S, C, Typ>> domain,
+          AccuTransformer<S, C, Typ> codomain,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, List<Typ>> r0 = transformList<Typ>(domain, c);
+        S state = r0.$1;
+        final List<Typ> domain0 = r0.$2;
+
+        final Pair<S, Typ> r1 = codomain(c);
+        state = m.compose(state, r1.$1);
+        final Typ codomain0 = r1.$2;
+
+        return Pair<S, Typ>(
+            state, alg.arrowType(domain0, codomain0, location: location));
+      };
+
+  AccuTransformer<S, C, Typ> typeConstr(AccuTransformer<S, C, Name> name,
+          List<AccuTransformer<S, C, Typ>> arguments,
+          {Location location}) =>
+      (C c) {
+        Pair<S, Name> r0 = name(c);
+        S state = r0.$1;
+        Name name0 = r0.$2;
+
+        final Pair<S, List<Typ>> result =
+            transformList<Typ>(arguments, c, state);
+        state = result.$1;
+        final List<Typ> arguments0 = result.$2;
+
+        return Pair<S, Typ>(
+            state, alg.typeConstr(name0, arguments0, location: location));
+      };
+
+  AccuTransformer<S, C, Typ> tupleType(
+          List<AccuTransformer<S, C, Typ>> components,
+          {Location location}) =>
+      (C c) {
+        final Pair<S, List<Typ>> result = transformList<Typ>(components, c);
+        S state = result.$1;
+        final List<Typ> components0 = result.$2;
+
+        return Pair<S, Typ>(
+            state, alg.tupleType(components0, location: location));
+      };
+
+  AccuTransformer<S, C, Typ> errorType(LocatedError error,
+          {Location location}) =>
+      (C _) => Pair<S, Typ>(m.empty, alg.errorType(error, location: location));
+
+  AccuTransformer<S, C, Name> termName(String ident, {Location location}) =>
+      (C _) => Pair<S, Name>(m.empty, alg.termName(ident, location: location));
+  AccuTransformer<S, C, Name> typeName(String ident, {Location location}) =>
+      (C _) => Pair<S, Name>(m.empty, alg.typeName(ident, location: location));
+  AccuTransformer<S, C, Name> errorName(LocatedError error,
+          {Location location}) =>
+      (C _) => Pair<S, Name>(m.empty, alg.errorName(error, location: location));
+}
