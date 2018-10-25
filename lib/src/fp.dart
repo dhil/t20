@@ -87,3 +87,12 @@ class Triple<A, B, C> extends Pair<A, B> {
 
   C get $3 => thd;
 }
+
+// Reference types.
+class Ref<A> {
+  A _value;
+  A get value => _value;
+  A set value(A v) => _value = v;
+
+  Ref(this._value);
+}

@@ -25,10 +25,14 @@ class Name {
       : this.of(_sharedPool.intern(name), UNRESOLVED, location);
   Name.primitive(String name)
       : this.resolved(name, Gensym.freshInt(), Location.primitive());
-
-  void set resolve(int id) => _id = id;
+  Name.resolveAs(Name name, int id) : this.of(name.intern, id, name.location);
 
   static int computeIntern(String name) {
     return _sharedPool.computeIntern(name);
+  }
+
+  String toString() {
+    String name = sourceName;
+    return "$name ($location)";
   }
 }

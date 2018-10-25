@@ -36,103 +36,120 @@ import '../ast/traversals.dart'
         Transformation,
         Transformer;
 
-class NameContext {
-  final ImmutableMap<int, int> types;
+class SignatureVars {
   final ImmutableMap<int, int> vars;
+  final Name name;
+  bool hasAccompanyingDefinition = false;
+  SignatureVars(this.name, this.vars);
+}
 
-  NameContext(this.types, this.vars);
+class NameContext {
+  final ImmutableMap<int, SignatureVars> signatureVars;
+  final ImmutableMap<int, int> typenames;
+  final ImmutableMap<int, int> valuenames;
+
+  NameContext(this.typenames, this.valuenames, this.signatureVars);
   NameContext.empty()
-      : this(ImmutableMap<int, int>.empty(), ImmutableMap<int, int>.empty());
+      : this(ImmutableMap<int, int>.empty(), ImmutableMap<int, int>.empty(),
+            ImmutableMap<int, SignatureVars>.empty());
   factory NameContext.withBuiltins() {
     ImmutableMap<int, int> vars = ImmutableMap<int, int>.of(Builtin.termNameMap
         .map((int _, Name name) => MapEntry<int, int>(name.intern, name.id)));
     ImmutableMap<int, int> types = ImmutableMap<int, int>.of(Builtin.typeNameMap
         .map((int _, Name name) => MapEntry<int, int>(name.intern, name.id)));
-    return NameContext(types, vars);
+    return NameContext(types, vars, ImmutableMap<int, SignatureVars>.empty());
   }
 
-  NameContext addVar(Name name, {Location location}) {
-    final ImmutableMap<int, int> vars0 = vars.put(name.intern, name.id);
-    return NameContext(types, vars0);
+  NameContext addValueName(Name name, {Location location}) {
+    final ImmutableMap<int, int> valuenames0 =
+        valuenames.put(name.intern, name.id);
+    return NameContext(typenames, valuenames0, signatureVars);
   }
 
-  NameContext addType(Name name, {Location location}) {
-    final ImmutableMap<int, int> types0 = types.put(name.intern, name.id);
-    return NameContext(types0, vars);
+  NameContext addTypeName(Name name, {Location location}) {
+    final ImmutableMap<int, int> typenames0 =
+        typenames.put(name.intern, name.id);
+    return NameContext(typenames0, valuenames, signatureVars);
+  }
+
+  NameContext addSignature(Name name, ImmutableMap<int, int> varMap) {
+    ImmutableMap<int, SignatureVars> signatureVars0 =
+        signatureVars.put(name.intern, SignatureVars(name, varMap));
+    return NameContext(typenames, valuenames, signatureVars0);
   }
 
   NameContext includeTypes(ImmutableMap<int, int> otherTypes) {
-    ImmutableMap<int, int> types0 = types.union(otherTypes);
-    return NameContext(types0, vars);
+    ImmutableMap<int, int> typesnames0 = typenames.union(otherTypes);
+    return NameContext(typesnames0, valuenames, signatureVars);
   }
 
-  NameContext addAllVars(ImmutableList<Name> names) {
+  NameContext addValueNames(ImmutableList<Name> names) {
     NameContext ctxt = this;
     while (!names.isEmpty) {
-      ctxt = ctxt.addVar(names.head);
+      ctxt = ctxt.addValueName(names.head);
       names = names.tail;
     }
     return ctxt;
   }
 
-  NameContext addAllTypes(ImmutableList<Name> names) {
+  NameContext addTypeNames(ImmutableList<Name> names) {
     NameContext ctxt = this;
     while (!names.isEmpty) {
-      ctxt = ctxt.addType(names.head);
+      ctxt = ctxt.addTypeName(names.head);
       names = names.tail;
     }
     return ctxt;
   }
 
-  Name resolve(String name, {Location location}) {
-    int intern = computeIntern(name);
-    if (vars.containsKey(intern)) {
-      final int binderId = vars.lookup(intern);
-      return resolveAs(intern, binderId, location: location);
-    } else if (types.containsKey(intern)) {
-      final int binderId = types.lookup(intern);
-      return resolveAs(intern, binderId, location: location);
-    } else {
-      return new Name.unresolved(name, location);
-    }
-  }
+  // Name resolve(String name, {Location location}) {
+  //   int intern = computeIntern(name);
+  //   if (vars.containsKey(intern)) {
+  //     final int binderId = vars.lookup(intern);
+  //     return resolveAs(intern, binderId, location: location);
+  //   } else if (types.containsKey(intern)) {
+  //     final int binderId = types.lookup(intern);
+  //     return resolveAs(intern, binderId, location: location);
+  //   } else {
+  //     return new Name.unresolved(name, location);
+  //   }
+  // }
 
-  Name resolveAs(int intern, int id, {Location location}) {
-    return new Name.of(intern, id, location);
-  }
+  // Name resolveAs(int intern, int id, {Location location}) {
+  //   return new Name.of(intern, id, location);
+  // }
 
-  bool containsVar(int intern) {
-    return vars.containsKey(intern);
-  }
+  // bool containsVar(int intern) {
+  //   return vars.containsKey(intern);
+  // }
 
-  bool containsType(int intern) {
-    return types.containsKey(intern);
+  bool containsTypename(Name name) {
+    return typenames.containsKey(name.intern);
   }
 
   int computeIntern(String name) => Name.computeIntern(name);
 }
 
-class BindingContext extends NameContext {
-  BindingContext() : super(null, null);
+// class BindingContext extends NameContext {
+//   BindingContext() : super(null, null);
 
-  Name resolve(String name, {Location location}) {
-    return Name.resolved(name, Gensym.freshInt(), location);
-  }
+//   Name resolve(String name, {Location location}) {
+//     return Name.resolved(name, Gensym.freshInt(), location);
+//   }
 
-  bool containsVar(int _) => true;
-  bool containsType(int _) => true;
-}
+//   bool containsVar(int _) => true;
+//   bool containsType(int _) => true;
+// }
 
-class PatternBindingContext extends BindingContext {
-  final List<Name> names = new List<Name>();
-  PatternBindingContext() : super();
+// class PatternBindingContext extends BindingContext {
+//   final List<Name> names = new List<Name>();
+//   PatternBindingContext() : super();
 
-  Name resolve(String name, {Location location}) {
-    Name resolved = super.resolve(name, location: location);
-    names.add(resolved);
-    return resolved;
-  }
-}
+//   Name resolve(String name, {Location location}) {
+//     Name resolved = super.resolve(name, location: location);
+//     names.add(resolved);
+//     return resolved;
+//   }
+// }
 
 // class NameResolver<Mod, Exp, Pat, Typ> extends ContextualTransformation<
 //     NameContext, Name, Pair<NameContext, Mod>, Exp, Pat, Typ> {
@@ -681,25 +698,77 @@ class PatternBindingContext extends BindingContext {
 // }
 
 class ResolutionResult {
-  final ImmutableList<Name> unresolvedTypeVars;
-  final ImmutableList<Name> resolvedTypeVars;
+  final ImmutableList<Name> unresolvedTypeNames;
+  final ImmutableList<Name> resolvedTypeNames;
 
-  final ImmutableList<Name> unresolvedTermVars;
-  final ImmutableList<Name> resolvedTermVars;
+  final ImmutableList<Name> unresolvedValueNames;
+  final ImmutableList<Name> resolvedValueNames;
 
-  ResolutionResult._(this.unresolvedTypeVars, this.resolvedTypeVars,
-      this.unresolvedTermVars, this.resolvedTermVars);
+  final Pair<Name, ImmutableMap<int, int>> signatureVars;
+
+  ResolutionResult._(this.unresolvedTypeNames, this.resolvedTypeNames,
+      this.unresolvedValueNames, this.resolvedValueNames, this.signatureVars);
   factory ResolutionResult.empty() {
     ImmutableList<Name> nil = ImmutableList<Name>.empty();
-    return ResolutionResult._(nil, nil, nil, nil);
+    return ResolutionResult._(nil, nil, nil, nil, null);
   }
 
   ResolutionResult merge(ResolutionResult other) {
     return ResolutionResult._(
-        unresolvedTypeVars.concat(other.unresolvedTypeVars),
-        resolvedTypeVars.concat(other.resolvedTypeVars),
-        unresolvedTermVars.concat(other.unresolvedTermVars),
-        resolvedTermVars.concat(other.resolvedTermVars));
+        unresolvedTypeNames.concat(other.unresolvedTypeNames),
+        resolvedTypeNames.concat(other.resolvedTypeNames),
+        unresolvedValueNames.concat(other.unresolvedValueNames),
+        resolvedValueNames.concat(other.resolvedValueNames),
+        signatureVars);
+  }
+
+  ResolutionResult addTypeName(Name name) {
+    if (name.isResolved) {
+      ImmutableList<Name> resolved0 = resolvedTypeNames.cons(name);
+      return ResolutionResult._(unresolvedTypeNames, resolved0,
+          unresolvedValueNames, resolvedValueNames, signatureVars);
+    } else {
+      ImmutableList<Name> unresolved0 = unresolvedTypeNames.cons(name);
+      return ResolutionResult._(unresolved0, resolvedTypeNames,
+          unresolvedValueNames, resolvedValueNames, signatureVars);
+    }
+  }
+
+  ResolutionResult addValueName(Name name) {
+    if (name.isResolved) {
+      ImmutableList<Name> resolved0 = resolvedValueNames.cons(name);
+      return ResolutionResult._(unresolvedTypeNames, resolvedTypeNames,
+          unresolvedValueNames, resolved0, signatureVars);
+    } else {
+      ImmutableList<Name> unresolved0 = unresolvedTypeNames.cons(name);
+      return ResolutionResult._(unresolvedTypeNames, resolvedTypeNames,
+          unresolved0, resolvedValueNames, signatureVars);
+    }
+  }
+
+  ResolutionResult addValueNames(List<Name> names) {
+    ImmutableList<Name> unresolvedValueNames0 = unresolvedValueNames;
+    ImmutableList<Name> resolvedValueNames0 = resolvedValueNames;
+    for (int i = 0; i < names.length; i++) {
+      if (names[i].isResolved) {
+        resolvedValueNames0 = resolvedValueNames.cons(names[i]);
+      } else {
+        unresolvedValueNames0 = unresolvedValueNames0.cons(names[i]);
+      }
+    }
+    return ResolutionResult._(unresolvedTypeNames, resolvedTypeNames, unresolvedValueNames, resolvedValueNames, signatureVars);
+  }
+
+  ResolutionResult addTypeNames(List<Name> names) {
+    return this;
+  }
+
+  ResolutionResult attachSignatureVars(
+      Name name, ImmutableMap<int, int> typeVarMap) {
+    Pair<Name, ImmutableMap<int, int>> p =
+        Pair<Name, ImmutableMap<int, int>>(name, typeVarMap);
+    return ResolutionResult._(unresolvedTypeNames, resolvedTypeNames,
+        unresolvedValueNames, resolvedValueNames, p);
   }
 }
 
@@ -721,26 +790,104 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
   final TAlgebra<Name, Mod, Exp, Pat, Typ> _alg;
   TAlgebra<Name, Mod, Exp, Pat, Typ> get alg => _alg;
 
+  final NameContext emptyContext = NameContext.empty();
+
   NameResolver(this._alg);
 
-  List<Name> duplicates(ImmutableList<Name> names) {
+  List<Name> duplicates(List<Name> names) {
     final List<Name> dups = new List<Name>();
     final Set<int> idents = new Set<int>();
-    while (!names.isEmpty) {
-      Name name = names.head;
+    for (int i = 0; i < names.length; i++) {
+      Name name = names[i];
       if (idents.contains(name.intern)) {
         dups.add(name);
       } else {
         idents.add(name.intern);
       }
-      names = names.tail;
     }
     return dups;
   }
 
+  Pair<ResolutionResult, T> reportDuplicates<T>(List<Name> duplicates,
+      T Function(LocatedError, {Location location}) error) {
+    Name first = duplicates[0];
+    return Pair<ResolutionResult, T>(
+        m.empty,
+        error(MultipleDeclarationsError(first.sourceName, first.location),
+            location: first.location));
+  }
+
+  Name resolveBinder(Resolver<Name> name) {
+    Pair<ResolutionResult, Name> r0 = name(emptyContext);
+    Name name0 = r0.$2;
+    if (name0.isResolved) {
+      // This should be impossible.
+      throw "Impossible! The binder '$name0' has already been resolved!";
+    } else {
+      return Name.resolveAs(name0, Gensym.freshInt());
+    }
+  }
+
+  Pair<List<Name>, Pat> resolveBindingPattern(Resolver<Pat> pat) {
+    Pair<ResolutionResult, Pat> r0 = pat(emptyContext);
+    Pat pat0 = r0.$2;
+
+    // TODO perhaps not use immutable lists...
+    ImmutableList<Name> names = r0.$1.unresolvedValueNames;
+    List<Name> names0 = new List<Name>();
+    while (!names.isEmpty) {
+      Name name = names.head;
+      if (name.isResolved) {
+        // This should be impossible.
+        throw "Impossible! The binder '$name' has already been resolved!";
+      } else {
+        names0.add(Name.resolveAs(name, Gensym.freshInt()));
+      }
+      names.tail;
+    }
+
+    return Pair<List<Name>, Pat>(names0, pat0);
+  }
+
+  T resolveLocal<T>(Resolver<T> resolve, NameContext ctxt,
+      [T Function(LocatedError, {Location location}) error]) {
+    final Pair<ResolutionResult, T> result = resolve(ctxt);
+    if (result.$1.unresolvedValueNames.length != 0) {
+      Name name = result.$1.unresolvedValueNames.head;
+      return error == null
+          ? name
+          : error(UnboundNameError(name.sourceName, name.location),
+              location: name.location);
+    }
+
+    if (result.$1.unresolvedTypeNames.length != 0) {
+      Name name = result.$1.unresolvedTypeNames.head;
+      return error == null
+          ? name
+          : error(UnboundNameError(name.sourceName, name.location),
+              location: name.location);
+    }
+
+    return result.$2;
+  }
+
+  Pair<ImmutableMap<int, int>, Typ> resolveSignatureType(
+      Resolver<Typ> sigtype) {
+    Pair<ResolutionResult, Typ> result = sigtype(emptyContext);
+    ImmutableList<Name> typeVars = result.$1.unresolvedTypeNames;
+    ImmutableMap<int, int> typeVarMap = ImmutableMap<int, int>.empty();
+    while (!typeVars.isEmpty) {
+      Name typeVar = typeVars.head;
+      typeVars = typeVars.tail;
+      typeVarMap = typeVarMap.put(typeVar.intern, typeVar.id);
+    }
+
+    return Pair<ImmutableMap<int, int>, Typ>(typeVarMap, result.$2);
+  }
+
   Resolver<Mod> module(List<Resolver<Mod>> members, {Location location}) =>
       (NameContext ctxt) {
-        final List<Mod> members0 = new List<Mod>(members.length);
+        final List<Mod> members0 = new List<Mod>();
         for (int i = 0; i < members.length; i++) {
           Resolver<Mod> resolve = members[i];
           Pair<ResolutionResult, Mod> result = resolve(ctxt);
@@ -748,13 +895,251 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
 
           // Convention: Module members return only an empty or singleton
           // lists.
-          ctxt = ctxt.addAllVars(result.$1.resolvedTermVars);
-          ctxt = ctxt.addAllTypes(result.$1.resolvedTypeVars);
+          ctxt = ctxt.addValueNames(result.$1.resolvedValueNames);
+          ctxt = ctxt.addTypeNames(result.$1.resolvedTypeNames);
+          if (result.$1.signatureVars != null) {
+            Pair<Name, ImmutableMap<int, int>> sigvars =
+                result.$1.signatureVars;
+            ctxt = ctxt.addSignature(sigvars.$1, sigvars.$2);
+          }
+          // TODO check whether there are any unresolved names.
 
-          members0[i] = result.$2;
+          members0.add(result.$2);
         }
+
+        // Signal an error for every signature that lacks an accompanying
+        // binding.
+        for (MapEntry<int, SignatureVars> entry in ctxt.signatureVars.entries) {
+          if (!entry.value.hasAccompanyingDefinition) {
+            Name name = entry.value.name;
+            Mod err = alg.errorModule(
+                MissingAccompanyingDefinitionError(
+                    name.sourceName, name.location),
+                location: name.location);
+            members0.add(err);
+          }
+        }
+
         return Pair<ResolutionResult, Mod>(
             m.empty, alg.module(members0, location: location));
+      };
+
+  Resolver<Mod> signature(Resolver<Name> name, Resolver<Typ> type,
+          {Location location}) =>
+      (NameContext ctxt) {
+        // Prepare new result.
+        ResolutionResult rr = ResolutionResult.empty();
+
+        // Resolve the signature name, and register it as a global.
+        Name name0 = resolveBinder(name);
+        if (ctxt.signatureVars.containsKey(name0.intern) &&
+            !ctxt.signatureVars
+                .lookup(name0.intern)
+                .hasAccompanyingDefinition) {
+          return Pair<ResolutionResult, Mod>(
+              m.empty,
+              alg.errorModule(
+                  DuplicateTypeSignatureError(name0.sourceName, name0.location),
+                  location: name0.location));
+        }
+
+        Pair<ImmutableMap<int, int>, Typ> result = resolveSignatureType(type);
+
+        rr = rr.addValueName(name0).attachSignatureVars(name0, result.$1);
+        Typ type0 = result.$2;
+
+        return Pair<ResolutionResult, Mod>(
+            rr, alg.signature(name0, type0, location: location));
+      };
+
+  Resolver<Mod> valueDef(Resolver<Name> name, Resolver<Exp> body,
+          {Location location}) =>
+      (NameContext ctxt) {
+        // Prepare new result.
+        ResolutionResult rr = ResolutionResult.empty();
+
+        // Resolve the value as a local as this definition must be preceded by a
+        // (signature) declaration.
+        Name name0 = resolveLocal<Name>(name, ctxt);
+        if (!name0.isResolved) {
+          return Pair<ResolutionResult, Mod>(
+              rr,
+              alg.errorModule(
+                  MissingAccompanyingSignatureError(
+                      name0.sourceName, name0.location),
+                  location: name0.location));
+        }
+        // Attach this definition to its declaration.
+        SignatureVars sigvars = ctxt.signatureVars.lookup(name0.intern);
+        sigvars.hasAccompanyingDefinition = true;
+
+        // Resolve [body].
+        ctxt = ctxt.includeTypes(sigvars.vars);
+        Exp body0 = resolveLocal<Exp>(body, ctxt, alg.errorExp);
+
+        return Pair<ResolutionResult, Mod>(
+            rr, alg.valueDef(name0, body0, location: location));
+      };
+
+  Resolver<Mod> functionDef(Resolver<Name> name, List<Resolver<Pat>> parameters,
+          Resolver<Exp> body,
+          {Location location}) =>
+      (NameContext ctxt) {
+        // Resolve the value as a local as this definition must be preceded by a
+        // (signature) declaration.
+        Name name0 = resolveLocal<Name>(name, ctxt);
+        if (!name0.isResolved) {
+          return Pair<ResolutionResult, Mod>(
+              m.empty,
+              alg.errorModule(
+                  MissingAccompanyingSignatureError(
+                      name0.sourceName, name0.location),
+                  location: name0.location));
+        }
+        // Attach this definition to its declaration.
+        SignatureVars sigvars = ctxt.signatureVars.lookup(name0.intern);
+        sigvars.hasAccompanyingDefinition = true;
+
+        // Resolve parameters.
+        List<Name> names = new List<Name>();
+        List<Pat> parameters0 = new List<Pat>(parameters.length);
+        for (int i = 0; i < parameters.length; i++) {
+          Resolver<Pat> param = parameters[i];
+          Pair<List<Name>, Pat> result = resolveBindingPattern(param);
+          names.addAll(result.$1);
+          parameters0[i] = result.$2;
+        }
+        // Check for duplicates.
+        List<Name> dups = duplicates(names);
+        if (dups.length != 0) {
+          return reportDuplicates<Mod>(dups, alg.errorModule);
+        }
+        // Add [names] to the function scope.
+        for (int i = 0; i < names.length; i++) {
+          ctxt = ctxt.addValueName(names[i]);
+        }
+
+        // Resolve [body].
+        ctxt = ctxt.includeTypes(sigvars.vars);
+        Exp body0 = resolveLocal<Exp>(body, ctxt, alg.errorExp);
+        return Pair<ResolutionResult, Mod>(m.empty,
+            alg.functionDef(name0, parameters0, body0, location: location));
+      };
+
+  Resolver<Mod> datatypes(
+          List<
+                  Triple<Resolver<Name>, List<Resolver<Name>>,
+                      List<Pair<Resolver<Name>, List<Resolver<Typ>>>>>>
+              defs,
+          List<Resolver<Name>> deriving,
+          {Location location}) =>
+      (NameContext ctxt) {
+        // Prepare new result.
+        ResolutionResult rr = ResolutionResult.empty();
+
+        // Two passes:
+        // 1) Resolve all binders.
+        // 2) Resolve all bodies with the above binders in scope.
+
+        // First pass.
+        List<Name> declaredNames = new List<Name>(defs.length);
+        for (int i = 0; i < declaredNames.length; i++) {
+          Resolver<Name> name = defs[i].fst;
+          declaredNames[i] = resolveBinder(name);
+        }
+        // Check for duplicates.
+        List<Name> dups = duplicates(declaredNames);
+        if (dups.length != 0) {
+          return reportDuplicates<Mod>(dups, alg.errorModule);
+        }
+        // Add all names to the current scope.
+        for (int i = 0; i < declaredNames.length; i++) {
+          Name name = declaredNames[i];
+          if (ctxt.containsTypename(name)) {
+            return Pair<ResolutionResult, Mod>(
+                m.empty,
+                alg.errorModule(
+                    MultipleDeclarationsError(name.sourceName, name.location),
+                    location: name.location));
+          }
+          ctxt = ctxt.addTypeName(name);
+        }
+
+        // Second pass.
+        NameContext ctxt0 = ctxt; // Make a copy of the current context.
+        List<Name> constructorNames = new List<Name>();
+        List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> defs0 =
+            new List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>(
+                defs.length);
+        for (int i = 0; i < declaredNames.length; i++) {
+          Triple<Resolver<Name>, List<Resolver<Name>>,
+              List<Pair<Resolver<Name>, List<Resolver<Typ>>>>> def = defs[i];
+
+          // Bind type parameters in the local (type) scope.
+          List<Resolver<Name>> typeParameters = def.snd;
+          List<Name> typeParameters0 = new List<Name>(typeParameters.length);
+          for (int i = 0; i < typeParameters0.length; i++) {
+            Resolver<Name> name = typeParameters[i];
+            Name name0 = resolveBinder(name);
+            typeParameters0[i] = name0;
+            ctxt0 = ctxt0.addTypeName(name0);
+          }
+          // Check for duplicates.
+          dups = duplicates(typeParameters0);
+          if (dups.length != 0) {
+            return reportDuplicates<Mod>(dups, alg.errorModule);
+          }
+          // Now resolve constructors.
+          List<Pair<Resolver<Name>, List<Resolver<Typ>>>> constructors =
+              def.thd;
+          List<Pair<Name, List<Typ>>> constructors0 =
+              new List<Pair<Name, List<Typ>>>(constructors.length);
+          List<Name> constructorNames = new List<Name>(constructors.length);
+          for (int j = 0; j < constructors0.length; j++) {
+            Resolver<Name> name = constructors[j].fst;
+            // Resolve the constructor as a binding occurrence.
+            Name name0 = resolveBinder(name);
+            constructorNames.add(name0);
+
+            // Resolve types.
+            List<Resolver<Typ>> types = constructors[j].snd;
+            List<Typ> types0 = new List<Typ>(types.length);
+            for (int k = 0; k < types0.length; k++) {
+              Resolver<Typ> type = types[k];
+              types0[k] = resolveLocal<Typ>(type, ctxt0, alg.errorType);
+            }
+
+            // Add the constructor to the result.
+            constructors0[j] = Pair<Name, List<Typ>>(name0, types0);
+          }
+
+          // Add the data type declaration to the result.
+          defs0[i] = Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>(
+              declaredNames[i], typeParameters0, constructors0);
+
+          // Reset the context.
+          ctxt0 = ctxt;
+        }
+
+        // Check for duplicate constructors.
+        dups = duplicates(constructorNames);
+        if (dups.length != 0) {
+          return reportDuplicates<Mod>(dups, alg.errorModule);
+        }
+
+        // Resolve [deriving] names.
+        List<Name> deriving0 = new List<Name>(deriving.length);
+        for (int i = 0; i < deriving0.length; i++) {
+          Resolver<Name> name = deriving[i];
+          deriving0[i] = resolveLocal<Name>(name, ctxt, alg.errorName);
+        }
+        // TODO validate names in deriving0.
+
+        // Add all the constructors and type names to the result.
+        rr = rr.addValueNames(constructorNames).addTypeNames(declaredNames);
+
+        return Pair<ResolutionResult, Mod>(
+            rr, alg.datatypes(defs0, deriving0, location: location));
       };
 
 //   final BindingContext bindingContext = new BindingContext();
@@ -1007,38 +1392,6 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
 //         ctxt = ctxt.addType(binder0);
 //         return Pair<NameContext, Mod>(ctxt,
 //             alg.typename(binder0, typeParameters0, type0, location: location));
-//       };
-
-//   Transformer<NameContext, Pair<NameContext, Mod>> signature(
-//           Transformer<NameContext, Name> name,
-//           Transformer<NameContext, Typ> type,
-//           {Location location}) =>
-//       (NameContext ctxt) {
-//         // Resolve the signature name, and register it as a global.
-//         Name name0 = resolveBinder(name);
-//         // bool containsSignature = signatureMap.containsKey(name0.intern);
-//         // if (containsSignature) {
-//         //   return Pair<NameContext, Mod>(
-//         //       ctxt,
-//         //       alg.errorModule(
-//         //           DuplicateTypeSignatureError(name0.sourceName, name0.location),
-//         //           location: name0.location));
-//         // } else
-
-//         if (ctxt.containsVar(name0)) {
-//           signatureMap[name0.intern] = name0; // To avoid cascading errors.
-//           return Pair<NameContext, Mod>(
-//               ctxt,
-//               alg.errorModule(
-//                   MultipleDeclarationsError(name0.sourceName, name0.location),
-//                   location: name0.location));
-//         } else {
-//           signatureMap[name0.intern] = name0;
-//           ctxt = ctxt.addVar(name0);
-//         }
-//         Typ type0 = resolveLocal<Typ>(type, ctxt);
-//         return Pair<NameContext, Mod>(
-//             ctxt, alg.signature(name0, type0, location: location));
 //       };
 
 //   Transformer<NameContext, Name> termName(String ident, {Location location}) =>
