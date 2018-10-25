@@ -72,10 +72,10 @@ class NameContext {
     return NameContext(typenames0, valuenames, signatureVars);
   }
 
-  NameContext addSignature(Name name, ImmutableMap<int, int> varMap) {
-    ImmutableMap<int, SignatureVars> signatureVars0 =
-        signatureVars.put(name.intern, SignatureVars(name, varMap));
-    return NameContext(typenames, valuenames, signatureVars0);
+  NameContext addSignature(Name name, SignatureVars sigvars) {
+    ImmutableMap<int, SignatureVars> sigVars0 =
+        signatureVars.put(name.intern, sigvars);
+    return NameContext(typenames, valuenames, sigVars0);
   }
 
   NameContext includeTypes(ImmutableMap<int, int> otherTypes) {
@@ -83,22 +83,20 @@ class NameContext {
     return NameContext(typesnames0, valuenames, signatureVars);
   }
 
-  NameContext addValueNames(ImmutableList<Name> names) {
-    NameContext ctxt = this;
-    while (!names.isEmpty) {
-      ctxt = ctxt.addValueName(names.head);
-      names = names.tail;
+  NameContext addValueNames(List<Name> names) {
+    ImmutableMap<int, int> valuenames0 = valuenames;
+    for (int i = 0; i < names.length; i++) {
+      valuenames0 = valuenames0.put(names[i].intern, names[i].id);
     }
-    return ctxt;
+    return NameContext(typenames, valuenames0, signatureVars);
   }
 
-  NameContext addTypeNames(ImmutableList<Name> names) {
-    NameContext ctxt = this;
-    while (!names.isEmpty) {
-      ctxt = ctxt.addTypeName(names.head);
-      names = names.tail;
+  NameContext addTypeNames(List<Name> names) {
+    ImmutableMap<int, int> typenames0 = typenames;
+    for (int i = 0; i < names.length; i++) {
+      typenames0 = typenames0.put(names[i].intern, names[i].id);
     }
-    return ctxt;
+    return NameContext(typenames0, valuenames, signatureVars);
   }
 
   // Name resolve(String name, {Location location}) {
@@ -698,77 +696,85 @@ class NameContext {
 // }
 
 class ResolutionResult {
-  final ImmutableList<Name> unresolvedTypeNames;
-  final ImmutableList<Name> resolvedTypeNames;
+  List<Name> unresolvedTypeNames;
+  List<Name> resolvedTypeNames;
 
-  final ImmutableList<Name> unresolvedValueNames;
-  final ImmutableList<Name> resolvedValueNames;
+  List<Name> unresolvedValueNames;
+  List<Name> resolvedValueNames;
 
-  final Pair<Name, ImmutableMap<int, int>> signatureVars;
+  SignatureVars signatureVars;
 
   ResolutionResult._(this.unresolvedTypeNames, this.resolvedTypeNames,
       this.unresolvedValueNames, this.resolvedValueNames, this.signatureVars);
   factory ResolutionResult.empty() {
-    ImmutableList<Name> nil = ImmutableList<Name>.empty();
-    return ResolutionResult._(nil, nil, nil, nil, null);
+    return ResolutionResult._(null, null, null, null, null);
   }
 
   ResolutionResult merge(ResolutionResult other) {
-    return ResolutionResult._(
-        unresolvedTypeNames.concat(other.unresolvedTypeNames),
-        resolvedTypeNames.concat(other.resolvedTypeNames),
-        unresolvedValueNames.concat(other.unresolvedValueNames),
-        resolvedValueNames.concat(other.resolvedValueNames),
-        signatureVars);
+    if (other.unresolvedTypeNames != null) {
+      unresolvedTypeNames.addAll(other.unresolvedTypeNames);
+    }
+
+    if (other.resolvedTypeNames != null) {
+      resolvedTypeNames.addAll(other.resolvedTypeNames);
+    }
+
+    if (other.resolvedValueNames != null) {
+      resolvedValueNames.addAll(other.resolvedValueNames);
+    }
+
+    if (other.unresolvedValueNames != null) {
+      unresolvedValueNames.addAll(other.unresolvedValueNames);
+    }
+
+    if (signatureVars == null) signatureVars = other.signatureVars;
+    return this;
   }
 
   ResolutionResult addTypeName(Name name) {
     if (name.isResolved) {
-      ImmutableList<Name> resolved0 = resolvedTypeNames.cons(name);
-      return ResolutionResult._(unresolvedTypeNames, resolved0,
-          unresolvedValueNames, resolvedValueNames, signatureVars);
+      if (resolvedTypeNames == null) resolvedTypeNames = new List<Name>();
+      resolvedTypeNames.add(name);
+      return this;
     } else {
-      ImmutableList<Name> unresolved0 = unresolvedTypeNames.cons(name);
-      return ResolutionResult._(unresolved0, resolvedTypeNames,
-          unresolvedValueNames, resolvedValueNames, signatureVars);
+      if (unresolvedTypeNames == null) unresolvedTypeNames = new List<Name>();
+      unresolvedTypeNames.add(name);
+      return this;
     }
   }
 
   ResolutionResult addValueName(Name name) {
     if (name.isResolved) {
-      ImmutableList<Name> resolved0 = resolvedValueNames.cons(name);
-      return ResolutionResult._(unresolvedTypeNames, resolvedTypeNames,
-          unresolvedValueNames, resolved0, signatureVars);
+      if (resolvedValueNames == null) resolvedValueNames = new List<Name>();
+      resolvedValueNames.add(name);
+      return this;
     } else {
-      ImmutableList<Name> unresolved0 = unresolvedTypeNames.cons(name);
-      return ResolutionResult._(unresolvedTypeNames, resolvedTypeNames,
-          unresolved0, resolvedValueNames, signatureVars);
+      if (unresolvedValueNames == null) unresolvedValueNames = new List<Name>();
+      unresolvedValueNames.add(name);
+      return this;
     }
   }
 
   ResolutionResult addValueNames(List<Name> names) {
-    ImmutableList<Name> unresolvedValueNames0 = unresolvedValueNames;
-    ImmutableList<Name> resolvedValueNames0 = resolvedValueNames;
+    ResolutionResult rr = this;
     for (int i = 0; i < names.length; i++) {
-      if (names[i].isResolved) {
-        resolvedValueNames0 = resolvedValueNames.cons(names[i]);
-      } else {
-        unresolvedValueNames0 = unresolvedValueNames0.cons(names[i]);
-      }
+      rr = rr.addValueName(names[i]);
     }
-    return ResolutionResult._(unresolvedTypeNames, resolvedTypeNames, unresolvedValueNames, resolvedValueNames, signatureVars);
+    return rr;
   }
 
   ResolutionResult addTypeNames(List<Name> names) {
-    return this;
+    ResolutionResult rr = this;
+    for (int i = 0; i < names.length; i++) {
+      rr = rr.addTypeName(names[i]);
+    }
+    return rr;
   }
 
   ResolutionResult attachSignatureVars(
       Name name, ImmutableMap<int, int> typeVarMap) {
-    Pair<Name, ImmutableMap<int, int>> p =
-        Pair<Name, ImmutableMap<int, int>>(name, typeVarMap);
-    return ResolutionResult._(unresolvedTypeNames, resolvedTypeNames,
-        unresolvedValueNames, resolvedValueNames, p);
+    signatureVars = SignatureVars(name, typeVarMap);
+    return this;
   }
 }
 
@@ -832,18 +838,16 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
     Pair<ResolutionResult, Pat> r0 = pat(emptyContext);
     Pat pat0 = r0.$2;
 
-    // TODO perhaps not use immutable lists...
-    ImmutableList<Name> names = r0.$1.unresolvedValueNames;
+    List<Name> names = r0.$1.unresolvedValueNames;
     List<Name> names0 = new List<Name>();
-    while (!names.isEmpty) {
-      Name name = names.head;
+    for (int i = 0; i < names.length; i++) {
+      Name name = names[i];
       if (name.isResolved) {
         // This should be impossible.
         throw "Impossible! The binder '$name' has already been resolved!";
       } else {
         names0.add(Name.resolveAs(name, Gensym.freshInt()));
       }
-      names.tail;
     }
 
     return Pair<List<Name>, Pat>(names0, pat0);
@@ -853,7 +857,7 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
       [T Function(LocatedError, {Location location}) error]) {
     final Pair<ResolutionResult, T> result = resolve(ctxt);
     if (result.$1.unresolvedValueNames.length != 0) {
-      Name name = result.$1.unresolvedValueNames.head;
+      Name name = result.$1.unresolvedValueNames[0];
       return error == null
           ? name
           : error(UnboundNameError(name.sourceName, name.location),
@@ -861,7 +865,7 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
     }
 
     if (result.$1.unresolvedTypeNames.length != 0) {
-      Name name = result.$1.unresolvedTypeNames.head;
+      Name name = result.$1.unresolvedTypeNames[0];
       return error == null
           ? name
           : error(UnboundNameError(name.sourceName, name.location),
@@ -874,11 +878,10 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
   Pair<ImmutableMap<int, int>, Typ> resolveSignatureType(
       Resolver<Typ> sigtype) {
     Pair<ResolutionResult, Typ> result = sigtype(emptyContext);
-    ImmutableList<Name> typeVars = result.$1.unresolvedTypeNames;
+    List<Name> typeVars = result.$1.unresolvedTypeNames;
     ImmutableMap<int, int> typeVarMap = ImmutableMap<int, int>.empty();
-    while (!typeVars.isEmpty) {
-      Name typeVar = typeVars.head;
-      typeVars = typeVars.tail;
+    for (int i = 0; i < typeVars.length; i++) {
+      Name typeVar = typeVars[i];
       typeVarMap = typeVarMap.put(typeVar.intern, typeVar.id);
     }
 
@@ -893,14 +896,17 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
           Pair<ResolutionResult, Mod> result = resolve(ctxt);
           Mod member0 = result.$2;
 
-          // Convention: Module members return only an empty or singleton
-          // lists.
-          ctxt = ctxt.addValueNames(result.$1.resolvedValueNames);
-          ctxt = ctxt.addTypeNames(result.$1.resolvedTypeNames);
+          if (result.$1.resolvedValueNames != null) {
+            ctxt = ctxt.addValueNames(result.$1.resolvedValueNames);
+          }
+
+          if (result.$1.resolvedTypeNames != null) {
+            ctxt = ctxt.addTypeNames(result.$1.resolvedTypeNames);
+          }
+
           if (result.$1.signatureVars != null) {
-            Pair<Name, ImmutableMap<int, int>> sigvars =
-                result.$1.signatureVars;
-            ctxt = ctxt.addSignature(sigvars.$1, sigvars.$2);
+            SignatureVars sigvars = result.$1.signatureVars;
+            ctxt = ctxt.addSignature(sigvars.name, sigvars);
           }
           // TODO check whether there are any unresolved names.
 
