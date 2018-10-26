@@ -17,7 +17,6 @@ import '../errors/errors.dart'
 import '../fp.dart' show Pair, Triple;
 import '../immutable_collections.dart';
 import '../location.dart';
-import '../string_pool.dart';
 import '../utils.dart' show Gensym;
 
 import '../ast/algebra.dart';

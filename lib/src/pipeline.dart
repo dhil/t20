@@ -8,19 +8,18 @@ import 'dart:io';
 
 import '../settings.dart';
 import 'builtins.dart';
-import 'ast/ast.dart';
+import 'ast/algebra.dart';
+import 'ast/nullalgebras.dart';
+import 'ast/traversals.dart';
 import 'compilation_unit.dart';
 import 'errors/error_reporting.dart';
 import 'errors/errors.dart';
 import 'io/bytestream.dart';
 import 'result.dart';
 import 'static_semantics/name_resolution.dart';
-// import 'syntax/elaborator.dart';
+import 'static_semantics/type_checking.dart';
 import 'syntax/parse_sexp.dart';
 import 'syntax/alt/elaboration.dart';
-import 'ast/algebra.dart';
-import 'ast/nullalgebras.dart';
-import 'ast/traversals.dart';
 
 import 'fp.dart';
 
@@ -51,54 +50,6 @@ bool compile(List<String> filePaths, Settings settings) {
       }
 
       // Elaborate.
-      // Result<ModuleMember, T20Error> elabResult =
-      //     new Elaborator().elaborate(parseResult.result);
-      // if (!elabResult.wasSuccessful) {
-      //   report(elabResult.errors);
-      //   return false;
-      // }
-
-      // // Exit now, if requested.
-      // if (settings.exitAfter == "elaborator") {
-      //   return elabResult.wasSuccessful;
-      // }
-
-      // // Check static semantics.
-      // Result<ModuleMember, LocatedError> desugarResult =
-      //     DesugarDatatypes.desugar(elabResult.result);
-      // if (!desugarResult.wasSuccessful) {
-      //   report(desugarResult.errors);
-      //   return false;
-      // }
-      // List<LocatedError> errors = new ModuleElaborator<
-      //             List<LocatedError>,
-      //             List<LocatedError>,
-      //             List<LocatedError>,
-      //             List<LocatedError>,
-      //             List<LocatedError>>(
-      //         new CollectNameErrors(),
-      //         new CollectModuleErrors(),
-      //         new CollectExpErrors(),
-      //         new CollectPatternErrors(),
-      //         new CollectTypeErrors())
-      //     .elaborate(parseResult.result);
-      // if (errors.length > 0) {
-      //   report(errors);
-      //   return false;
-      // }
-      // Null nil =
-      //     new ModuleElaborator<Null, Null, Null, Null, Null>(new NullAlgebra())
-      //         .elaborate(parseResult.result);
-      // List<LocatedError> errors = new ModuleElaborator(new ErrorCollector())
-      //     .elaborate(parseResult.result);
-      // if (errors.length > 0) {
-      //   report(errors);
-      //   return false;
-      // }
-      // bool checkInvariant = new ModuleElaborator(new CheckSignatureHasForall()).elaborate(parseResult.result);
-      // if (!checkInvariant) {
-      //   return false;
-      // }
       Pair<Object, List<LocatedError>> errors = new ModuleElaborator(
               new NameResolver<
                   List<LocatedError>,
