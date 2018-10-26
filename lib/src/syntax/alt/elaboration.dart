@@ -273,22 +273,24 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
     // return new PatternElaborator(name, pat, typ).elaborate(sexp);
   }
 
-  Typ signatureDatatype(Sexp sexp) {
+  Typ signatureDatatype(Sexp sexp, [bool desugar = false]) {
     assert(sexp != null);
-    SigInfo<String> si =
-        TypeElaborator<SigInfo<String>, SigInfo<String>>(new ComputeSigInfo())
-            .elaborate(sexp);
-    Typ sig = new TypeElaborator<Name, Typ>(alg).elaborate(sexp);
-    if (si.hasExplicitForall) {
-      return sig;
-    } else {
-      List<String> qs = si.boundVariables.union(si.freeVariables).toList();
-      List<Name> qs0 = new List<Name>(qs.length);
-      for (int i = 0; i < qs.length; i++) {
-        qs0[i] = alg.typeName(qs[i], location: Location.dummy());
+    Typ type = new TypeElaborator<Name, Typ>(alg).elaborate(sexp);
+
+    if (desugar) {
+      SigInfo<String> si =
+          TypeElaborator<SigInfo<String>, SigInfo<String>>(new ComputeSigInfo())
+          .elaborate(sexp);
+      if (!si.hasExplicitForall) {
+        List<String> qs = si.boundVariables.union(si.freeVariables).toList();
+        List<Name> qs0 = new List<Name>(qs.length);
+        for (int i = 0; i < qs.length; i++) {
+          qs0[i] = alg.typeName(qs[i], location: Location.dummy());
+        }
+        type = alg.forallType(qs0, type, location: sexp.location);
       }
-      return alg.forallType(qs0, sig, location: sexp.location);
     }
+    return type;
   }
 
   Typ datatype(Sexp sexp) {
@@ -601,7 +603,7 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
     if (list[1] is Atom) {
       Atom atom = list[1];
       Name name = termName(atom);
-      Typ type = signatureDatatype(list[2]);
+      Typ type = signatureDatatype(list[2], true);
       return alg.signature(name, type, location: list.location);
     } else {
       return alg.errorModule(
