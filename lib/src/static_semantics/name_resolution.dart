@@ -648,52 +648,52 @@ class NameContext {
 //           ctxt, alg.errorModule(error, location: location));
 // }
 
-// class ResolvedErrorCollector extends Catamorphism<Name, List<LocatedError>,
-//     List<LocatedError>, List<LocatedError>, List<LocatedError>> {
-//   final ListMonoid<LocatedError> _m = new ListMonoid<LocatedError>();
-//   final NullMonoid<Name> _name = new NullMonoid<Name>();
-//   // A specialised monoid for each sort.
-//   Monoid<Name> get name => _name;
-//   Monoid<List<LocatedError>> get typ => _m;
-//   Monoid<List<LocatedError>> get mod => _m;
-//   Monoid<List<LocatedError>> get exp => _m;
-//   Monoid<List<LocatedError>> get pat => _m;
+class ResolvedErrorCollector extends Catamorphism<Name, List<LocatedError>,
+    List<LocatedError>, List<LocatedError>, List<LocatedError>> {
+  final ListMonoid<LocatedError> _m = new ListMonoid<LocatedError>();
+  final NullMonoid<Name> _name = new NullMonoid<Name>();
+  // A specialised monoid for each sort.
+  Monoid<Name> get name => _name;
+  Monoid<List<LocatedError>> get typ => _m;
+  Monoid<List<LocatedError>> get mod => _m;
+  Monoid<List<LocatedError>> get exp => _m;
+  Monoid<List<LocatedError>> get pat => _m;
 
-//   // Primitive converters.
-//   static T _id<T>(T x) => x;
-//   Endomorphism<List<LocatedError>> id =
-//       Endomorphism<List<LocatedError>>.of(_id);
-//   static List<LocatedError> _dropName(Name _) => <LocatedError>[];
-//   final Morphism<Name, List<LocatedError>> dropName =
-//       new Morphism<Name, List<LocatedError>>.of(_dropName);
-//   Morphism<Name, List<LocatedError>> get name2typ => dropName;
-//   Morphism<List<LocatedError>, List<LocatedError>> get typ2pat => id;
-//   Morphism<List<LocatedError>, List<LocatedError>> get typ2exp => id;
-//   Morphism<List<LocatedError>, List<LocatedError>> get pat2exp => id;
-//   Morphism<List<LocatedError>, List<LocatedError>> get exp2mod => id;
+  // Primitive converters.
+  static T _id<T>(T x) => x;
+  Endomorphism<List<LocatedError>> id =
+      Endomorphism<List<LocatedError>>.of(_id);
+  static List<LocatedError> _dropName(Name _) => <LocatedError>[];
+  final Morphism<Name, List<LocatedError>> dropName =
+      new Morphism<Name, List<LocatedError>>.of(_dropName);
+  Morphism<Name, List<LocatedError>> get name2typ => dropName;
+  Morphism<List<LocatedError>, List<LocatedError>> get typ2pat => id;
+  Morphism<List<LocatedError>, List<LocatedError>> get typ2exp => id;
+  Morphism<List<LocatedError>, List<LocatedError>> get pat2exp => id;
+  Morphism<List<LocatedError>, List<LocatedError>> get exp2mod => id;
 
-//   final List<LocatedError> nameErrors = new List<LocatedError>();
+  final List<LocatedError> nameErrors = new List<LocatedError>();
 
-//   List<LocatedError> errorModule(LocatedError error, {Location location}) =>
-//       <LocatedError>[error];
-//   List<LocatedError> errorExp(LocatedError error, {Location location}) =>
-//       <LocatedError>[error];
-//   List<LocatedError> errorPattern(LocatedError error, {Location location}) =>
-//       <LocatedError>[error];
-//   List<LocatedError> errorType(LocatedError error, {Location location}) =>
-//       <LocatedError>[error];
-//   Name errorName(LocatedError error, {Location location}) {
-//     nameErrors.add(error);
-//     return name.empty;
-//   }
+  List<LocatedError> errorModule(LocatedError error, {Location location}) =>
+      <LocatedError>[error];
+  List<LocatedError> errorExp(LocatedError error, {Location location}) =>
+      <LocatedError>[error];
+  List<LocatedError> errorPattern(LocatedError error, {Location location}) =>
+      <LocatedError>[error];
+  List<LocatedError> errorType(LocatedError error, {Location location}) =>
+      <LocatedError>[error];
+  Name errorName(LocatedError error, {Location location}) {
+    nameErrors.add(error);
+    return name.empty;
+  }
 
-//   List<LocatedError> module(List<List<LocatedError>> members,
-//       {Location location}) {
-//     List<LocatedError> errors = members.fold(mod.empty, mod.compose);
-//     errors.addAll(nameErrors);
-//     return errors;
-//   }
-// }
+  List<LocatedError> module(List<List<LocatedError>> members,
+      {Location location}) {
+    List<LocatedError> errors = members.fold(mod.empty, mod.compose);
+    errors.addAll(nameErrors);
+    return errors;
+  }
+}
 
 class ResolutionResult {
   List<Name> unresolvedTypeNames;
@@ -712,18 +712,22 @@ class ResolutionResult {
 
   ResolutionResult merge(ResolutionResult other) {
     if (other.unresolvedTypeNames != null) {
+      unresolvedTypeNames ??= new List<Name>();
       unresolvedTypeNames.addAll(other.unresolvedTypeNames);
     }
 
     if (other.resolvedTypeNames != null) {
+      resolvedTypeNames ??= new List<Name>();
       resolvedTypeNames.addAll(other.resolvedTypeNames);
     }
 
     if (other.resolvedValueNames != null) {
+      resolvedValueNames ??= new List<Name>();
       resolvedValueNames.addAll(other.resolvedValueNames);
     }
 
     if (other.unresolvedValueNames != null) {
+      unresolvedValueNames ??= new List<Name>();
       unresolvedValueNames.addAll(other.unresolvedValueNames);
     }
 
@@ -733,11 +737,11 @@ class ResolutionResult {
 
   ResolutionResult addTypeName(Name name) {
     if (name.isResolved) {
-      if (resolvedTypeNames == null) resolvedTypeNames = new List<Name>();
+      resolvedTypeNames ??= new List<Name>();
       resolvedTypeNames.add(name);
       return this;
     } else {
-      if (unresolvedTypeNames == null) unresolvedTypeNames = new List<Name>();
+      unresolvedTypeNames ??= new List<Name>();
       unresolvedTypeNames.add(name);
       return this;
     }
@@ -787,7 +791,7 @@ class ResolutionResultMonoid implements Monoid<ResolutionResult> {
 
 typedef Resolver<T> = Pair<ResolutionResult, T> Function(NameContext);
 
-abstract class NameResolver<Mod, Exp, Pat, Typ>
+class NameResolver<Mod, Exp, Pat, Typ>
     extends AccumulatingContextualTransformation<ResolutionResult, NameContext,
         Name, Mod, Exp, Pat, Typ> {
   final ResolutionResultMonoid _m = new ResolutionResultMonoid();
@@ -838,15 +842,24 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
     Pair<ResolutionResult, Pat> r0 = pat(emptyContext);
     Pat pat0 = r0.$2;
 
-    List<Name> names = r0.$1.unresolvedValueNames;
     List<Name> names0 = new List<Name>();
-    for (int i = 0; i < names.length; i++) {
-      Name name = names[i];
-      if (name.isResolved) {
-        // This should be impossible.
-        throw "Impossible! The binder '$name' has already been resolved!";
-      } else {
-        names0.add(Name.resolveAs(name, Gensym.freshInt()));
+    if (r0.$1.unresolvedTypeNames != null) {
+      List<Name> names = r0.$1.unresolvedTypeNames;
+      pat0 = alg.errorPattern(
+          UnboundNameError(names[0].sourceName, names[0].location),
+          location: names[0].location);
+    } else {
+      List<Name> names = r0.$1.unresolvedValueNames;
+      if (names != null) {
+        for (int i = 0; i < names.length; i++) {
+          Name name = names[i];
+          if (name.isResolved) {
+            // This should be impossible.
+            throw "Impossible! The binder '$name' has already been resolved!";
+          } else {
+            names0.add(Name.resolveAs(name, Gensym.freshInt()));
+          }
+        }
       }
     }
 
@@ -856,18 +869,18 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
   T resolveLocal<T>(Resolver<T> resolve, NameContext ctxt,
       [T Function(LocatedError, {Location location}) error]) {
     final Pair<ResolutionResult, T> result = resolve(ctxt);
-    if (result.$1.unresolvedValueNames.length != 0) {
+    if (result.$1.unresolvedValueNames != null) {
       Name name = result.$1.unresolvedValueNames[0];
       return error == null
-          ? name
+          ? result.$2
           : error(UnboundNameError(name.sourceName, name.location),
               location: name.location);
     }
 
-    if (result.$1.unresolvedTypeNames.length != 0) {
+    if (result.$1.unresolvedTypeNames != null) {
       Name name = result.$1.unresolvedTypeNames[0];
       return error == null
-          ? name
+          ? result.$2
           : error(UnboundNameError(name.sourceName, name.location),
               location: name.location);
     }
@@ -878,11 +891,13 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
   Pair<ImmutableMap<int, int>, Typ> resolveSignatureType(
       Resolver<Typ> sigtype) {
     Pair<ResolutionResult, Typ> result = sigtype(emptyContext);
-    List<Name> typeVars = result.$1.unresolvedTypeNames;
     ImmutableMap<int, int> typeVarMap = ImmutableMap<int, int>.empty();
-    for (int i = 0; i < typeVars.length; i++) {
-      Name typeVar = typeVars[i];
-      typeVarMap = typeVarMap.put(typeVar.intern, typeVar.id);
+    List<Name> typeVars = result.$1.unresolvedTypeNames;
+    if (typeVars != null) {
+      for (int i = 0; i < typeVars.length; i++) {
+        Name typeVar = typeVars[i];
+        typeVarMap = typeVarMap.put(typeVar.intern, typeVar.id);
+      }
     }
 
     return Pair<ImmutableMap<int, int>, Typ>(typeVarMap, result.$2);
@@ -1100,7 +1115,6 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
               def.thd;
           List<Pair<Name, List<Typ>>> constructors0 =
               new List<Pair<Name, List<Typ>>>(constructors.length);
-          List<Name> constructorNames = new List<Name>(constructors.length);
           for (int j = 0; j < constructors0.length; j++) {
             Resolver<Name> name = constructors[j].fst;
             // Resolve the constructor as a binding occurrence.
@@ -1174,7 +1188,7 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
         }
 
         // Resolve body.
-        Typ type0 = resolveLocal<Typ>(type, ctxt);
+        Typ type0 = resolveLocal<Typ>(type, ctxt, alg.errorType);
 
         return Pair<ResolutionResult, Mod>(rr,
             alg.typename(name0, typeParameters0, type0, location: location));
@@ -1200,7 +1214,7 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
         ctxt = ctxt.addValueNames(declaredNames);
 
         // Resolve the body.
-        Exp body0 = resolveLocal<Exp>(body, ctxt);
+        Exp body0 = resolveLocal<Exp>(body, ctxt, alg.errorExp);
 
         return Pair<ResolutionResult, Exp>(
             m.empty, alg.lambda(parameters0, body0, location: location));
@@ -1212,7 +1226,8 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
           Location location}) =>
       (NameContext ctxt) {
         // Resolve bindings.
-        List<Pair<Pat, Exp>> bindings0 = new List<Pair<Pat, Exp>>();
+        List<Pair<Pat, Exp>> bindings0 =
+            new List<Pair<Pat, Exp>>(bindings.length);
         List<Name> names = new List<Name>();
         switch (bindingMethod) {
           case BindingMethod.Parallel:
@@ -1222,7 +1237,7 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
                 Pair<List<Name>, Pat> result =
                     resolvePatternBinding(binding.fst);
                 names.addAll(result.fst);
-                Exp e = resolveLocal<Exp>(binding.snd, ctxt);
+                Exp e = resolveLocal<Exp>(binding.snd, ctxt, alg.errorExp);
                 bindings0[i] = Pair<Pat, Exp>(result.snd, e);
               }
               // Populate the context.
@@ -1236,7 +1251,7 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
                 Pair<List<Name>, Pat> result =
                     resolvePatternBinding(binding.fst);
                 names.addAll(result.fst);
-                Exp e = resolveLocal<Exp>(binding.snd, ctxt);
+                Exp e = resolveLocal<Exp>(binding.snd, ctxt, alg.errorExp);
                 ctxt = ctxt.addValueNames(result.fst);
               }
               break;
@@ -1249,7 +1264,7 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
         }
 
         // Resolve the continuation.
-        Exp body0 = resolveLocal<Exp>(body, ctxt);
+        Exp body0 = resolveLocal<Exp>(body, ctxt, alg.errorExp);
 
         return Pair<ResolutionResult, Exp>(
             m.empty,
@@ -1313,18 +1328,16 @@ abstract class NameResolver<Mod, Exp, Pat, Typ>
 
   Resolver<Name> termName(String ident, {Location location}) =>
       (NameContext ctxt) {
-        ResolutionResult rr = ResolutionResult.empty()
-            .addValueName(ctxt.resolve(ident, location: location));
-        return Pair<ResolutionResult, Name>(
-            rr, alg.termName(ident, location: location));
+        Name name = ctxt.resolve(ident, location: location);
+        ResolutionResult rr = ResolutionResult.empty().addValueName(name);
+        return Pair<ResolutionResult, Name>(rr, name);
       };
 
   Resolver<Name> typeName(String ident, {Location location}) =>
       (NameContext ctxt) {
-        ResolutionResult rr = ResolutionResult.empty()
-            .addTypeName(ctxt.resolve(ident, location: location));
-        return Pair<ResolutionResult, Name>(
-            rr, alg.typeName(ident, location: location));
+        Name name = ctxt.resolve(ident, location: location);
+        ResolutionResult rr = ResolutionResult.empty().addTypeName(name);
+        return Pair<ResolutionResult, Name>(rr, name);
       };
 //   Transformer<NameContext, Name> errorName(LocatedError error,
 //           {Location location}) =>

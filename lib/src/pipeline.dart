@@ -99,17 +99,17 @@ bool compile(List<String> filePaths, Settings settings) {
       // if (!checkInvariant) {
       //   return false;
       // }
-      // List<LocatedError>
-          // var errors = new ModuleElaborator(new NameResolver<
-          //     Pair<NameContext,List<LocatedError>>,
-          //     List<LocatedError>,
-          //     List<LocatedError>,
-          //     List<LocatedError>>(null /*new ResolvedErrorCollector()*/))
-          // .elaborate(parseResult.result)(NameContext.withBuiltins());
-      // if (errors.length > 0) {
-      //   report(errors);
-      //   return false;
-      // }
+      Pair<Object, List<LocatedError>> errors = new ModuleElaborator(
+              new NameResolver<
+                  List<LocatedError>,
+                  List<LocatedError>,
+                  List<LocatedError>,
+                  List<LocatedError>>(new ResolvedErrorCollector()))
+          .elaborate(parseResult.result)(NameContext.withBuiltins());
+      if (errors.snd.length > 0) {
+        report(errors.snd);
+        return false;
+      }
     }
   } catch (err, stack) {
     if (currentFile != null) currentFile.closeSync();

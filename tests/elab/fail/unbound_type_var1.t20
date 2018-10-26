@@ -1,0 +1,5 @@
+;; The type variable 'b' is unbound.
+
+(: id (-> 'a 'a))
+(define (id x)
+  (let ([(y : 'b) x]) (y)))
