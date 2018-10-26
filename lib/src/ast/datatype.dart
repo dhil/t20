@@ -11,7 +11,7 @@ enum TypeTag {
   STRING,
 
   // Higher order types.
-  ARROW,
+  ARROW, TUPLE,
 
   // Variables.
   VAR
@@ -45,6 +45,13 @@ class ArrowType extends Datatype {
   ArrowType(this.domain, this.codomain) : super(TypeTag.ARROW);
 
   int get arity => domain.length;
+}
+
+class TupleType extends Datatype {
+  final List<Datatype> components;
+  const TupleType(this.components) : super(TypeTag.TUPLE);
+
+  int get arity => components.length;
 }
 
 class TypeVariable extends Datatype {
