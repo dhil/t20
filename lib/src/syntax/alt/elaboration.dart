@@ -1122,7 +1122,7 @@ class PatternElaborator<Name, Pat, Typ>
     }
 
     Pat pat0 = elaborate(list[0], allowHasType: false);
-    Typ type = datatype(list[2]);
+    Typ type = signatureDatatype(list[2]);
     return alg.hasTypePattern(pat0, type, location: list.location);
   }
 

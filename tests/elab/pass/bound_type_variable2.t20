@@ -1,0 +1,5 @@
+;; The type variable 'a in the let-binding is distinct from the type
+;; variable 'a in the signature.
+
+(: id (-> 'a 'a))
+(define (id x) (let [([id2 : (forall 'a (-> 'a 'a))] (lambda (y) y))] x))

@@ -1,0 +1,5 @@
+;; The type variable 'a in the let-binding refers to the 'a in the
+;; provided signature.
+
+(: id (-> 'a 'a))
+(define (id x) (let [([y : 'a] x)] y))

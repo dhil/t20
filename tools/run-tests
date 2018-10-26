@@ -16,8 +16,10 @@ TESTS_DIR="tests"
 FLAGS_FILE=".flags"
 SUCCESSES=0
 FAILURES=0
+SKIPPED=0
 TICK=$(echo -ne '\x27\x14' | iconv -f utf-16be)
 CROSS=$(echo -ne '\x27\x18' | iconv -f utf-16be)
+MINUS=$(echo -ne '\x00\xF7' | iconv -f utf-16be)
 export T20_COMPILER_ENABLE_ASSERTS=1
 
 function runtests()
@@ -31,6 +33,13 @@ function runtests()
   fi
   echo -e "\033[1m== Running tests in $dir/$subdir ==\033[0m"
   for file in $(ls "$dir/$subdir" | grep "\.t20$"); do
+    local test="$dir/$subdir/$file"
+    if grep -q ";; SKIP" $test; then
+      echo -e "\033[1;33m$MINUS\033[0m ${elapsed_str}$test"
+      SKIPPED=$(($SKIPPED + 1))
+      continue
+    fi
+
     local starttime=
     local endtime=
     local elapsed=
@@ -38,7 +47,6 @@ function runtests()
 
     local stdout_log=$(mktemp)
     local stderr_log=$(mktemp)
-    local test="$dir/$subdir/$file"
 
     local cmd="$T20 $flags $test > $stdout_log 2> $stderr_log"
     if [[ $MEASURE -eq 1 ]]; then
@@ -98,6 +106,7 @@ done
 echo -e "\033[1m== Summary ==\033[0m"
 echo -e "# \033[1;32m$TICK\033[0m successes: $SUCCESSES"
 echo -e "# \033[1;31m$CROSS\033[0m failures: $FAILURES\033[0m"
+echo -e "# \033[1;33m$MINUS\033[0m  skipped: $SKIPPED\033[0m"
 if [[ $MEASURE -eq 1 ]]; then
   ENDTIME=`date +%s.%N`
   ELAPSED=`echo "$ENDTIME - $STARTTIME" | bc`

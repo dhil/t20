@@ -1,3 +1,4 @@
+;; SKIP
 ;; The type variable 'b' is unbound.
 
 (: id (-> 'a 'a))
