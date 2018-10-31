@@ -2,6 +2,9 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'dart:collection' show Set;
+
+import '../utils.dart' show Gensym;
 import 'name.dart';
 
 enum TypeTag {
@@ -11,7 +14,7 @@ enum TypeTag {
   STRING,
 
   // Higher order types.
-  ARROW, TUPLE,
+  ARROW, FORALL, TUPLE,
 
   // Variables.
   VAR
@@ -55,7 +58,30 @@ class TupleType extends Datatype {
 }
 
 class TypeVariable extends Datatype {
-  final Name name;
+  // May be null during construction. Otherwise it is intended to point to its
+  // binder.
+  Quantifier binder;
 
-  const TypeVariable(this.name) : super(TypeTag.VAR);
+  TypeVariable() : super(TypeTag.VAR);
+  TypeVariable.bound(Quantifier binder) : this.binder = binder, super(TypeTag.VAR);
+}
+
+class Quantifier {
+  final Kind kind = Kind.TYPE;
+  final int ident;
+  final Set<Object> constraints;
+
+  Quantifier(this.ident) : constraints = new Set<Object>();
+}
+
+class ForallType extends Datatype {
+  List<Quantifier> quantifiers;
+  Datatype body;
+
+  ForallType() : super(TypeTag.FORALL);
+}
+
+// Kinds
+enum Kind {
+  TYPE
 }

@@ -36,11 +36,21 @@ import '../ast/traversals.dart'
         Transformation,
         Transformer;
 
-class TypeContext {}
+class UnificationVariable extends TypeVariable {
+  UnificationVariable();
+}
 
-class TypeChecker<Mod, Exp, Pat> extends ContextualTransformation<
-    TypeContext, Name, Mod, Exp, Pat, Datatype> {
+class TypeResult {
+  Datatype type; // Type resulting from check or synthesis.
+}
 
+class TypeContext {
+  ImmutableMap<int, Quantifier> quantifiers; // ident -> quantifier.
+  ImmutableMap<int, Datatype> environment;   // ident -> type.
+}
+
+abstract class TypeChecker<Mod, Exp, Pat> extends AccumulatingContextualTransformation<
+    TypeResult, TypeContext, Name, Mod, Exp, Pat, Datatype> {
   final TAlgebra<Name, Mod, Exp, Pat, Datatype> _alg;
   TAlgebra<Name, Mod, Exp, Pat, Datatype> get alg => _alg;
   TypeChecker(this._alg);
