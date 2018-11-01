@@ -50,13 +50,28 @@ bool compile(List<String> filePaths, Settings settings) {
       }
 
       // Elaborate.
-      Pair<Object, List<LocatedError>> errors = new ModuleElaborator(
-              new NameResolver<
+      if (settings.exitAfter == "elaborator") {
+        Pair<Object, List<LocatedError>> errors = new ModuleElaborator(
+            new NameResolver<
                   List<LocatedError>,
                   List<LocatedError>,
                   List<LocatedError>,
                   List<LocatedError>>(new ResolvedErrorCollector()))
-          .elaborate(parseResult.result)(NameContext.withBuiltins());
+                                                  .elaborate(parseResult.result)(NameContext.withBuiltins());
+        if (errors.snd.length > 0) {
+          report(errors.snd);
+          return false;
+        }
+        return true;
+      }
+
+      Pair<Object, List<LocatedError>> errors = new ModuleElaborator(
+          new NameResolver<
+                  List<LocatedError>,
+                  List<LocatedError>,
+                  List<LocatedError>,
+                  List<LocatedError>>(new ResolvedErrorCollector()))
+                                                .elaborate(parseResult.result)(NameContext.withBuiltins());
       if (errors.snd.length > 0) {
         report(errors.snd);
         return false;

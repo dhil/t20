@@ -454,7 +454,7 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
     List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> defs =
         new List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>();
     for (int i = 1; i < end; i++) {
-      Sum<LocatedError, Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>
+      Either<LocatedError, Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>
           result = parseDatatypeDecl(list[i], 0);
       if (result.isLeft) {
         LocatedError err = result.value as LocatedError;
@@ -491,7 +491,7 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
       }
     }
 
-    Sum<LocatedError, Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>
+    Either<LocatedError, Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>
         result = parseDatatypeDecl(list, 1, end);
     if (result.isLeft) {
       LocatedError err = result.value as LocatedError;
@@ -505,13 +505,13 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
     }
   }
 
-  Sum<LocatedError, Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>
+  Either<LocatedError, Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>
       parseDatatypeDecl(SList list, int start, [int end = -1]) {
     assert(list != null && start >= 0);
     if (end < 0) end = list.length;
     // (define-datatype name (K T*)* or (define-datatype (name q+) (K T*)*
     if (list.length - start == 0) {
-      return Sum.inl(BadSyntaxError(
+      return Either.left(BadSyntaxError(
           list.location.end, const <String>["data type definition"]));
     }
 
@@ -527,7 +527,7 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
       name = result.$1;
       typeParameters = result.$2;
     } else {
-      return Sum.inl(BadSyntaxError(list[start].location));
+      return Either.left(BadSyntaxError(list[start].location));
     }
 
     // Parse any constructors.
@@ -537,7 +537,7 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
       if (list[i] is SList) {
         SList clause = list[i];
         if (clause.length == 0) {
-          return Sum.inl(BadSyntaxError(list.location.end,
+          return Either.left(BadSyntaxError(list.location.end,
               const <String>["data constructor definition"]));
         }
 
@@ -548,11 +548,11 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
           List<Typ> types = expectMany<Sexp, Typ>(datatype, clause, start: 1);
           constructors.add(Pair<Name, List<Typ>>(name, types));
         } else {
-          return Sum.inl(BadSyntaxError(
+          return Either.left(BadSyntaxError(
               list.location, const <String>["data constructor definition"]));
         }
       } else {
-        return Sum.inl(BadSyntaxError(
+        return Either.left(BadSyntaxError(
             list.location, const <String>["data constructor definition"]));
       }
     }
@@ -561,7 +561,7 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
         Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>(
             name, typeParameters, constructors);
 
-    return Sum.inr(result);
+    return Either.right(result);
   }
 
   Mod typename(Atom head, SList list) {

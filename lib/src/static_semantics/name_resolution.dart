@@ -12,7 +12,6 @@ import '../errors/errors.dart'
         MissingAccompanyingDefinitionError,
         MissingAccompanyingSignatureError,
         MultipleDeclarationsError,
-        MultipleDefinitionsError,
         UnboundNameError;
 import '../fp.dart' show Pair, Triple;
 import '../immutable_collections.dart';
@@ -20,20 +19,14 @@ import '../location.dart';
 import '../utils.dart' show Gensym;
 
 import '../ast/algebra.dart';
+import '../ast/monoids.dart';
 import '../ast/name.dart';
 import '../ast/traversals.dart'
     show
         AccumulatingContextualTransformation,
-        AccuTransformer,
         Catamorphism,
         Endomorphism,
-        ListMonoid,
-        Monoid,
-        Morphism,
-        NullMonoid,
-        ContextualTransformation,
-        Transformation,
-        Transformer;
+        Morphism;
 
 class SignatureVars {
   final ImmutableMap<int, int> vars;
@@ -825,7 +818,4 @@ class NameResolver<Mod, Exp, Pat, Typ>
         ResolutionResult rr = ResolutionResult.empty().addTypeName(name);
         return Pair<ResolutionResult, Name>(rr, name);
       };
-//   Transformer<NameContext, Name> errorName(LocatedError error,
-//           {Location location}) =>
-//       (NameContext _) => alg.errorName(error, location: location);
 }

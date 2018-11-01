@@ -41,6 +41,51 @@ class _Inr<L, R> extends Sum<L, R> {
   }
 }
 
+// The familiar 'either' formulation of the binary sum type.
+abstract class Either<L, R> {
+  const Either._();
+  const factory Either.left(L data) = Left<L, R>;
+  const factory Either.right(R data) = Right<L, R>;
+
+  bool get isLeft => false;
+  bool get isRight => false;
+
+  dynamic get value => (this as dynamic).value;
+
+  // This is a somewhat "ad-hoc generalised" version of the standard definition
+  // of [bind] operation on the either monad.
+  Either<L0, R0> bind2<L0, R0>(
+      Either<L0, R0> Function(L) lfn, Either<L0, R0> Function(R) rfn);
+
+  Either<L, R0> bind<R0>(Either<L, R0> Function(R) fn);
+}
+
+class Left<L, R> extends Either<L, R> {
+  final L value;
+  const Left(this.value) : super._();
+
+  bool get isLeft => true;
+
+  Either<L0, R0> bind2<L0, R0>(
+          Either<L0, R0> Function(L) fn, Either<L0, R0> Function(R) _) =>
+      fn(value);
+
+  Either<L, R0> bind<R0>(Either<L, R0> Function(R) fn) => (this as Either<L, Null>);
+}
+
+class Right<L, R> extends Either<L, R> {
+  final R value;
+  const Right(this.value) : super._();
+
+  bool get isRight => true;
+
+  Either<L0, R0> bind2<L0, R0>(
+          Either<L0, R0> Function(L) _, Either<L0, R0> Function(R) fn) =>
+      fn(value);
+
+  Either<L, R0> bind<R0>(Either<L, R0> Function(R) fn) => fn(value);
+}
+
 // Option types.
 class OptionValueFromNoneError {}
 

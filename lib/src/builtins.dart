@@ -30,9 +30,16 @@ final Map<String, String> _rawBuiltins = {
   "error": "(forall 'a (-> String 'a))",
 
   // Specials.
-  "map"  : "(forall ('a 'b) (=> (Mappable 'm) [-> (-> 'a 'b) ('m 'a) ('m 'b)]))",
-  "foldr": "(forall ('a 'b) (=> (Foldable 'f) [-> (-> 'a 'b 'b) ('f 'a) 'b 'b]))",
-  "foldl": "(forall ('a 'b) (=> (Foldable 'f) [-> (-> 'a 'b 'a) 'a ('f 'b) 'a]))"
+  // "map"  : "(forall ('a 'b) (=> (Mappable 'm) [-> (-> 'a 'b) ('m 'a) ('m 'b)]))",
+  // "foldr": "(forall ('a 'b) (=> (Foldable 'f) [-> (-> 'a 'b 'b) ('f 'a) 'b 'b]))",
+  // "foldl": "(forall ('a 'b) (=> (Foldable 'f) [-> (-> 'a 'b 'a) 'a ('f 'b) 'a]))"
+  "map": "(forall ('a 'b) [-> (-> 'a 'b) (List 'a) (List 'b)])",
+  "foldr": "(forall ('a 'b) [-> (-> 'a 'b 'b) (List 'a) 'b 'b])",
+  "foldl": "(forall ('a 'b) [-> (-> 'a 'b 'a) 'a (List 'b) 'a])",
+
+  // List constructors
+  // "cons": "(forall 'a [-> 'a (List 'a) (List 'a)])"
+  // "nil" : "(forall 'a [-> (*) (List 'a)])"
 };
 
 final Map<int, Name> _builtinsNameMap =
@@ -47,6 +54,7 @@ final Set<String> _rawBuiltinTypes = Set<String>.of(<String>[
   "String",
   "Foldable",
   "Mappable",
+  // "List",
 ]);
 
 final Map<int, Name> _builtinsTypeMap = _rawBuiltinTypes
