@@ -320,3 +320,23 @@ class UnboundNameError extends LocatedError
     return "Unbound value '$name'";
   }
 }
+
+// Type errors.
+abstract class TypeError implements T20Error {}
+
+class InstantiationError extends TypeError {
+  final int numQuantifiers;
+  final int numArguments;
+
+  InstantiationError(this.numQuantifiers, this.numArguments);
+
+  String toString() {
+    return "Instantiation error: arity mismatch: expected $numQuantifiers type argument(s), but got $numArguments";
+  }
+}
+
+class UnificationError extends TypeError {}
+
+class SkolemEscapeError extends UnificationError {}
+
+class OccursError extends UnificationError {}

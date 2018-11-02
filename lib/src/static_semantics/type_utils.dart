@@ -1,0 +1,97 @@
+// Copyright (c) 2018, the Dart project authors.  Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import '../ast/datatype.dart';
+import '../ast/monoids.dart';
+import '../errors/errors.dart' show TypeError, InstantiationError;
+
+// A collection of convenient utility functions for inspecting / destructing
+// types.
+List<Datatype> domain(Datatype ft) {
+  if (ft is ArrowType) {
+    return ft.domain;
+  }
+
+  if (ft is ForallType) {
+    return domain(ft.body);
+  }
+
+  // Error.
+  throw "'domain' called with non-function type argument.";
+}
+
+Datatype codomain(Datatype ft) {
+  if (ft is ArrowType) {
+    return ft.codomain;
+  }
+
+  if (ft is ForallType) {
+    return codomain(ft.body);
+  }
+
+  // Error.
+  throw "'codomain' called with non-function type argument.";
+}
+
+// Base types.
+const Datatype unitType = const TupleType(const <Datatype>[]);
+bool isUnitType(Datatype type) {
+  if (type is TupleType) {
+    return type.components.length == 0;
+  }
+  return false;
+}
+const Datatype boolType = const BoolType();
+const Datatype intType  = const IntType();
+const Datatype stringType = const StringType();
+
+
+class _FreeTypeVariables extends ReduceDatatype<Set<int>> {
+  static _FreeTypeVariables _instance;
+  static SetMonoid<int> _m = new SetMonoid<int>();
+
+  _FreeTypeVariables._();
+  factory _FreeTypeVariables() {
+    if (_instance == null) _instance = _FreeTypeVariables._();
+    return _instance;
+  }
+  Monoid<Set<int>> get m => _m;
+
+  Set<int> visitTypeVariable(TypeVariable variable) =>
+      new Set<int>()..add(variable.binder.ident);
+
+  Set<int> visitForallType(ForallType forallType) {
+    Set<int> ftv = forallType.body.accept(this);
+    Set<int> btv =
+        forallType.quantifiers.fold(m.empty, (Set<int> acc, Quantifier q) {
+      acc.add(q.ident);
+      return acc;
+    });
+    return ftv.difference(btv);
+  }
+}
+
+Set<int> freeTypeVariables(Datatype type) {
+  _FreeTypeVariables ftv = _FreeTypeVariables();
+  return type.accept(ftv);
+}
+
+Datatype instantiate(Datatype type, List<Datatype> arguments) {
+  if (type is ForallType) {
+    List<Quantifier> qs = type.quantifiers;
+    if (qs.length != arguments.length) {
+      throw InstantiationError(qs.length, arguments.length);
+    }
+
+    Map<int, Datatype> subst = Map<int, Datatype>.fromIterables(
+        qs.map((Quantifier q) => q.ident), arguments);
+    return substitute(type.body, subst);
+  }
+
+  return type;
+}
+
+class Skolem extends TypeVariable {
+  Skolem.fresh();
+}

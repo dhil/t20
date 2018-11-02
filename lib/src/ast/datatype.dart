@@ -113,6 +113,7 @@ abstract class TransformDatatype extends TypeVisitor<Datatype> {
 }
 
 Datatype substitute(Datatype type, Map<int, Datatype> substMap) {
+  if (substMap.length == 0) return type;
   return _Substitutor.from(substMap).substitute(type);
 }
 
@@ -133,8 +134,6 @@ class _Substitutor extends TransformDatatype {
     }
   }
 }
-
-
 
 abstract class Datatype {
   final TypeTag tag;
@@ -230,11 +229,11 @@ class ForallType extends Datatype {
 }
 
 class TypeConstructor extends Datatype {
-  Datatype type;
   List<Datatype> arguments;
   int ident;
 
   TypeConstructor() : super(TypeTag.CONSTR);
+  TypeConstructor.of(this.ident, this.arguments) : super(TypeTag.CONSTR);
 
   T accept<T>(TypeVisitor<T> v) {
     return v.visitTypeConstructor(this);
