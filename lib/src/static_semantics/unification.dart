@@ -11,15 +11,12 @@ import 'type_utils.dart';
 // Return substitution or throw an error.
 int _identOfQuantifier(Quantifier q) => q.ident;
 Map<int, Datatype> _updateSubstitutionMap(
-    Map<int, Datatype> map, List<MapEntry<int, Datatype>> entries) {
-  for (int j = 0; j < entries.length; j++) {
-    MapEntry<int, Datatype> entry = entries[j];
-    map[entry.key] = entry.value;
-  }
+    Map<int, Datatype> map, Map<int, Datatype> entries) {
+  map.addAll(entries);
   return map;
 }
 
-List<MapEntry<int, Datatype>> _unify(Datatype a, Datatype b) {
+Map<int, Datatype> _unify(Datatype a, Datatype b) {
   // bool ~ bool = []
   // int ~ int = []
   // string ~ string = []
@@ -27,13 +24,13 @@ List<MapEntry<int, Datatype>> _unify(Datatype a, Datatype b) {
       a is IntType && b is IntType ||
       a is StringType && b is StringType) {
     // Success.
-    return const <MapEntry<int, Datatype>>[];
+    return const <int, Datatype>{};
   }
 
   // a ~ b = [], if a = b
   if (a is TypeVariable && b is TypeVariable) {
     if (a.binder.ident == b.binder.ident) {
-      return const <MapEntry<int, Datatype>>[];
+      return const <int, Datatype>{};
     }
 
     // Error.
@@ -45,16 +42,12 @@ List<MapEntry<int, Datatype>> _unify(Datatype a, Datatype b) {
   // [t/a] if a \notin FTV(t)
   if (a is TypeVariable) {
     _occursCheck(a, b);
-    return <MapEntry<int, Datatype>>[
-      MapEntry<int, Datatype>(a.binder.ident, b)
-    ];
+    return <int, Datatype>{a.binder.ident: b};
   }
 
   if (b is TypeVariable) {
     _occursCheck(b, a);
-    return <MapEntry<int, Datatype>>[
-      MapEntry<int, Datatype>(b.binder.ident, a)
-    ];
+    return <int, Datatype>{b.binder.ident: a};
   }
 
   // a -> b ~ c -> d
@@ -72,16 +65,16 @@ List<MapEntry<int, Datatype>> _unify(Datatype a, Datatype b) {
     for (int i = 0; i < a.arity; i++) {
       Datatype ai = a.domain[i];
       Datatype bi = b.domain[i];
-      List<MapEntry<int, Datatype>> result =
+      Map<int, Datatype> result =
           _unify(substitute(ai, subst), substitute(bi, subst));
       // Update substitution.
       _updateSubstitutionMap(subst, result);
     }
-    List<MapEntry<int, Datatype>> result =
+    Map<int, Datatype> result =
         _unify(substitute(a.codomain, subst), substitute(b.codomain, subst));
     _updateSubstitutionMap(subst, result);
 
-    return subst.entries.toList();
+    return subst;
   }
 
   if (a is TupleType && b is TupleType) {
@@ -114,7 +107,7 @@ List<MapEntry<int, Datatype>> _unify(Datatype a, Datatype b) {
     Datatype a0 = substitute(a.body, substA);
     Datatype b0 = substitute(b.body, substB);
 
-    List<MapEntry<int, Datatype>> result = _unify(a0, b0);
+    Map<int, Datatype> result = _unify(a0, b0);
     _escapeCheck(skolems, result);
     return result;
   }
@@ -122,11 +115,11 @@ List<MapEntry<int, Datatype>> _unify(Datatype a, Datatype b) {
   throw UnificationError();
 }
 
-void _escapeCheck(List<Datatype> skolems, List<MapEntry<int, Datatype>> subst) {
+void _escapeCheck(List<Datatype> skolems, Map<int, Datatype> subst) {
   for (int i = 0; i < skolems.length; i++) {
     Skolem skolem = skolems[i];
-    for (int j = 0; j < subst.length; j++) {
-      Datatype ty = subst[j].value;
+    Datatype ty = subst[i];
+    if (ty != null) {
       if (ty is Skolem) {
         Skolem skolem0 = ty;
         if (skolem == skolem0) throw SkolemEscapeError();
@@ -144,8 +137,8 @@ void _occursCheck(TypeVariable a, Datatype type) {
 
 Either<UnificationError, Map<int, Datatype>> unify(Datatype a, Datatype b) {
   try {
-    List<MapEntry<int, Datatype>> subst = _unify(a, b);
-    return Either.right(Map<int, Datatype>.fromEntries(subst));
+    Map<int, Datatype> subst = _unify(a, b);
+    return Either.right(subst);
   } on UnificationError catch (e) {
     return Either.left(e);
   }
