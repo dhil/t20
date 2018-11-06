@@ -34,6 +34,12 @@ Datatype codomain(Datatype ft) {
   throw "'codomain' called with non-function type argument.";
 }
 
+bool isFunctionType(Datatype ft) {
+  if (ft is ArrowType) return true;
+  if (ft is ForallType) return isFunctionType(ft.body);
+  return false;
+}
+
 // Base types.
 const Datatype unitType = const TupleType(const <Datatype>[]);
 bool isUnitType(Datatype type) {
@@ -90,8 +96,4 @@ Datatype instantiate(Datatype type, List<Datatype> arguments) {
   }
 
   return type;
-}
-
-class Skolem extends TypeVariable {
-  Skolem.fresh();
 }

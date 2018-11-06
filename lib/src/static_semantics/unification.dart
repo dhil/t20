@@ -5,6 +5,7 @@
 import '../ast/datatype.dart';
 import '../errors/errors.dart';
 import '../fp.dart';
+import '../unionfind.dart' as unionfind;
 
 import 'type_utils.dart';
 
@@ -27,6 +28,24 @@ Map<int, Datatype> _unify(Datatype a, Datatype b) {
     return const <int, Datatype>{};
   }
 
+  // %a ~ %b = []
+  if (a is Skolem && b is Skolem) {
+    a.sameAs(b);
+    return const <int, Datatype>{};
+  }
+
+  if (a is Skolem) {
+    _occursCheck(a.ident, b);
+    a.be(b);
+    return const <int, Datatype>{};
+  }
+
+  if (b is Skolem) {
+    _occursCheck(b.ident, a);
+    b.be(a);
+    return const <int, Datatype>{};
+  }
+
   // a ~ b = [], if a = b
   if (a is TypeVariable && b is TypeVariable) {
     if (a.binder.ident == b.binder.ident) {
@@ -41,13 +60,13 @@ Map<int, Datatype> _unify(Datatype a, Datatype b) {
   //  =
   // [t/a] if a \notin FTV(t)
   if (a is TypeVariable) {
-    _occursCheck(a, b);
-    return <int, Datatype>{a.binder.ident: b};
+    _occursCheck(a.ident, b);
+    return <int, Datatype>{a.ident: b};
   }
 
   if (b is TypeVariable) {
-    _occursCheck(b, a);
-    return <int, Datatype>{b.binder.ident: a};
+    _occursCheck(b.ident, a);
+    return <int, Datatype>{b.ident: a};
   }
 
   // a -> b ~ c -> d
@@ -95,7 +114,7 @@ Map<int, Datatype> _unify(Datatype a, Datatype b) {
 
     List<Datatype> skolems = new List<Datatype>(a.quantifiers.length);
     for (int i = 0; i < skolems.length; i++) {
-      Datatype skolem = null; // Fresh unification variable.
+      Datatype skolem = Skolem(); // Fresh unification variable.
       skolems[i] = skolem;
     }
 
@@ -118,28 +137,29 @@ Map<int, Datatype> _unify(Datatype a, Datatype b) {
 void _escapeCheck(List<Datatype> skolems, Map<int, Datatype> subst) {
   for (int i = 0; i < skolems.length; i++) {
     Skolem skolem = skolems[i];
-    Datatype ty = subst[i];
+    Datatype ty = subst[skolem.ident];
     if (ty != null) {
       if (ty is Skolem) {
         Skolem skolem0 = ty;
-        if (skolem == skolem0) throw SkolemEscapeError();
+        if (skolem.ident == skolem0.ident) throw SkolemEscapeError();
       }
     }
   }
 }
 
-void _occursCheck(TypeVariable a, Datatype type) {
+void _occursCheck(int ident, Datatype type) {
   Set<int> ftv = freeTypeVariables(type);
-  if (ftv.contains(a.binder.ident)) {
+  if (ftv.contains(ident)) {
     throw OccursError();
   }
 }
 
-Either<UnificationError, Map<int, Datatype>> unify(Datatype a, Datatype b) {
-  try {
-    Map<int, Datatype> subst = _unify(a, b);
-    return Either.right(subst);
-  } on UnificationError catch (e) {
-    return Either.left(e);
-  }
+Map<int, Datatype> unify(Datatype a, Datatype b) {
+  return _unify(a, b);
+  // try {
+  //   Map<int, Datatype> subst = _unify(a, b);
+  //   return Either.right(subst);
+  // } on UnificationError catch (e) {
+  //   return Either.left(e);
+  // }
 }

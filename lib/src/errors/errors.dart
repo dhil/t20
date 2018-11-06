@@ -340,3 +340,37 @@ class UnificationError extends TypeError {}
 class SkolemEscapeError extends UnificationError {}
 
 class OccursError extends UnificationError {}
+
+class TypeSignatureMismatchError extends LocatedError implements TypeError {
+  final int expected;
+  final int actual;
+
+  TypeSignatureMismatchError(this.expected, this.actual, Location location)
+      : super(location);
+
+  String toString() {
+    return "The declaration declares $expected parameters, whilst the implementation takes $actual parameters";
+  }
+}
+
+class TypeExpectationError extends LocatedError implements TypeError {
+  TypeExpectationError(Location location) : super(location);
+
+  String toString() {
+    return "Type error";
+  }
+}
+
+class ArityMismatchError extends LocatedError implements TypeError {
+  final int expected;
+  final int actual;
+  ArityMismatchError(this.expected, this.actual, Location location) : super(location);
+
+  String toString() {
+    if (actual > expected) {
+      return "Arity mismatch: too many arguments";
+    } else {
+      return "Arity mismatch: too few arguments";
+    }
+  }
+}

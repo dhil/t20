@@ -2,9 +2,12 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// import 'dart:collection' show Set;
+import 'dart:collection' show Set;
 
-// import '../utils.dart' show Gensym;
+import '../unionfind.dart' as unionfind;
+import '../unionfind.dart' show Point;
+import '../utils.dart' show Gensym;
+
 import 'monoids.dart' show Monoid;
 // import 'name.dart';
 
@@ -36,6 +39,7 @@ abstract class TypeVisitor<T> {
   T visitTypeConstructor(TypeConstructor constr);
 
   T visitTypeVariable(TypeVariable variable);
+  T visitSkolem(Skolem skolem);
 }
 
 abstract class ReduceDatatype<T> extends TypeVisitor<T> {
@@ -46,9 +50,9 @@ abstract class ReduceDatatype<T> extends TypeVisitor<T> {
         m.empty, (T acc, Datatype type) => m.compose(acc, type.accept(this)));
   }
 
-  T visitBoolType(BoolType boolType) => m.empty;
-  T visitIntType(IntType intType) => m.empty;
-  T visitStringType(StringType stringType) => m.empty;
+  T visitBoolType(BoolType _) => m.empty;
+  T visitIntType(IntType _) => m.empty;
+  T visitStringType(StringType _) => m.empty;
 
   T visitForallType(ForallType forallType) {
     return forallType.body.accept(this);
@@ -68,7 +72,8 @@ abstract class ReduceDatatype<T> extends TypeVisitor<T> {
     return visitList(constr.arguments);
   }
 
-  T visitTypeVariable(TypeVariable variable) => m.empty;
+  T visitTypeVariable(TypeVariable _) => m.empty;
+  T visitSkolem(Skolem _) => m.empty;
 }
 
 abstract class TransformDatatype extends TypeVisitor<Datatype> {
@@ -110,6 +115,7 @@ abstract class TransformDatatype extends TypeVisitor<Datatype> {
   }
 
   Datatype visitTypeVariable(TypeVariable variable) => variable;
+  Datatype visitSkolem(Skolem skolem) => skolem;
 }
 
 Datatype substitute(Datatype type, Map<int, Datatype> substMap) {
@@ -126,12 +132,36 @@ class _Substitutor extends TransformDatatype {
     return type.accept(this);
   }
 
+  Datatype visitForallType(ForallType forallType) {
+    Set<int> quantifiers = forallType.quantifiers.fold(new Set<int>(), (Set<int> acc, Quantifier q) {
+        acc.add(q.ident);
+        return acc;
+      });
+    Set<int> idents = Set<int>.of(_substMap.keys);
+    Set<int> diff = quantifiers.difference(idents);
+    if (diff.length != 0) {
+      return null;
+    } else {
+      return forallType.body.accept(this);
+    }
+  }
+
   Datatype visitTypeVariable(TypeVariable variable) {
     if (_substMap.containsKey(variable.binder.ident)) {
-      return _substMap[variable.binder.ident];
+      return _substMap[variable.ident];
     } else {
       return variable;
     }
+  }
+
+  Datatype visitSkolem(Skolem skolem) {
+    Datatype type = skolem.type;
+    if (type is TypeVariable) {
+      if (_substMap.containsKey(type.ident)) {
+        return _substMap[type.ident];
+      }
+    }
+    return skolem;
   }
 }
 
@@ -207,6 +237,36 @@ class TypeVariable extends Datatype {
   T accept<T>(TypeVisitor<T> v) {
     return v.visitTypeVariable(this);
   }
+
+  int get ident => binder.ident;
+}
+
+class Skolem extends Datatype {
+  Point<Datatype> _point;
+  final int _ident;
+  int get ident => _ident;
+
+  Skolem._(this._ident) : super(TypeTag.VAR);
+  factory Skolem() {
+    Skolem s = new Skolem._(Gensym.freshInt());
+    s._point = unionfind.singleton(s);
+    return s;
+  }
+
+  T accept<T>(TypeVisitor<T> v) {
+    return v.visitSkolem(this);
+  }
+
+  // Never null.
+  Datatype get type => unionfind.find(_point);
+
+  void be(Datatype type) {
+    unionfind.change(_point, type);
+  }
+
+  void sameAs(Skolem other) {
+    unionfind.union(_point, other._point);
+  }
 }
 
 class Quantifier {
@@ -215,10 +275,21 @@ class Quantifier {
   // final Set<Object> constraints;
 
   Quantifier(this.ident); // : constraints = new Set<Object>();
+
+  static int compare(Quantifier a, Quantifier b) {
+    if (a.ident < b.ident) return -1;
+    else if (a.ident == b.ident) return 0;
+    else return 1;
+  }
 }
 
 class ForallType extends Datatype {
-  List<Quantifier> quantifiers;
+  List<Quantifier> _quantifiers;
+  List<Quantifier> get quantifiers => _quantifiers;
+  void set quantifiers(List<Quantifier> quantifiers) {
+    quantifiers.sort(Quantifier.compare);
+    _quantifiers = quantifiers;
+  }
   Datatype body;
 
   ForallType() : super(TypeTag.FORALL);
