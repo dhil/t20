@@ -17,7 +17,7 @@ Map<int, Datatype> _updateSubstitutionMap(
   return map;
 }
 
-Map<int, Datatype> _unify(Datatype a, Datatype b) {
+Map<int, Datatype> unifyS(Datatype a, Datatype b) {
   // bool ~ bool = []
   // int ~ int = []
   // string ~ string = []
@@ -85,12 +85,12 @@ Map<int, Datatype> _unify(Datatype a, Datatype b) {
       Datatype ai = a.domain[i];
       Datatype bi = b.domain[i];
       Map<int, Datatype> result =
-          _unify(substitute(ai, subst), substitute(bi, subst));
+          unifyS(substitute(ai, subst), substitute(bi, subst));
       // Update substitution.
       _updateSubstitutionMap(subst, result);
     }
     Map<int, Datatype> result =
-        _unify(substitute(a.codomain, subst), substitute(b.codomain, subst));
+        unifyS(substitute(a.codomain, subst), substitute(b.codomain, subst));
     _updateSubstitutionMap(subst, result);
 
     return subst;
@@ -126,7 +126,7 @@ Map<int, Datatype> _unify(Datatype a, Datatype b) {
     Datatype a0 = substitute(a.body, substA);
     Datatype b0 = substitute(b.body, substB);
 
-    Map<int, Datatype> result = _unify(a0, b0);
+    Map<int, Datatype> result = unifyS(a0, b0);
     _escapeCheck(skolems, result);
     return result;
   }
@@ -154,8 +154,9 @@ void _occursCheck(int ident, Datatype type) {
   }
 }
 
-Map<int, Datatype> unify(Datatype a, Datatype b) {
-  return _unify(a, b);
+Datatype unify(Datatype a, Datatype b) {
+  Map<int, Datatype> subst = unifyS(a, b);
+  return substitute(a, subst);
   // try {
   //   Map<int, Datatype> subst = _unify(a, b);
   //   return Either.right(subst);

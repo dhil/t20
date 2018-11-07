@@ -92,7 +92,7 @@ abstract class TransformDatatype extends TypeVisitor<Datatype> {
   Datatype visitForallType(ForallType forallType) {
     Datatype body0 = forallType.body.accept(this);
     ForallType forallType0 = new ForallType();
-    forallType0.quantifiers = forallType.quantifiers;
+    forallType0._quantifiers = forallType._quantifiers;
     forallType0.body = body0;
     return forallType0;
   }
@@ -132,19 +132,19 @@ class _Substitutor extends TransformDatatype {
     return type.accept(this);
   }
 
-  Datatype visitForallType(ForallType forallType) {
-    Set<int> quantifiers = forallType.quantifiers.fold(new Set<int>(), (Set<int> acc, Quantifier q) {
-        acc.add(q.ident);
-        return acc;
-      });
-    Set<int> idents = Set<int>.of(_substMap.keys);
-    Set<int> diff = quantifiers.difference(idents);
-    if (diff.length != 0) {
-      return null;
-    } else {
-      return forallType.body.accept(this);
-    }
-  }
+  // Datatype visitForallType(ForallType forallType) {
+  //   Set<int> quantifiers = forallType.quantifiers.fold(new Set<int>(), (Set<int> acc, Quantifier q) {
+  //       acc.add(q.ident);
+  //       return acc;
+  //     });
+  //   Set<int> idents = Set<int>.of(_substMap.keys);
+  //   Set<int> diff = quantifiers.difference(idents);
+  //   if (diff.length != 0) {
+  //     return null;
+  //   } else {
+  //     return forallType.body.accept(this);
+  //   }
+  // }
 
   Datatype visitTypeVariable(TypeVariable variable) {
     if (_substMap.containsKey(variable.binder.ident)) {
@@ -277,9 +277,12 @@ class Quantifier {
   Quantifier(this.ident); // : constraints = new Set<Object>();
 
   static int compare(Quantifier a, Quantifier b) {
-    if (a.ident < b.ident) return -1;
-    else if (a.ident == b.ident) return 0;
-    else return 1;
+    if (a.ident < b.ident)
+      return -1;
+    else if (a.ident == b.ident)
+      return 0;
+    else
+      return 1;
   }
 }
 
@@ -290,9 +293,16 @@ class ForallType extends Datatype {
     quantifiers.sort(Quantifier.compare);
     _quantifiers = quantifiers;
   }
+
   Datatype body;
 
   ForallType() : super(TypeTag.FORALL);
+  factory ForallType.complete(List<Quantifier> quantifiers, Datatype body) {
+    ForallType type = new ForallType();
+    type.quantifiers = quantifiers;
+    type.body = body;
+    return body;
+  }
 
   T accept<T>(TypeVisitor<T> v) {
     return v.visitForallType(this);

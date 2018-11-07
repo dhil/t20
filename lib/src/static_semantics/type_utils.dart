@@ -40,6 +40,19 @@ bool isFunctionType(Datatype ft) {
   return false;
 }
 
+bool isForallType(Datatype t) {
+  if (t is ForallType) return true;
+  else return false;
+}
+
+List<Quantifier> extractQuantifiers(Datatype t) {
+  if (t is ForallType) {
+    return t.quantifiers;
+  } else {
+    return const <Quantifier>[];
+  }
+}
+
 // Base types.
 const Datatype unitType = const TupleType(const <Datatype>[]);
 bool isUnitType(Datatype type) {
