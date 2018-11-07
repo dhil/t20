@@ -190,6 +190,10 @@ abstract class TypeChecker<Mod, Exp, Pat>
     return Pair<Datatype, T>(result.fst.type, result.snd);
   }
 
+  Pair<TypeResult, T> synthesiseBinder<T>(Type<T> obj, TypingContext ctxt) {
+    return obj(ctxt);
+  }
+
   Type<Mod> signature(Type<Name> name, Type<Datatype> type,
           {Location location}) =>
       (TypingContext ctxt) {
@@ -344,5 +348,66 @@ abstract class TypeChecker<Mod, Exp, Pat>
 
         return Pair<TypeResult, Exp>(TypeResult(returnType, ctxt),
             alg.apply(fn0, arguments0, location: location));
+      };
+
+  Type<Exp> lambda(List<Type<Pat>> parameters, Type<Exp> body,
+          {Location location}) =>
+      (TypingContext ctxt) {
+        // Synthesise types for the parameters.
+        List<Pat> parameters0 = new List<Pat>(parameters.length);
+        List<Datatype> domain = new List<Datatype>(parameters.length);
+        for (int i = 0; i < parameters0.length; i++) {
+          Pair<TypeResult, Pat> result =
+              synthesiseBinder<Pat>(parameters[i], ctxt);
+          TypeResult tres = result.fst;
+          domain[i] = tres.type;
+          parameters0[i] = result.snd;
+          // Update the context (TODO: perhaps update the context after _all_
+          // binders have had their types synthesised).
+          ctxt = ctxt.union(tres.outputContext);
+        }
+        // Synthesise a type for [body]
+        Pair<Datatype, Exp> result = synthesise<Exp>(body, ctxt);
+        // Construct function type.
+        Datatype fnType = ArrowType(domain, result.fst);
+
+        return Pair<TypeResult, Exp>(TypeResult(fnType, ctxt),
+            alg.lambda(parameters0, result.snd, location: location));
+      };
+
+  Type<Exp> tuple(List<Type<Exp>> components, {Location location}) =>
+      (TypingContext ctxt) {
+        // Synthesise a type for each component.
+        List<Exp> components0 = new List<Exp>(components.length);
+        List<Datatype> types = new List<Datatype>(components.length);
+        for (int i = 0; i < components0.length; i++) {
+          Pair<Datatype, Exp> result = synthesise<Exp>(components[i], ctxt);
+          types[i] = result.fst;
+          components0[i] = result.snd;
+        }
+
+        // Make tuple type.
+        Datatype tupleType = TupleType(types);
+        return Pair<TypeResult, Exp>(TypeResult(tupleType, ctxt),
+            alg.tuple(components0, location: location));
+      };
+
+  Type<Exp> ifthenelse(
+          Type<Exp> condition, Type<Exp> thenBranch, Type<Exp> elseBranch,
+          {Location location}) =>
+      (TypingContext ctxt) {
+        // Synthesise a type for the condition.
+        Pair<Datatype, Exp> r0 = synthesise<Exp>(condition, ctxt);
+        // Synthesise a type for the then branch.
+        Pair<Datatype, Exp> r1 = synthesise<Exp>(thenBranch, ctxt);
+        // Synthesise a type for the else branch.
+        Pair<Datatype, Exp> r2 = synthesise<Exp>(elseBranch, ctxt);
+
+        // Unify the branch types.
+        Map<int, Datatype> subst = unify(r1.fst, r2.fst);
+        Datatype type = substitute(r1.fst, subst);
+
+        return Pair<TypeResult, Exp>(TypeResult(type, ctxt),
+            alg.ifthenelse(r0.snd, r1.snd, r2.snd, location: location));
       };
 }
