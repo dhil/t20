@@ -17,6 +17,30 @@ Map<int, Datatype> _updateSubstitutionMap(
   return map;
 }
 
+Map<int, Datatype> unifyMany(List<Datatype> as, List<Datatype> bs) {
+  // a -> b ~ c -> d
+  //   =
+  // S(2)
+  // where S(0)     = []
+  //       S(i + 1) = (t(i)S(i) ~ u(i)S(i)) . S(i)
+  //       t, u     = [a, b], [c, d]
+  if (as.length != bs.length) {
+    throw UnificationError();
+  }
+
+  Map<int, Datatype> subst = new Map<int, Datatype>();
+  for (int i = 0; i < as.length; i++) {
+    Datatype ai = as[i];
+    Datatype bi = bs[i];
+    Map<int, Datatype> result =
+        unifyS(substitute(ai, subst), substitute(bi, subst));
+    // Update substitution.
+    _updateSubstitutionMap(subst, result);
+  }
+
+  return subst;
+}
+
 Map<int, Datatype> unifyS(Datatype a, Datatype b) {
   // bool ~ bool = []
   // int ~ int = []
@@ -76,19 +100,9 @@ Map<int, Datatype> unifyS(Datatype a, Datatype b) {
   //       S(i + 1) = (t(i)S(i) ~ u(i)S(i)) . S(i)
   //       t, u     = [a, b], [c, d]
   if (a is ArrowType && b is ArrowType) {
-    if (a.arity != b.arity) {
-      throw UnificationError();
-    }
-
-    Map<int, Datatype> subst = new Map<int, Datatype>();
-    for (int i = 0; i < a.arity; i++) {
-      Datatype ai = a.domain[i];
-      Datatype bi = b.domain[i];
-      Map<int, Datatype> result =
-          unifyS(substitute(ai, subst), substitute(bi, subst));
-      // Update substitution.
-      _updateSubstitutionMap(subst, result);
-    }
+    // Unify the domains.
+    Map<int, Datatype> subst = unifyMany(a.domain, b.domain);
+    // Unify the codomains.
     Map<int, Datatype> result =
         unifyS(substitute(a.codomain, subst), substitute(b.codomain, subst));
     _updateSubstitutionMap(subst, result);
@@ -97,11 +111,16 @@ Map<int, Datatype> unifyS(Datatype a, Datatype b) {
   }
 
   if (a is TupleType && b is TupleType) {
-    // TODO.
+    return unifyMany(a.components, b.components);
   }
 
   if (a is TypeConstructor && b is TypeConstructor) {
-    // TODO.
+    // Check whether their tags agree.
+    if (a.ident != b.ident) {
+      throw UnificationError();
+    }
+
+    return unifyMany(a.arguments, b.arguments);
   }
 
   // \/a.t0 ~ \/b.t1

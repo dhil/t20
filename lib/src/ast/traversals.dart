@@ -11,7 +11,6 @@ import '../location.dart';
 import 'algebra.dart';
 import 'monoids.dart';
 
-
 class Morphism<S, T> {
   final T Function(S) _f;
   const Morphism.of(this._f);

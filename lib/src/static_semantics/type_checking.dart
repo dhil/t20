@@ -6,7 +6,11 @@ import 'dart:collection';
 
 import '../builtins.dart';
 import '../errors/errors.dart'
-    show ArityMismatchError, TypeExpectationError, TypeSignatureMismatchError;
+    show
+        ArityMismatchError,
+        LocatedError,
+        TypeExpectationError,
+        TypeSignatureMismatchError;
 
 import '../fp.dart' show Pair, Triple, Either;
 import '../immutable_collections.dart';
@@ -15,8 +19,14 @@ import '../utils.dart' show Gensym;
 
 import '../ast/algebra.dart';
 import '../ast/datatype.dart';
+import '../ast/monoids.dart';
 import '../ast/name.dart';
-import '../ast/traversals.dart' show AccumulatingContextualTransformation;
+import '../ast/traversals.dart'
+    show
+        AccumulatingContextualTransformation,
+        Catamorphism,
+        Endomorphism,
+        Morphism;
 
 import 'type_utils.dart' as typeUtils;
 import 'unification.dart';
@@ -79,6 +89,11 @@ class TypeResult {
   // // List<Pair<int, Datatype>> dataConstructors; // Might be null.
 
   TypeResult(this.type, this.outputContext);
+  TypeResult.empty() : this(null, null);
+
+  TypeResult merge(TypeResult other) {
+    return other;
+  }
 }
 
 // class OutputContext extends TypeResult {
@@ -86,20 +101,20 @@ class TypeResult {
 //   OutputContext(this.context, Datatype type) : super(type);
 // }
 
-class SignatureResult extends TypeResult {
-  final Name name;
-  SignatureResult(this.name, Datatype type, TypingContext context)
-      : super(type, context);
-}
+// class SignatureResult extends TypeResult {
+//   final Name name;
+//   SignatureResult(this.name, Datatype type, TypingContext context)
+//       : super(type, context);
+// }
 
-class TypeAliasResult extends TypeResult {
-  final Name name;
-  final List<Quantifier> quantifiers;
+// class TypeAliasResult extends TypeResult {
+//   final Name name;
+//   final List<Quantifier> quantifiers;
 
-  TypeAliasResult(
-      this.name, this.quantifiers, Datatype type, TypingContext context)
-      : super(type, context);
-}
+//   TypeAliasResult(
+//       this.name, this.quantifiers, Datatype type, TypingContext context)
+//       : super(type, context);
+// }
 
 class TypingContext {
   final ImmutableMap<int, Quantifier> quantifiers; // ident -> quantifier.
@@ -177,12 +192,20 @@ class TypingContext {
 //       : super(environment);
 // }
 
+class TypeResultMonoid implements Monoid<TypeResult> {
+  TypeResult get empty => TypeResult.empty();
+  TypeResult compose(TypeResult x, TypeResult y) {
+    return x.merge(y);
+  }
+}
+
 typedef Type<T> = Pair<TypeResult, T> Function(TypingContext);
 
-abstract class TypeChecker<Mod, Exp, Pat>
-    extends AccumulatingContextualTransformation<TypeResult, TypingContext,
-        Name, Mod, Exp, Pat, Datatype> {
+class TypeChecker<Mod, Exp, Pat> extends AccumulatingContextualTransformation<
+    TypeResult, TypingContext, Name, Mod, Exp, Pat, Datatype> {
   final TypingContext emptyContext = TypingContext.empty();
+  final TypeResultMonoid _m = new TypeResultMonoid();
+  Monoid<TypeResult> get m => _m;
   final TAlgebra<Name, Mod, Exp, Pat, Datatype> _alg;
   TAlgebra<Name, Mod, Exp, Pat, Datatype> get alg => _alg;
   TypeChecker(this._alg);
@@ -316,8 +339,12 @@ abstract class TypeChecker<Mod, Exp, Pat>
         Name name0 = trivial<Name>(name);
         // Unwrap [type].
         Datatype type0 = trivial<Datatype>(type);
-        return Pair<TypeResult, Mod>(SignatureResult(name0, type0, ctxt),
-            alg.signature(name0, type0, location: location));
+
+        // Create the output context.
+        ctxt = ctxt.bind(name0, type0);
+
+        return Pair<TypeResult, Mod>(
+            TypeResult(typeUtils.unitType, ctxt), null);
       };
 
   Type<Mod> valueDef(Type<Name> name, Type<Exp> body, {Location location}) =>
@@ -394,8 +421,15 @@ abstract class TypeChecker<Mod, Exp, Pat>
         // Unwrap [type].
         Datatype type0 = unwrap<Datatype>(type, ctxt0);
 
+        // Construct the descriptor.
+        TypeAliasDescription desc =
+            TypeAliasDescription(binder0, typeParameters0, type0);
+
+        // Create the output context.
+        ctxt = ctxt.putTypeDescriptor(binder0, desc);
+
         return Pair<TypeResult, Mod>(
-            TypeAliasResult(binder0, typeParameters0, type0, ctxt), null);
+            TypeResult(typeUtils.unitType, ctxt), null);
       };
 
   Type<Mod> module(List<Type<Mod>> members, {Location location}) =>
@@ -788,4 +822,59 @@ abstract class TypeChecker<Mod, Exp, Pat>
         return Pair<TypeResult, Datatype>(
             TypeResult(tupleType, ctxt), tupleType);
       };
+}
+
+// Error collector.
+class TypeErrorCollector extends Catamorphism<Name, List<LocatedError>,
+    List<LocatedError>, List<LocatedError>, Datatype> {
+  final ListMonoid<LocatedError> _m = new ListMonoid<LocatedError>();
+  final NullMonoid<Name> _name = new NullMonoid<Name>();
+  final NullMonoid<Datatype> _type = new NullMonoid<Datatype>();
+  // A specialised monoid for each sort.
+  Monoid<Name> get name => _name;
+  Monoid<Datatype> get typ => _type;
+  Monoid<List<LocatedError>> get mod => _m;
+  Monoid<List<LocatedError>> get exp => _m;
+  Monoid<List<LocatedError>> get pat => _m;
+
+  // Primitive converters.
+  static T _id<T>(T x) => x;
+  Endomorphism<List<LocatedError>> id =
+      Endomorphism<List<LocatedError>>.of(_id);
+  static List<LocatedError> _drop(Datatype _) => const <LocatedError>[];
+  final Morphism<Name, Datatype> dropName =
+      new Morphism<Name, Datatype>.of((Name _) => null);
+  final Morphism<Datatype, List<LocatedError>> dropType =
+      new Morphism<Datatype, List<LocatedError>>.of(_drop);
+  Morphism<Name, Datatype> get name2typ => dropName;
+  Morphism<Datatype, List<LocatedError>> get typ2pat => dropType;
+  Morphism<Datatype, List<LocatedError>> get typ2exp => dropType;
+  Morphism<List<LocatedError>, List<LocatedError>> get pat2exp => id;
+  Morphism<List<LocatedError>, List<LocatedError>> get exp2mod => id;
+
+  final List<LocatedError> nameErrors = new List<LocatedError>();
+  final List<LocatedError> typeErrors = new List<LocatedError>();
+
+  List<LocatedError> errorModule(LocatedError error, {Location location}) =>
+      <LocatedError>[error];
+  List<LocatedError> errorExp(LocatedError error, {Location location}) =>
+      <LocatedError>[error];
+  List<LocatedError> errorPattern(LocatedError error, {Location location}) =>
+      <LocatedError>[error];
+  Datatype errorType(LocatedError error, {Location location}) {
+    typeErrors.add(error);
+    return typ.empty;
+  }
+
+  Name errorName(LocatedError error, {Location location}) {
+    nameErrors.add(error);
+    return name.empty;
+  }
+
+  List<LocatedError> module(List<List<LocatedError>> members,
+      {Location location}) {
+    List<LocatedError> errors = members.fold(mod.empty, mod.compose);
+    errors.addAll(nameErrors);
+    return errors;
+  }
 }

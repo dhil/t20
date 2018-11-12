@@ -9,6 +9,8 @@ import 'dart:io';
 import '../settings.dart';
 import 'builtins.dart';
 import 'ast/algebra.dart';
+import 'ast/datatype.dart';
+import 'ast/name.dart';
 import 'ast/nullalgebras.dart';
 import 'ast/traversals.dart';
 import 'compilation_unit.dart';
@@ -52,12 +54,12 @@ bool compile(List<String> filePaths, Settings settings) {
       // Elaborate.
       if (settings.exitAfter == "elaborator") {
         Pair<Object, List<LocatedError>> errors = new ModuleElaborator(
-            new NameResolver<
-                  List<LocatedError>,
-                  List<LocatedError>,
-                  List<LocatedError>,
-                  List<LocatedError>>(new ResolvedErrorCollector()))
-                                                  .elaborate(parseResult.result)(NameContext.withBuiltins());
+                new NameResolver<
+                    List<LocatedError>,
+                    List<LocatedError>,
+                    List<LocatedError>,
+                    List<LocatedError>>(new ResolvedErrorCollector()))
+            .elaborate(parseResult.result)(NameContext.withBuiltins());
         if (errors.snd.length > 0) {
           report(errors.snd);
           return false;
@@ -66,15 +68,36 @@ bool compile(List<String> filePaths, Settings settings) {
       }
 
       Pair<Object, List<LocatedError>> errors = new ModuleElaborator(
-          new NameResolver<
+              new NameResolver<
                   List<LocatedError>,
                   List<LocatedError>,
                   List<LocatedError>,
                   List<LocatedError>>(new ResolvedErrorCollector()))
-                                                .elaborate(parseResult.result)(NameContext.withBuiltins());
+          .elaborate(parseResult.result)(NameContext.withBuiltins());
       if (errors.snd.length > 0) {
         report(errors.snd);
         return false;
+      }
+
+      // Type check.
+      if (settings.exitAfter == "typechecker") {
+        // Pair<Object, List<LocatedError>> errors =
+
+        NameResolver<List<LocatedError>, List<LocatedError>, List<LocatedError>,
+            Object> nameResolver;
+        TypeChecker<List<LocatedError>, List<LocatedError>, List<LocatedError>>
+            typeChecker;
+
+        // nameResolver = new NameResolver<List<LocatedError>, List<LocatedError>,
+        //     List<LocatedError>, Object>(typeChecker);
+
+        // Test1<Null, Null, Null, Datatype>(new Test2<Null, Null, Null>(null));
+
+        Object obj = new ModuleElaborator(nameResolver);
+        // if (errors.snd.length > 0) {
+        //   report(errors.snd);
+        //   return false;
+        // }
       }
     }
   } catch (err, stack) {
