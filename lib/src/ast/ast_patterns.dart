@@ -5,9 +5,11 @@
 import '../location.dart';
 import '../errors/errors.dart' show T20Error;
 import '../utils.dart' show Gensym;
-import 'ast_common.dart';
+// import 'ast_common.dart';
+import 'binder.dart';
+import 'datatype.dart';
 import 'ast_declaration.dart';
-import 'ast_types.dart';
+// import 'ast_types.dart';
 
 abstract class PatternVisitor<T> {
   T visitBool(BoolPattern b);
@@ -22,6 +24,7 @@ abstract class PatternVisitor<T> {
 }
 
 abstract class Pattern {
+  Datatype type;
   Location location;
   final PatternTag tag;
   Pattern(this.tag, this.location);
@@ -58,13 +61,13 @@ class BoolPattern extends BaseValuePattern<bool> {
 }
 
 class ConstructorPattern extends Pattern {
-  Name name;
+  Binder binder;
   List<VariablePattern> components;
 
-  ConstructorPattern(this.name, this.components, Location location)
+  ConstructorPattern(this.binder, this.components, Location location)
       : super(PatternTag.CONSTR, location);
-  ConstructorPattern.nullary(Name name, Location location)
-      : this(name, const <VariablePattern>[], location);
+  ConstructorPattern.nullary(Binder binder, Location location)
+      : this(binder, const <VariablePattern>[], location);
 
   T accept<T>(PatternVisitor<T> v) {
     return v.visitConstructor(this);
@@ -80,7 +83,6 @@ class ErrorPattern extends Pattern {
 }
 
 class HasTypePattern extends Pattern {
-  Location location;
   Pattern pattern;
   Datatype type;
 
@@ -111,7 +113,7 @@ class StringPattern extends BaseValuePattern<String> {
 }
 
 class TuplePattern extends Pattern {
-  List<NamePattern> components;
+  List<Pattern> components;
 
   TuplePattern(this.components, Location location)
       : super(PatternTag.TUPLE, location);
@@ -121,32 +123,19 @@ class TuplePattern extends Pattern {
   }
 }
 
-abstract class NamePattern implements Pattern {}
+// abstract class NamePattern implements Pattern {}
 
-class VariablePattern extends Pattern implements TermDeclaration, NamePattern {
-  Datatype type;
-  Name name;
+class VariablePattern extends Pattern implements Declaration {
+  Binder binder;
 
-  VariablePattern(this.name, Location location, {bool isSynthetic = false}) : super(PatternTag.VAR, location);
-  factory VariablePattern.synthetic(
-      [Location location = null, String prefix = "x"]) {
-    if (location == null) location = Location.dummy();
-    String name = Gensym.freshString(prefix);
-    return VariablePattern(Name(name, location), location, isSynthetic: true);
-  }
-
-  factory VariablePattern.wildcard([Location location = null]) {
-    if (location == null) location = Location.dummy();
-    String name = "_";
-    return VariablePattern(Name(name, location), location, isSynthetic: false);
-  }
+  VariablePattern(this.binder, Location location) : super(PatternTag.VAR, location);
 
   T accept<T>(PatternVisitor<T> v) {
     return v.visitVariable(this);
   }
 }
 
-class WildcardPattern extends Pattern implements NamePattern {
+class WildcardPattern extends Pattern {
   WildcardPattern(Location location) : super(PatternTag.WILDCARD, location);
 
   T accept<T>(PatternVisitor<T> v) {

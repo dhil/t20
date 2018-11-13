@@ -2,10 +2,13 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import '../fp.dart' show Pair;
+import '../errors/errors.dart' show LocatedError;
+// import '../fp.dart' show Pair;
 import '../location.dart';
-import 'ast_common.dart' show Name;
-import 'ast_types.dart';
+import 'binder.dart';
+import 'datatype.dart';
+import 'ast_declaration.dart';
+// import 'ast_types.dart';
 import 'ast_patterns.dart' show Pattern;
 
 //
@@ -27,10 +30,13 @@ abstract class ExpressionVisitor<T> {
   T visitTuple(Tuple tuple);
   T visitVariable(Variable v);
   T visitTypeAscription(TypeAscription ascription);
+
+  T visitError(ErrorExpression e);
 }
 
 abstract class Expression {
   final ExpTag tag;
+  Datatype type;
   Location location;
 
   Expression(this.tag, this.location);
@@ -40,6 +46,7 @@ abstract class Expression {
 
 enum ExpTag {
   BOOL,
+  ERROR,
   INT,
   STRING,
   APPLY,
@@ -78,7 +85,8 @@ class IntLit extends Constant<int> {
 }
 
 class StringLit extends Constant<String> {
-  StringLit(String value, Location location) : super(value, ExpTag.STRING, location);
+  StringLit(String value, Location location)
+      : super(value, ExpTag.STRING, location);
 
   T accept<T>(ExpressionVisitor<T> v) {
     return v.visitString(this);
@@ -98,9 +106,9 @@ class Apply extends Expression {
 }
 
 class Variable extends Expression {
-  Name id;
+  Declaration declarator;
 
-  Variable(this.id, Location location) : super(ExpTag.VAR, location);
+  Variable(this.declarator, Location location) : super(ExpTag.VAR, location);
 
   T accept<T>(ExpressionVisitor<T> v) {
     return v.visitVariable(this);
@@ -122,9 +130,16 @@ class If extends Expression {
 
 enum LetKind { Parallel, Sequential }
 
+class Binding {
+  Pattern pattern;
+  Expression expression;
+
+  Binding(this.pattern, this.expression);
+}
+
 class Let extends Expression {
   LetKind _kind;
-  List<Pair<Pattern, Expression>> valueBindings;
+  List<Binding> valueBindings;
   List<Expression> body;
 
   LetKind get kind => _kind;
@@ -139,7 +154,7 @@ class Let extends Expression {
 
 class Lambda extends Expression {
   List<Pattern> parameters;
-  List<Expression> body;
+  Expression body;
 
   Lambda(this.parameters, this.body, Location location)
       : super(ExpTag.LAMBDA, location);
@@ -149,9 +164,16 @@ class Lambda extends Expression {
   }
 }
 
+class Case {
+  Pattern pattern;
+  Expression expression;
+
+  Case(this.pattern, this.expression);
+}
+
 class Match extends Expression {
   Expression scrutinee;
-  List<Pair<Pattern, List<Expression>>> cases;
+  List<Case> cases;
 
   Match(this.scrutinee, this.cases, Location location)
       : super(ExpTag.MATCH, location);
@@ -174,13 +196,29 @@ class Tuple extends Expression {
 }
 
 class TypeAscription extends Expression {
-  Datatype type;
   Expression exp;
 
-  TypeAscription(this.exp, this.type, Location location)
+  TypeAscription._(this.exp, Location location)
       : super(ExpTag.TYPE_ASCRIPTION, location);
+
+  factory TypeAscription(Expression exp, Datatype type, Location location) {
+    TypeAscription typeAs = new TypeAscription._(exp, location);
+    typeAs.type = type;
+    return typeAs;
+  }
 
   T accept<T>(ExpressionVisitor<T> v) {
     return v.visitTypeAscription(this);
+  }
+}
+
+class ErrorExpression extends Expression {
+  final LocatedError error;
+
+  ErrorExpression(this.error, Location location)
+      : super(ExpTag.ERROR, location);
+
+  T accept<T>(ExpressionVisitor<T> v) {
+    return v.visitError(this);
   }
 }

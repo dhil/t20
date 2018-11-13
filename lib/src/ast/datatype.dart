@@ -8,8 +8,15 @@ import '../unionfind.dart' as unionfind;
 import '../unionfind.dart' show Point;
 import '../utils.dart' show Gensym;
 
+import 'binder.dart';
 import 'monoids.dart' show Monoid;
 // import 'name.dart';
+
+abstract class TypeDescriptor {
+  Binder binder;
+  List<Quantifier> parameters;
+  int get arity;
+}
 
 enum TypeTag {
   // Base types.
@@ -275,6 +282,7 @@ class Quantifier {
   // final Set<Object> constraints;
 
   Quantifier(this.ident); // : constraints = new Set<Object>();
+  Quantifier.of(Binder binder) : ident = binder.id; // TODO: replace ident by binder.
 
   static int compare(Quantifier a, Quantifier b) {
     if (a.ident < b.ident)

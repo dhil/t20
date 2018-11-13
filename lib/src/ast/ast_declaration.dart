@@ -4,15 +4,16 @@
 
 import '../location.dart';
 
-import 'ast_common.dart' show Name;
-import 'ast_types.dart' show Datatype;
+// import 'ast_common.dart' show Name;
+// import 'ast_types.dart' show Datatype;
+
+import 'binder.dart';
 
 abstract class Declaration {
-  Location get location;
-  Name get name;
+  Binder get binder;
 }
 
-abstract class TermDeclaration extends Declaration {
-  Datatype get type;
-}
-abstract class TypeDeclaration extends Declaration {}
+// abstract class TermDeclaration extends Declaration {
+//   Datatype get type;
+// }
+// abstract class TypeDeclaration extends Declaration {}

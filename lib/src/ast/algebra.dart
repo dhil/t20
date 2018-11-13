@@ -67,7 +67,6 @@ abstract class TypeAlgebra<Name, Typ> {
   Typ boolType({Location location});
   Typ stringType({Location location});
   Typ typeVar(Name name, {Location location});
-  // Typ typeParameter(Name name, {Location location});
   Typ forallType(List<Name> quantifiers, Typ type, {Location location});
   Typ arrowType(List<Typ> domain, Typ codomain, {Location location});
   Typ typeConstr(Name name, List<Typ> arguments, {Location location});
