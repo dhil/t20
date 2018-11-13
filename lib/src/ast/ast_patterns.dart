@@ -3,7 +3,7 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import '../location.dart';
-import '../errors/errors.dart' show T20Error;
+import '../errors/errors.dart' show LocatedError;
 import '../utils.dart' show Gensym;
 // import 'ast_common.dart';
 import 'binder.dart';
@@ -75,7 +75,9 @@ class ConstructorPattern extends Pattern {
 }
 
 class ErrorPattern extends Pattern {
-  ErrorPattern(Location location) : super(PatternTag.ERROR, location);
+  final LocatedError error;
+  ErrorPattern(this.error, Location location)
+      : super(PatternTag.ERROR, location);
 
   T accept<T>(PatternVisitor<T> v) {
     return v.visitError(this);
@@ -128,7 +130,8 @@ class TuplePattern extends Pattern {
 class VariablePattern extends Pattern implements Declaration {
   Binder binder;
 
-  VariablePattern(this.binder, Location location) : super(PatternTag.VAR, location);
+  VariablePattern(this.binder, Location location)
+      : super(PatternTag.VAR, location);
 
   T accept<T>(PatternVisitor<T> v) {
     return v.visitVariable(this);

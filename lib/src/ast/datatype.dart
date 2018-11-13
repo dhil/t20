@@ -4,6 +4,8 @@
 
 import 'dart:collection' show Set;
 
+import '../errors/errors.dart' show LocatedError;
+import '../location.dart';
 import '../unionfind.dart' as unionfind;
 import '../unionfind.dart' show Point;
 import '../utils.dart' show Gensym;
@@ -31,7 +33,10 @@ enum TypeTag {
   TUPLE,
 
   // Variables.
-  VAR
+  VAR,
+
+  // Misc.
+  ERROR
 }
 
 abstract class TypeVisitor<T> {
@@ -47,6 +52,8 @@ abstract class TypeVisitor<T> {
 
   T visitTypeVariable(TypeVariable variable);
   T visitSkolem(Skolem skolem);
+
+  T visitError(ErrorType error);
 }
 
 abstract class ReduceDatatype<T> extends TypeVisitor<T> {
@@ -81,6 +88,7 @@ abstract class ReduceDatatype<T> extends TypeVisitor<T> {
 
   T visitTypeVariable(TypeVariable _) => m.empty;
   T visitSkolem(Skolem _) => m.empty;
+  T visitError(ErrorType error) => m.empty;
 }
 
 abstract class TransformDatatype extends TypeVisitor<Datatype> {
@@ -123,6 +131,7 @@ abstract class TransformDatatype extends TypeVisitor<Datatype> {
 
   Datatype visitTypeVariable(TypeVariable variable) => variable;
   Datatype visitSkolem(Skolem skolem) => skolem;
+  Datatype visitError(ErrorType error) => error;
 }
 
 Datatype substitute(Datatype type, Map<int, Datatype> substMap) {
@@ -318,14 +327,26 @@ class ForallType extends Datatype {
 }
 
 class TypeConstructor extends Datatype {
+  TypeDescriptor declarator;
   List<Datatype> arguments;
-  int ident;
+  int ident; // TODO: delete.
 
   TypeConstructor() : super(TypeTag.CONSTR);
   TypeConstructor.of(this.ident, this.arguments) : super(TypeTag.CONSTR);
+  TypeConstructor.from(this.declarator, this.arguments) : super(TypeTag.CONSTR);
 
   T accept<T>(TypeVisitor<T> v) {
     return v.visitTypeConstructor(this);
+  }
+}
+
+class ErrorType extends Datatype {
+  final LocatedError error;
+
+  ErrorType(this.error, Location location) : super(TypeTag.ERROR);
+
+  T accept<T>(TypeVisitor<T> v) {
+    return v.visitError(this);
   }
 }
 

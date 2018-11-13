@@ -128,8 +128,6 @@ class If extends Expression {
   }
 }
 
-enum LetKind { Parallel, Sequential }
-
 class Binding {
   Pattern pattern;
   Expression expression;
@@ -138,13 +136,10 @@ class Binding {
 }
 
 class Let extends Expression {
-  LetKind _kind;
   List<Binding> valueBindings;
-  List<Expression> body;
+  Expression body;
 
-  LetKind get kind => _kind;
-
-  Let(this._kind, this.valueBindings, this.body, Location location)
+  Let(this.valueBindings, this.body, Location location)
       : super(ExpTag.LET, location);
 
   T accept<T>(ExpressionVisitor<T> v) {

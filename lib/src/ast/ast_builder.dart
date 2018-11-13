@@ -104,6 +104,7 @@ typedef Build<T> = Pair<BuildContext, T> Function(BuildContext);
 // forall ctxt \in BuildContext. builder(ctxt) = (ctxt',_) such that |ctxt'| >= |ctxt|.
 class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
     Build<Pattern>, Build<Datatype>> {
+  final List<Signature> lacksAccompanyingDefinition = new List<Signature>();
   final BuildContext emptyContext = new BuildContext.empty();
 
   Pair<BuildContext, T> trivial<T>(Build<T> builder) {
@@ -185,6 +186,18 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         emptyContext, new ErrorExpression(error, location));
   }
 
+  Pair<BuildContext, Pattern> patternError(
+      LocatedError error, Location location) {
+    return Pair<BuildContext, Pattern>(
+        emptyContext, new ErrorPattern(error, location));
+  }
+
+  Pair<BuildContext, Datatype> typeError(
+      LocatedError error, Location location) {
+    return Pair<BuildContext, Datatype>(
+        emptyContext, new ErrorType(error, location));
+  }
+
   Build<ModuleMember> datatypes(
           List<
                   Triple<Name, List<Name>,
@@ -216,6 +229,9 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         // Create the declaration.
         ValueDeclaration member =
             new ValueDeclaration(sig, binderOf(name), body0, location);
+
+        // Register [member] as a consumer of [sig].
+        sig.addDefinition(member);
 
         // Create the output context.
         ctxt = ctxt.putDeclaration(name, member);
@@ -258,6 +274,9 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         FunctionDeclaration member = new FunctionDeclaration(
             sig, binderOf(name), parameters0, body0, location);
 
+        // Register [member] as a consumer of [sig].
+        sig.addDefinition(member);
+
         // Create the output context.
         ctxt = ctxt.putDeclaration(name, member);
 
@@ -276,8 +295,17 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           ctxt = result.fst;
           // Only include non-null members. Members like signatures become null.
           if (result.snd != null) {
-            members0[i] = result.snd;
+            members0.add(result.snd);
           }
+        }
+
+        // Signal an error for every signature without an accompanying
+        // definition.
+        for (int i = 0; i < lacksAccompanyingDefinition.length; i++) {
+          Signature sig = lacksAccompanyingDefinition[i];
+          LocatedError err = MissingAccompanyingDefinitionError(
+              sig.binder.sourceName, sig.binder.location);
+          members0.add(ErrorModule(err, sig.location));
         }
 
         // Construct the module.
@@ -329,6 +357,11 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   Build<ModuleMember> signature(Name name, Build<Datatype> type,
           {Location location}) =>
       (BuildContext ctxt) {
+        // Check whether there already exists a signature with [name], and whether
+        // it has any associated definitions.
+        if (ctxt.getSignature(name) != null) {
+          lacksAccompanyingDefinition.add(ctxt.getSignature(name));
+        }
         // Create a binder for [name].
         Binder binder = binderOf(name);
 
@@ -436,7 +469,89 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           {BindingMethod bindingMethod = BindingMethod.Parallel,
           Location location}) =>
       (BuildContext ctxt) {
-        return null;
+        // Copy the context.
+        BuildContext ctxt0 = ctxt;
+        List<Binding> bindings0 = new List<Binding>();
+        List<Name> declaredNames;
+        switch (bindingMethod) {
+          case BindingMethod.Parallel:
+            {
+              // Build the patterns and their bodies in parallel, i.e. under the original context.
+              List<BuildContext> contexts;
+              for (int i = 0; i < bindings.length; i++) {
+                // First build the pattern.
+                Triple<BuildContext, List<Name>, Pattern> result =
+                    buildPattern(bindings[i].fst, ctxt);
+                ctxt0 = result.fst;
+                if (declaredNames == null) {
+                  declaredNames = result.snd;
+                  contexts = <BuildContext>[ctxt0];
+                } else {
+                  declaredNames.addAll(result.snd);
+                  contexts.add(ctxt0);
+                }
+                // Build the body under the original context.
+                Expression body =
+                    forgetfulBuild<Expression>(bindings[i].snd, ctxt);
+
+                // Construct the binding node.
+                bindings0.add(new Binding(result.thd, body));
+              }
+              // Merge the declaration contexts.
+              ImmutableMap<int, Declaration> decls = ctxt.declarations;
+              for (int i = 0; i < contexts.length; i++) {
+                decls = decls.union(contexts[i].declarations);
+              }
+              ctxt0 = BuildContext(
+                  decls, ctxt.quantifiers, ctxt.signatures, ctxt.typenames);
+              break;
+            }
+          case BindingMethod.Sequential:
+            {
+              // Build the patterns and their bodies sequentially, i.e. increase the
+              // context monotonically.
+              for (int i = 0; i < bindings.length; i++) {
+                // First build the pattern under the current (declaration) context.
+                Triple<BuildContext, List<Name>, Pattern> result =
+                    buildPattern(bindings[i].fst, ctxt0);
+                // TODO allow shadowing of sequential names.
+                if (declaredNames == null) {
+                  declaredNames = result.snd;
+                } else {
+                  declaredNames.addAll(result.snd);
+                }
+                // Build the body under the current (declaration) context.
+                Expression body =
+                    forgetfulBuild<Expression>(bindings[i].snd, ctxt0);
+                // Update the declaration context.
+                ctxt0 = BuildContext(
+                    ctxt0.declarations.union(result.fst.declarations),
+                    ctxt0.quantifiers,
+                    ctxt0.signatures,
+                    ctxt0.typenames);
+
+                // Construct the binding node.
+                bindings0.add(new Binding(result.thd, body));
+              }
+              break;
+            }
+        }
+
+        // Check for duplicate declarations.
+        if (declaredNames != null) {
+          List<Name> dups = checkDuplicates(declaredNames);
+          if (dups.length > 0) {
+            return reportDuplicates(dups, expressionError);
+          }
+        }
+
+        // Build the continuation (body).
+        Expression body0 = forgetfulBuild<Expression>(body, ctxt0);
+
+        // Construct the let node.
+        Let let = new Let(bindings0, body0, location);
+
+        return new Pair<BuildContext, Expression>(ctxt, let);
       };
 
   Build<Expression> tuple(List<Build<Expression>> components,
@@ -473,7 +588,31 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           List<Pair<Build<Pattern>, Build<Expression>>> cases,
           {Location location}) =>
       (BuildContext ctxt) {
-        return null;
+        // Build the [scrutinee].
+        Expression scrutinee0 = forgetfulBuild<Expression>(scrutinee, ctxt);
+
+        // Build the [cases].
+        List<Case> cases0 = new List<Case>();
+        for (int i = 0; i < cases.length; i++) {
+          // Build the pattern first.
+          Triple<BuildContext, List<Name>, Pattern> result =
+              buildPattern(cases[i].fst, ctxt);
+          BuildContext ctxt0 = result.fst;
+          // Check for duplicates.
+          List<Name> dups = checkDuplicates(result.snd);
+          if (dups.length > 0) {
+            return reportDuplicates(dups, expressionError);
+          }
+          // Build the right hand side.
+          Expression rhs = forgetfulBuild<Expression>(cases[i].snd, ctxt0);
+
+          // Construct the case.
+          cases0.add(new Case(result.thd, rhs));
+        }
+
+        // Construct the match node.
+        Match match = new Match(scrutinee0, cases0, location);
+        return Pair<BuildContext, Expression>(ctxt, match);
       };
 
   Build<Expression> typeAscription(Build<Expression> exp, Build<Datatype> type,
@@ -501,94 +640,242 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   Build<Pattern> hasTypePattern(Build<Pattern> pattern, Build<Datatype> type,
           {Location location}) =>
       (BuildContext ctxt) {
-        return null;
+        // Build the [type].
+        Datatype type0 = forgetfulBuild<Datatype>(type, ctxt);
+        // Build the [pattern].
+        Triple<BuildContext, List<Name>, Pattern> result =
+            buildPattern(pattern, ctxt);
+
+        // Construct the has type node.
+        HasTypePattern hasType =
+            new HasTypePattern(result.thd, type0, location);
+        return Pair<BuildContext, Pattern>(result.fst, hasType);
       };
 
   Build<Pattern> boolPattern(bool b, {Location location}) =>
       (BuildContext ctxt) {
-        return null;
+        // Construct the output context.
+        BuildContext ctxt0 = new OutputBuildContext(const <Name>[], ctxt);
+        // Construct the bool pattern node.
+        BoolPattern pattern = new BoolPattern(b, location);
+        return Pair<BuildContext, Pattern>(ctxt0, pattern);
       };
 
   Build<Pattern> intPattern(int n, {Location location}) => (BuildContext ctxt) {
-        return null;
+        // Construct the output context.
+        BuildContext ctxt0 = new OutputBuildContext(const <Name>[], ctxt);
+        // Construct the int pattern node.
+        IntPattern pattern = new IntPattern(n, location);
+        return Pair<BuildContext, Pattern>(ctxt0, pattern);
       };
 
   Build<Pattern> stringPattern(String s, {Location location}) =>
       (BuildContext ctxt) {
-        return null;
+        // Construct the output context.
+        BuildContext ctxt0 = new OutputBuildContext(const <Name>[], ctxt);
+        // Construct the string pattern node.
+        StringPattern pattern = new StringPattern(s, location);
+        return Pair<BuildContext, Pattern>(ctxt0, pattern);
       };
 
   Build<Pattern> wildcard({Location location}) => (BuildContext ctxt) {
-        return null;
+        // Construct the output context.
+        BuildContext ctxt0 = new OutputBuildContext(const <Name>[], ctxt);
+        // Construct the wild card pattern node.
+        WildcardPattern pattern = new WildcardPattern(location);
+        return Pair<BuildContext, Pattern>(ctxt0, pattern);
       };
 
   Build<Pattern> varPattern(Name name, {Location location}) =>
       (BuildContext ctxt) {
-        return null;
+        // Construct the var pattern node.
+        VariablePattern pattern = new VariablePattern(binderOf(name), location);
+
+        // Construct the output context.
+        ctxt = ctxt.putDeclaration(name, pattern);
+        BuildContext ctxt0 = new OutputBuildContext(<Name>[name], ctxt);
+        return Pair<BuildContext, Pattern>(ctxt0, pattern);
       };
 
   Build<Pattern> constrPattern(Name name, List<Build<Pattern>> parameters,
           {Location location}) =>
       (BuildContext ctxt) {
-        return null;
+        // Copy the original context.
+        BuildContext ctxt0 = ctxt;
+        // Build each subpattern.
+        List<Pattern> parameters0 = new List<Pattern>();
+        List<Name> declaredNames;
+        for (int i = 0; i < parameters.length; i++) {
+          Triple<BuildContext, List<Name>, Pattern> result =
+              buildPattern(parameters[i], ctxt);
+          parameters0[i] = result.thd;
+          if (declaredNames == null) {
+            declaredNames = result.snd;
+          } else {
+            declaredNames.addAll(result.snd);
+          }
+          // Update the context.
+          ctxt0 = ctxt0.union(result.fst);
+        }
+        // Check duplicates.
+        List<Name> dups = checkDuplicates(declaredNames);
+        if (dups.length > 0) {
+          return reportDuplicates(dups, patternError);
+        }
+
+        // Construct the constructor node.
+        ConstructorPattern constr =
+            new ConstructorPattern(binderOf(name), parameters0, location);
+
+        // Construct the output context.
+        OutputBuildContext ctxt1 = new OutputBuildContext(declaredNames, ctxt0);
+
+        return Pair<BuildContext, Pattern>(ctxt1, constr);
       };
 
   Build<Pattern> tuplePattern(List<Build<Pattern>> components,
           {Location location}) =>
       (BuildContext ctxt) {
-        return null;
+        // Copy the original context.
+        BuildContext ctxt0 = ctxt;
+        // Build each subpattern.
+        List<Pattern> components0 = new List<Pattern>();
+        List<Name> declaredNames;
+        for (int i = 0; i < components.length; i++) {
+          Triple<BuildContext, List<Name>, Pattern> result =
+              buildPattern(components[i], ctxt);
+          components0[i] = result.thd;
+          if (declaredNames == null) {
+            declaredNames = result.snd;
+          } else {
+            declaredNames.addAll(result.snd);
+          }
+          // Update the context.
+          ctxt0 = ctxt0.union(result.fst);
+        }
+        // Check duplicates.
+        List<Name> dups = checkDuplicates(declaredNames);
+        if (dups.length > 0) {
+          return reportDuplicates(dups, patternError);
+        }
+
+        // Construct the tuple node.
+        TuplePattern tuple = new TuplePattern(components0, location);
+
+        // Construct the output context.
+        OutputBuildContext ctxt1 = new OutputBuildContext(declaredNames, ctxt0);
+
+        return Pair<BuildContext, Pattern>(ctxt1, tuple);
       };
 
   Build<Pattern> errorPattern(LocatedError error, {Location location}) =>
       (BuildContext ctxt) {
-        return null;
+        return patternError(error, location);
       };
 
   Build<Datatype> intType({Location location}) => (BuildContext ctxt) {
-        return null;
+        return Pair<BuildContext, Datatype>(ctxt, typeUtils.intType);
       };
 
   Build<Datatype> boolType({Location location}) => (BuildContext ctxt) {
-        return null;
+        return Pair<BuildContext, Datatype>(ctxt, typeUtils.boolType);
       };
 
   Build<Datatype> stringType({Location location}) => (BuildContext ctxt) {
-        return null;
+        return Pair<BuildContext, Datatype>(ctxt, typeUtils.stringType);
       };
 
   Build<Datatype> typeVar(Name name, {Location location}) =>
       (BuildContext ctxt) {
-        return null;
+        // Look up the declarator.
+        Quantifier quantifier = ctxt.getQuantifier(name);
+        TypeVariable v;
+        // Construct the type variable node.
+        if (quantifier == null) {
+          v = new TypeVariable();
+        } else {
+          v = new TypeVariable.bound(quantifier);
+        }
+
+        return Pair<BuildContext, Datatype>(ctxt, v);
       };
 
   Build<Datatype> forallType(List<Name> quantifiers, Build<Datatype> type,
           {Location location}) =>
       (BuildContext ctxt) {
-        return null;
+        // Copy the original context.
+        BuildContext ctxt0 = ctxt;
+        // Transform [quantifiers].
+        List<Quantifier> quantifiers0 = new List<Quantifier>();
+        for (int i = 0; i < quantifiers.length; i++) {
+          Name name = quantifiers[i];
+          Quantifier q = Quantifier.of(binderOf(name));
+          ctxt0 = ctxt.putQuantifier(name, q);
+        }
+        // Build the [type].
+        Datatype type0 = forgetfulBuild<Datatype>(type, ctxt0);
+
+        // Construct the forall type node.
+        ForallType forallType = ForallType();
+        forallType.quantifiers = quantifiers0;
+        forallType.body = type0;
+
+        return Pair<BuildContext, Datatype>(ctxt, forallType);
       };
 
   Build<Datatype> arrowType(
           List<Build<Datatype>> domain, Build<Datatype> codomain,
           {Location location}) =>
       (BuildContext ctxt) {
-        return null;
+        // Build the [domain].
+        List<Datatype> domain0 = new List<Datatype>();
+        for (int i = 0; i < domain.length; i++) {
+          domain0.add(forgetfulBuild<Datatype>(domain[i], ctxt));
+        }
+        // Build the [codomain].
+        Datatype codomain0 = forgetfulBuild<Datatype>(codomain, ctxt);
+
+        // Construct the arrow type node.
+        Datatype arrowType = ArrowType(domain0, codomain0);
+
+        return Pair<BuildContext, Datatype>(ctxt, arrowType);
       };
 
   Build<Datatype> typeConstr(Name name, List<Build<Datatype>> arguments,
           {Location location}) =>
       (BuildContext ctxt) {
-        return null;
+        // Check whether the constructor name is defined.
+        TypeDescriptor desc = ctxt.getTypeDescriptor(name);
+        if (desc == null) {
+          LocatedError err = UnboundNameError(name.sourceName, name.location);
+          return typeError(err, location);
+        }
+        // Build each argument.
+        List<Datatype> arguments0 = new List<Datatype>();
+        for (int i = 0; i < arguments0.length; i++) {
+          arguments0.add(forgetfulBuild<Datatype>(arguments[i], ctxt));
+        }
+        // Construct the constructor type node.
+        TypeConstructor constr = new TypeConstructor.from(desc, arguments0);
+        return Pair<BuildContext, Datatype>(ctxt, constr);
       };
 
   Build<Datatype> tupleType(List<Build<Datatype>> components,
           {Location location}) =>
       (BuildContext ctxt) {
-        return null;
+        // Build each component.
+        List<Datatype> components0 = new List<Datatype>();
+        for (int i = 0; i < components0.length; i++) {
+          components0.add(forgetfulBuild<Datatype>(components[i], ctxt));
+        }
+        // Construct the tuple type node.
+        TupleType tupleType = new TupleType(components0);
+        return Pair<BuildContext, Datatype>(ctxt, tupleType);
       };
 
   Build<Datatype> errorType(LocatedError error, {Location location}) =>
       (BuildContext ctxt) {
-        return null;
+        return typeError(error, location);
       };
 
   Name termName(String name, {Location location}) {

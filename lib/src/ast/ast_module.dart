@@ -56,9 +56,16 @@ class Signature extends ModuleMember {
   Location location;
   Binder binder;
   Datatype type;
+  List<Declaration> definitions;
 
   Signature(this.binder, this.type, Location location)
-      : super(ModuleTag.SIGNATURE, location);
+      : definitions = new List<Declaration>(),
+        super(ModuleTag.SIGNATURE, location);
+
+
+  void addDefinition(Declaration decl) {
+    definitions.add(decl);
+  }
 
   T accept<T>(ModuleVisitor<T> v) {
     return v.visitSignature(this);
@@ -105,7 +112,8 @@ class DataConstructor extends ModuleMember implements Declaration {
   }
 }
 
-class DatatypeDescriptor extends ModuleMember implements Declaration, TypeDescriptor {
+class DatatypeDescriptor extends ModuleMember
+    implements Declaration, TypeDescriptor {
   Binder binder;
   List<Quantifier> parameters;
   List<DataConstructor> constructors;
@@ -153,15 +161,15 @@ class TopModule extends ModuleMember {
   }
 }
 
-class TypeAliasDescriptor extends ModuleMember implements Declaration, TypeDescriptor {
+class TypeAliasDescriptor extends ModuleMember
+    implements Declaration, TypeDescriptor {
   Binder binder;
   List<Quantifier> parameters;
   Datatype rhs;
 
   int get arity => parameters.length;
 
-  TypeAliasDescriptor(
-      this.binder, this.parameters, this.rhs, Location location)
+  TypeAliasDescriptor(this.binder, this.parameters, this.rhs, Location location)
       : super(ModuleTag.TYPENAME, location);
 
   T accept<T>(ModuleVisitor<T> v) {
