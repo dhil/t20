@@ -129,6 +129,7 @@ class TuplePattern extends Pattern {
 
 class VariablePattern extends Pattern implements Declaration {
   Binder binder;
+  bool get isVirtual => false;
 
   VariablePattern(this.binder, Location location)
       : super(PatternTag.VAR, location);

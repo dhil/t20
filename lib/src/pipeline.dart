@@ -7,7 +7,7 @@ library t20.pipeline;
 import 'dart:io';
 
 import '../settings.dart';
-import 'builtins.dart';
+import 'builtins.dart' as builtins;
 // import 'ast/algebra.dart';
 // import 'ast/datatype.dart';
 // import 'ast/name.dart';
@@ -53,6 +53,20 @@ bool compile(List<String> filePaths, Settings settings) {
       // Exit now, if requested.
       if (settings.exitAfter == "parser") {
         return parseResult.wasSuccessful;
+      }
+
+      // Elaborate.
+      Result<ModuleMember, LocatedError> elabResult = new ASTBuilder().build(parseResult.result, BuildContext.withBuiltins());
+
+      // Report errors, if any.
+      if (!elabResult.wasSuccessful) {
+        report(elabResult.errors);
+        return false;
+      }
+
+      // Exit now, if requested.
+      if (settings.exitAfter == "elaborator") {
+        return elabResult.wasSuccessful;
       }
 
       // Elaborate.

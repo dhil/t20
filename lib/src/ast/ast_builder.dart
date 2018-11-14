@@ -2,13 +2,17 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import '../location.dart';
+import '../builtins.dart' as builtins;
 import '../errors/errors.dart';
 import '../fp.dart';
+import '../location.dart';
 import '../immutable_collections.dart';
+import '../result.dart';
 
 import '../static_semantics/type_utils.dart' as typeUtils
-    show boolType, intType, stringType;
+    show boolType, intType, stringType, extractQuantifiers;
+import '../syntax/alt/elaboration.dart' show ModuleElaborator, TypeElaborator;
+import '../syntax/sexp.dart';
 
 import 'algebra.dart';
 import 'ast_module.dart';
@@ -23,10 +27,21 @@ class Name {
   final int intern;
   final String sourceName;
 
-  Name(this.sourceName, this.location) : intern = sourceName.hashCode;
+  Name(this.sourceName, this.location) : intern = computeIntern(sourceName);
+  Name.synthesise(Binder binder)
+      : intern = computeIntern(binder.sourceName),
+        location = binder.location,
+        sourceName = binder.sourceName;
 
   String toString() {
     return "$sourceName:$location";
+  }
+
+  static int computeIntern(String name) {
+    if (name != null)
+      return name.hashCode;
+    else
+      return 0;
   }
 }
 
@@ -35,15 +50,45 @@ class BuildContext {
   final ImmutableMap<int, Quantifier> quantifiers;
   final ImmutableMap<int, Signature> signatures;
   final ImmutableMap<int, TypeDescriptor> typenames;
+  final Map<int, ClassDescriptor> classes;
 
-  BuildContext(
-      this.declarations, this.quantifiers, this.signatures, this.typenames);
+  BuildContext(this.declarations, this.quantifiers, this.signatures,
+      this.typenames, this.classes);
   BuildContext.empty()
       : this(
             ImmutableMap<int, Declaration>.empty(),
             ImmutableMap<int, Quantifier>.empty(),
             ImmutableMap<int, Signature>.empty(),
-            ImmutableMap<int, TypeDescriptor>.empty());
+            ImmutableMap<int, TypeDescriptor>.empty(),
+            Map<int, ClassDescriptor>());
+  factory BuildContext.withBuiltins() {
+    MapEntry<int, Declaration> patchEntry(int _, Declaration decl) {
+      return MapEntry<int, Declaration>(
+          Name.computeIntern(decl.binder.sourceName), decl);
+    }
+
+    Map<int, Declaration> declarations = builtins.declarations.map(patchEntry);
+    Map<int, ClassDescriptor> classes =
+        builtins.classes.map((int _, ClassDescriptor desc) {
+      // Populate [declarations] with the members of [desc].
+      for (int i = 0; i < desc.members.length; i++) {
+        Declaration member = desc.members[i];
+        declarations[Name.computeIntern(member.binder.sourceName)] = member;
+      }
+      return MapEntry<int, ClassDescriptor>(
+          Name.computeIntern(desc.binder.sourceName), desc);
+    });
+    return BuildContext(
+        ImmutableMap<int, Declaration>.of(declarations),
+        ImmutableMap<int, Quantifier>.empty(),
+        ImmutableMap<int, Signature>.empty(),
+        ImmutableMap<int, TypeDescriptor>.empty(),
+        classes);
+  }
+
+  ClassDescriptor getClass(Name name) {
+    return classes[name.intern];
+  }
 
   Declaration getDeclaration(Name name) {
     return declarations.lookup(name.intern);
@@ -51,34 +96,40 @@ class BuildContext {
 
   BuildContext putDeclaration(Name name, Declaration declaration) {
     return BuildContext(declarations.put(name.intern, declaration), quantifiers,
-        signatures, typenames);
+        signatures, typenames, classes);
   }
 
   Signature getSignature(Name name) {
+    if (name == null) return null;
     return signatures.lookup(name.intern);
   }
 
   BuildContext putSignature(Name name, Signature signature) {
+    if (name == null) return this;
     return BuildContext(declarations, quantifiers,
-        signatures.put(name.intern, signature), typenames);
+        signatures.put(name.intern, signature), typenames, classes);
   }
 
   TypeDescriptor getTypeDescriptor(Name name) {
+    if (name == null) return null;
     return typenames.lookup(name.intern);
   }
 
   BuildContext putTypeDescriptor(Name name, TypeDescriptor desc) {
+    if (name == null) return this;
     return BuildContext(declarations, quantifiers, signatures,
-        typenames.put(name.intern, desc));
+        typenames.put(name.intern, desc), classes);
   }
 
   Quantifier getQuantifier(Name name) {
+    if (name == null) return null;
     return quantifiers.lookup(name.intern);
   }
 
   BuildContext putQuantifier(Name name, Quantifier quantifier) {
+    if (name == null) return this;
     return BuildContext(declarations, quantifiers.put(name.intern, quantifier),
-        signatures, typenames);
+        signatures, typenames, classes);
   }
 
   BuildContext union(BuildContext other) {
@@ -86,7 +137,8 @@ class BuildContext {
         declarations.union(other.declarations),
         quantifiers.union(other.quantifiers),
         signatures.union(other.signatures),
-        typenames.union(other.typenames));
+        typenames.union(other.typenames),
+        classes); // Classes are supposed to be "fixed".
   }
 }
 
@@ -95,15 +147,52 @@ class OutputBuildContext extends BuildContext {
 
   OutputBuildContext(this.declaredNames, BuildContext ctxt)
       : super(ctxt.declarations, ctxt.quantifiers, ctxt.signatures,
-            ctxt.typenames);
+            ctxt.typenames, ctxt.classes);
+}
+
+class ASTBuilder {
+  Result<ModuleMember, LocatedError> build(Sexp program,
+      [BuildContext context]) {
+    if (context == null) {
+      context = BuildContext.empty();
+    }
+    _ASTBuilder builder = new _ASTBuilder();
+    ModuleMember module =
+        new ModuleElaborator(builder).elaborate(program)(context).snd;
+    Result<ModuleMember, LocatedError> result;
+    if (builder.errors.length > 0) {
+      result = Result<ModuleMember, LocatedError>.failure(builder.errors);
+    } else {
+      result = Result<ModuleMember, LocatedError>.success(module);
+    }
+    return result;
+  }
+
+  Result<Datatype, LocatedError> buildDatatype(Sexp type,
+      [BuildContext context]) {
+    if (context == null) {
+      context = BuildContext.empty();
+    }
+    _ASTBuilder builder = new _ASTBuilder();
+    Datatype datatype =
+        new TypeElaborator(builder).elaborate(type)(context).snd;
+    Result<Datatype, LocatedError> result;
+    if (builder.errors.length > 0) {
+      result = Result<Datatype, LocatedError>.failure(builder.errors);
+    } else {
+      result = Result<Datatype, LocatedError>.success(datatype);
+    }
+    return result;
+  }
 }
 
 typedef Build<T> = Pair<BuildContext, T> Function(BuildContext);
 
 // builder : (BuildContext) -> (BuildContext * node)
 // forall ctxt \in BuildContext. builder(ctxt) = (ctxt',_) such that |ctxt'| >= |ctxt|.
-class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
+class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
     Build<Pattern>, Build<Datatype>> {
+  final List<LocatedError> errors = new List<LocatedError>();
   final List<Signature> lacksAccompanyingDefinition = new List<Signature>();
   final BuildContext emptyContext = new BuildContext.empty();
 
@@ -142,13 +231,14 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           buildPattern(parameters[i], context);
       ctxt0 = ctxt0.union(result.fst);
       declaredNames.addAll(result.snd);
-      parameters0[i] = result.thd;
+      parameters0.add(result.thd);
     }
     return Triple<BuildContext, List<Name>, List<Pattern>>(
         ctxt0, declaredNames, parameters0);
   }
 
   List<Name> checkDuplicates(List<Name> names) {
+    if (names == null) return const <Name>[];
     Set<int> uniqueNames = new Set<int>();
     List<Name> dups = new List<Name>();
     for (int i = 0; i < names.length; i++) {
@@ -167,35 +257,44 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   }
 
   BuildContext exposeQuantifiers(Signature sig, BuildContext context) {
-    return context; // TODO.
+    List<Quantifier> quantifiers = typeUtils.extractQuantifiers(sig.type);
+    for (int i = 0; i < quantifiers.length; i++) {
+      context = context.putQuantifier(
+          Name.synthesise(quantifiers[i].binder), quantifiers[i]);
+    }
+    return context;
   }
 
   Binder binderOf(Name name) {
-    return Binder.fromSource(name.sourceName, name.location);
+    if (name == null)
+      return Binder.fresh();
+    else
+      return Binder.fromSource(name.sourceName, name.location);
+  }
+
+  Pair<BuildContext, T> addError<T>(LocatedError error, T node) {
+    errors.add(error);
+    return Pair<BuildContext, T>(emptyContext, node);
   }
 
   Pair<BuildContext, ModuleMember> moduleError(
       LocatedError error, Location location) {
-    return Pair<BuildContext, ModuleMember>(
-        emptyContext, ErrorModule(error, location));
+    return addError<ModuleMember>(error, ErrorModule(error, location));
   }
 
   Pair<BuildContext, Expression> expressionError(
       LocatedError error, Location location) {
-    return Pair<BuildContext, Expression>(
-        emptyContext, new ErrorExpression(error, location));
+    return addError<Expression>(error, ErrorExpression(error, location));
   }
 
   Pair<BuildContext, Pattern> patternError(
       LocatedError error, Location location) {
-    return Pair<BuildContext, Pattern>(
-        emptyContext, new ErrorPattern(error, location));
+    return addError<Pattern>(error, new ErrorPattern(error, location));
   }
 
   Pair<BuildContext, Datatype> typeError(
       LocatedError error, Location location) {
-    return Pair<BuildContext, Datatype>(
-        emptyContext, new ErrorType(error, location));
+    return addError<Datatype>(error, new ErrorType(error, location));
   }
 
   Build<ModuleMember> datatypes(
@@ -206,10 +305,17 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           List<Name> deriving,
           {Location location}) =>
       (BuildContext ctxt) {
+        // Two pass algorithm:
+        // 1) construct a partial data type descriptor for each data type in the
+        // binding group.
+        // 2) construct the data constructors and attach them to their type
+        // descriptors.
+
         // Context shared amongst definitions
         BuildContext sharedContext = ctxt;
-        // Declared constructor names.
-        List<Name> declaredNames = List<Name>();
+        // Declared type names.
+        List<Name> declaredTypes = new List<Name>();
+        // First pass.
         // Build each datatype definition.
         List<DatatypeDescriptor> descs = new List<DatatypeDescriptor>();
         for (int i = 0; i < defs.length; i++) {
@@ -228,7 +334,7 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           List<Quantifier> quantifiers = new List<Quantifier>();
           for (int i = 0; i < typeParameters.length; i++) {
             Quantifier q = Quantifier.of(binderOf(typeParameters[i]));
-            quantifiers[i] = q;
+            quantifiers.add(q);
           }
           // Create a partial type descriptor.
           // TODO add location information per descriptor.
@@ -236,10 +342,31 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
               DatatypeDescriptor.partial(binder, quantifiers, location);
           // Bind the (partial) descriptor in the context.
           sharedContext = sharedContext.putTypeDescriptor(name, desc);
+          // Remember the type descriptor.
+          descs.add(desc);
+          declaredTypes.add(name);
+        }
+
+        // Check for duplicate names.
+        List<Name> dups = checkDuplicates(declaredTypes);
+        if (dups.length > 0) {
+          return reportDuplicates(dups, moduleError);
+        }
+
+        // Second pass.
+        // Declared constructor names.
+        List<Name> declaredNames = new List<Name>();
+        // Construct the data constructors.
+        for (int i = 0; i < descs.length; i++) {
+          Triple<Name, List<Name>, List<Pair<Name, List<Build<Datatype>>>>>
+              def = defs[i];
+          List<Name> typeParameters = def.snd;
+          DatatypeDescriptor desc = descs[i];
           // Expose the quantifiers.
+          List<Quantifier> quantifiers = desc.parameters;
           BuildContext ctxt0 = sharedContext;
           for (int j = 0; j < quantifiers.length; j++) {
-            ctxt0 = ctxt0.putQuantifier(typeParameters[i], quantifiers[j]);
+            ctxt0 = ctxt0.putQuantifier(typeParameters[j], quantifiers[j]);
           }
           // Build the data constructors.
           List<Pair<Name, List<Build<Datatype>>>> constructors = def.thd;
@@ -261,17 +388,25 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
                 DataConstructor(constrBinder, types0, constrName.location);
             dataConstructor.declarator = desc;
             dataConstructors.add(dataConstructor);
+            // Add the constructor to the shared context.
+            sharedContext =
+                sharedContext.putDeclaration(constrName, dataConstructor);
           }
           // Finish the type descriptor.
           desc.constructors = dataConstructors;
-          descs.add(desc);
         }
 
         // Build the deriving clause.
         List<Derive> deriving0 = new List<Derive>();
         for (int i = 0; i < deriving.length; i++) {
-          Object classDescriptor = null; // TODO look up in the environment.
-          deriving0.add(Derive(classDescriptor));
+          ClassDescriptor classDescriptor = ctxt.getClass(deriving[i]);
+          if (classDescriptor == null) {
+            LocatedError err =
+                UnboundNameError(deriving[i].sourceName, deriving[i].location);
+            return moduleError(err, deriving[i].location);
+          } else {
+            deriving0.add(Derive(classDescriptor));
+          }
         }
         // Attach the deriving clauses to each datatype declaration.
         for (int i = 0; i < descs.length; i++) {
@@ -294,7 +429,7 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         if (sig == null) {
           // Signal an error.
           LocatedError err =
-              MissingAccompanyingSignatureError(name.sourceName, location);
+              MissingAccompanyingSignatureError(name.sourceName, name.location);
           return moduleError(err, location);
         }
         // Expose quantifiers.
@@ -325,7 +460,7 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         if (sig == null) {
           // Signal an error.
           LocatedError err =
-              MissingAccompanyingSignatureError(name.sourceName, location);
+              MissingAccompanyingSignatureError(name.sourceName, name.location);
           return moduleError(err, location);
         }
         // Expose quantifiers.
@@ -365,11 +500,11 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
       (BuildContext ctxt) {
         // Build each member.
         List<ModuleMember> members0 = new List<ModuleMember>();
-        for (int i = 0; i < members0.length; i++) {
+        for (int i = 0; i < members.length; i++) {
           Pair<BuildContext, ModuleMember> result =
               build<ModuleMember>(members[i], ctxt);
           // Update the context.
-          ctxt = result.fst;
+          if (result.fst != emptyContext) ctxt = result.fst;
           // Only include non-null members. Members like signatures become null.
           if (result.snd != null) {
             members0.add(result.snd);
@@ -382,7 +517,20 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           Signature sig = lacksAccompanyingDefinition[i];
           LocatedError err = MissingAccompanyingDefinitionError(
               sig.binder.sourceName, sig.binder.location);
+          errors.add(err);
           members0.add(ErrorModule(err, sig.location));
+        }
+        List<Signature> sigs = ctxt.signatures.entries
+            .map((MapEntry<int, Signature> e) => e.value)
+            .toList();
+        for (int i = 0; i < sigs.length; i++) {
+          Signature sig = sigs[i];
+          if (sig.definitions.length == 0) {
+            LocatedError err = MissingAccompanyingDefinitionError(
+                sig.binder.sourceName, sig.binder.location);
+            errors.add(err);
+            members0.add(ErrorModule(err, sig.location));
+          }
         }
 
         // Construct the module.
@@ -437,7 +585,10 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         // Check whether there already exists a signature with [name], and whether
         // it has any associated definitions.
         if (ctxt.getSignature(name) != null) {
-          lacksAccompanyingDefinition.add(ctxt.getSignature(name));
+          Signature sig = ctxt.getSignature(name);
+          if (sig.definitions.length == 0) {
+            lacksAccompanyingDefinition.add(sig);
+          }
         }
         // Create a binder for [name].
         Binder binder = binderOf(name);
@@ -456,8 +607,7 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
 
   Build<ModuleMember> errorModule(LocatedError error, {Location location}) =>
       (BuildContext ctxt) {
-        return Pair<BuildContext, ModuleMember>(
-            ctxt, new ErrorModule(error, location));
+        return moduleError(error, location);
       };
 
   Build<Expression> boolLit(bool b, {Location location}) =>
@@ -510,7 +660,7 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         List<Expression> arguments0 = new List<Expression>();
         for (int i = 0; i < arguments.length; i++) {
           Expression exp = forgetfulBuild(arguments[i], ctxt);
-          arguments0[i] = exp;
+          arguments0.add(exp);
         }
 
         // Construct the application node.
@@ -556,7 +706,11 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
               // Build the patterns and their bodies in parallel, i.e. under the original context.
               List<BuildContext> contexts;
               for (int i = 0; i < bindings.length; i++) {
-                // First build the pattern.
+                // Build the body under the original context.
+                Expression body =
+                    forgetfulBuild<Expression>(bindings[i].snd, ctxt);
+
+                // Build the pattern.
                 Triple<BuildContext, List<Name>, Pattern> result =
                     buildPattern(bindings[i].fst, ctxt);
                 ctxt0 = result.fst;
@@ -567,9 +721,6 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
                   declaredNames.addAll(result.snd);
                   contexts.add(ctxt0);
                 }
-                // Build the body under the original context.
-                Expression body =
-                    forgetfulBuild<Expression>(bindings[i].snd, ctxt);
 
                 // Construct the binding node.
                 bindings0.add(new Binding(result.thd, body));
@@ -579,8 +730,8 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
               for (int i = 0; i < contexts.length; i++) {
                 decls = decls.union(contexts[i].declarations);
               }
-              ctxt0 = BuildContext(
-                  decls, ctxt.quantifiers, ctxt.signatures, ctxt.typenames);
+              ctxt0 = BuildContext(decls, ctxt.quantifiers, ctxt.signatures,
+                  ctxt.typenames, ctxt.classes);
               break;
             }
           case BindingMethod.Sequential:
@@ -588,7 +739,10 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
               // Build the patterns and their bodies sequentially, i.e. increase the
               // context monotonically.
               for (int i = 0; i < bindings.length; i++) {
-                // First build the pattern under the current (declaration) context.
+                // Build the body under the current (declaration) context.
+                Expression body =
+                    forgetfulBuild<Expression>(bindings[i].snd, ctxt0);
+                // Build the pattern under the current (declaration) context.
                 Triple<BuildContext, List<Name>, Pattern> result =
                     buildPattern(bindings[i].fst, ctxt0);
                 // TODO allow shadowing of sequential names.
@@ -597,15 +751,14 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
                 } else {
                   declaredNames.addAll(result.snd);
                 }
-                // Build the body under the current (declaration) context.
-                Expression body =
-                    forgetfulBuild<Expression>(bindings[i].snd, ctxt0);
+
                 // Update the declaration context.
                 ctxt0 = BuildContext(
                     ctxt0.declarations.union(result.fst.declarations),
                     ctxt0.quantifiers,
                     ctxt0.signatures,
-                    ctxt0.typenames);
+                    ctxt0.typenames,
+                    ctxt0.classes);
 
                 // Construct the binding node.
                 bindings0.add(new Binding(result.thd, body));
@@ -637,7 +790,7 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         // Build each component.
         List<Expression> components0 = new List<Expression>();
         for (int i = 0; i < components.length; i++) {
-          components0[i] = forgetfulBuild<Expression>(components[i], ctxt);
+          components0.add(forgetfulBuild<Expression>(components[i], ctxt));
         }
 
         // Construct the tuple node.
@@ -781,16 +934,12 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         BuildContext ctxt0 = ctxt;
         // Build each subpattern.
         List<Pattern> parameters0 = new List<Pattern>();
-        List<Name> declaredNames;
+        List<Name> declaredNames = new List<Name>();
         for (int i = 0; i < parameters.length; i++) {
           Triple<BuildContext, List<Name>, Pattern> result =
               buildPattern(parameters[i], ctxt);
-          parameters0[i] = result.thd;
-          if (declaredNames == null) {
-            declaredNames = result.snd;
-          } else {
-            declaredNames.addAll(result.snd);
-          }
+          parameters0.add(result.thd);
+          declaredNames.addAll(result.snd);
           // Update the context.
           ctxt0 = ctxt0.union(result.fst);
         }
@@ -817,16 +966,12 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         BuildContext ctxt0 = ctxt;
         // Build each subpattern.
         List<Pattern> components0 = new List<Pattern>();
-        List<Name> declaredNames;
+        List<Name> declaredNames = new List<Name>();
         for (int i = 0; i < components.length; i++) {
           Triple<BuildContext, List<Name>, Pattern> result =
               buildPattern(components[i], ctxt);
-          components0[i] = result.thd;
-          if (declaredNames == null) {
-            declaredNames = result.snd;
-          } else {
-            declaredNames.addAll(result.snd);
-          }
+          components0.add(result.thd);
+          declaredNames.addAll(result.snd);
           // Update the context.
           ctxt0 = ctxt0.union(result.fst);
         }
@@ -869,7 +1014,10 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         TypeVariable v;
         // Construct the type variable node.
         if (quantifier == null) {
-          v = new TypeVariable();
+          //v = new TypeVariable();
+          // TODO do not eagerly throw an error.
+          LocatedError err = UnboundNameError(name.sourceName, location);
+          return typeError(err, location);
         } else {
           v = new TypeVariable.bound(quantifier);
         }
@@ -887,7 +1035,8 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         for (int i = 0; i < quantifiers.length; i++) {
           Name name = quantifiers[i];
           Quantifier q = Quantifier.of(binderOf(name));
-          ctxt0 = ctxt.putQuantifier(name, q);
+          quantifiers0.add(q);
+          ctxt0 = ctxt0.putQuantifier(name, q);
         }
         // Build the [type].
         Datatype type0 = forgetfulBuild<Datatype>(type, ctxt0);
@@ -964,6 +1113,7 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   }
 
   Name errorName(LocatedError error, {Location location}) {
+    errors.add(error);
     return null;
   }
 }

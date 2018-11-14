@@ -288,10 +288,11 @@ class Skolem extends Datatype {
 class Quantifier {
   final Kind kind = Kind.TYPE;
   final int ident;
+  final Binder binder;
   // final Set<Object> constraints;
 
-  Quantifier(this.ident); // : constraints = new Set<Object>();
-  Quantifier.of(Binder binder) : ident = binder.id; // TODO: replace ident by binder.
+  Quantifier(this.ident) : binder = Binder.fresh(); // : constraints = new Set<Object>();
+  Quantifier.of(Binder binder) : ident = binder.id, this.binder = binder; // TODO: replace ident by binder.
 
   static int compare(Quantifier a, Quantifier b) {
     if (a.ident < b.ident)

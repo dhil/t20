@@ -4,6 +4,7 @@
 
 library t20.errors.reporting;
 
+import 'dart:convert' show Utf8Codec;
 import 'dart:io';
 
 import 'errors.dart';
@@ -98,7 +99,7 @@ class _ErrorReporter {
 
       // Open the stream.
       if (source.scheme == "data") {
-        stream = ByteStream.fromString(source.data.contentText);
+        stream = ByteStream.fromString(source.data.contentAsString(encoding: new Utf8Codec()));
       } else {
         file = new File(source.toString()).openSync(mode: FileMode.read);
         stream = ByteStream.fromFile(file);

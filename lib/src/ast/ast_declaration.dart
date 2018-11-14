@@ -11,6 +11,7 @@ import 'binder.dart';
 
 abstract class Declaration {
   Binder get binder;
+  bool get isVirtual;
 }
 
 // abstract class TermDeclaration extends Declaration {

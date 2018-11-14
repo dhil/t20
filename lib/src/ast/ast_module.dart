@@ -53,7 +53,6 @@ abstract class ModuleMember {
 }
 
 class Signature extends ModuleMember {
-  Location location;
   Binder binder;
   Datatype type;
   List<Declaration> definitions;
@@ -75,6 +74,7 @@ class ValueDeclaration extends ModuleMember implements Declaration {
   Binder binder;
   Signature signature;
   Expression body;
+  bool get isVirtual => false;
 
   ValueDeclaration(this.signature, this.binder, this.body, Location location)
       : super(ModuleTag.VALUE_DEF, location);
@@ -88,6 +88,7 @@ class FunctionDeclaration extends ModuleMember implements Declaration {
   Signature signature;
   List<Pattern> parameters;
   Expression body;
+  bool get isVirtual => false;
 
   FunctionDeclaration(this.signature, this.binder, this.parameters, this.body,
       Location location)
@@ -98,10 +99,27 @@ class FunctionDeclaration extends ModuleMember implements Declaration {
   }
 }
 
+class VirtualFunctionDeclaration extends FunctionDeclaration {
+  bool get isVirtual => true;
+
+  VirtualFunctionDeclaration._(Signature signature, Binder binder)
+      : super(signature, binder, null, null, signature.location);
+  factory VirtualFunctionDeclaration(String name, Datatype type) {
+    Location location = Location.dummy();
+    Binder binder = Binder.primitive(name);
+    Signature signature = new Signature(binder, type, location);
+    VirtualFunctionDeclaration funDecl =
+        new VirtualFunctionDeclaration._(signature, binder);
+    signature.addDefinition(funDecl);
+    return funDecl;
+  }
+}
+
 class DataConstructor extends ModuleMember implements Declaration {
   DatatypeDescriptor declarator;
   Binder binder;
   List<Datatype> parameters;
+  bool get isVirtual => false;
 
   DataConstructor(this.binder, this.parameters, Location location)
       : super(ModuleTag.CONSTR, location);
@@ -111,8 +129,15 @@ class DataConstructor extends ModuleMember implements Declaration {
   }
 }
 
+class ClassDescriptor {
+  final Binder binder;
+  final List<VirtualFunctionDeclaration> members;
+
+  ClassDescriptor(this.binder, this.members);
+}
+
 class Derive {
-  Object classDescriptor; // TODO.
+  final ClassDescriptor classDescriptor;
   Derive(this.classDescriptor);
 }
 
@@ -122,6 +147,7 @@ class DatatypeDescriptor extends ModuleMember
   List<Quantifier> parameters;
   List<DataConstructor> constructors;
   List<Derive> deriving;
+  bool get isVirtual => false;
 
   int get arity => parameters.length;
 
@@ -172,6 +198,7 @@ class TypeAliasDescriptor extends ModuleMember
   Binder binder;
   List<Quantifier> parameters;
   Datatype rhs;
+  bool get isVirtual => false;
 
   int get arity => parameters.length;
 

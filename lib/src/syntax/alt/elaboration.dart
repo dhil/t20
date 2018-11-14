@@ -404,7 +404,7 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
       Atom atom = list[1];
       Name ident = termName(atom);
       Exp body = expression(list[2]);
-      return alg.valueDef(ident, body);
+      return alg.valueDef(ident, body, location: list.location);
     } else if (list[1] is SList) {
       // (define (name P*) E).
       SList list0 = list[1]; // TODO find a better name than 'list0'.
@@ -644,6 +644,22 @@ class TypeElaborator<Name, Typ>
       return basicType(atom);
     } else if (sexp is SList) {
       SList list = sexp;
+      return higherType(list);
+    } else if (sexp is Toplevel) {
+      // This is a terrible hack to make it possible to use this method to
+      // elaborate handwritten strings.
+      Toplevel toplevel = sexp;
+      if (toplevel.sexps.length == 1) {
+        if (toplevel.sexps[0] is Atom) {
+          Atom atom = toplevel.sexps[0];
+          return basicType(atom);
+        } else if (toplevel.sexps[0] is SList) {
+          SList list = toplevel.sexps[0];
+          return higherType(list);
+        }
+      }
+      // Fails if |sexps| != 1.
+      SList list = new SList(sexp.sexps, ListBrackets.PARENS, sexp.location);
       return higherType(list);
     } else {
       return alg

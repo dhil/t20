@@ -7,7 +7,7 @@
 
 (: list-concat (-> (List 'a) (List 'a) (List 'a)))
 (define (list-concat xs ys)
-  foldr cons xs ys)
+  fold-right cons xs ys)
 
 ;; Modelling cards.
 (define-datatype Suit
