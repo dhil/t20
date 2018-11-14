@@ -206,7 +206,84 @@ class ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           List<Name> deriving,
           {Location location}) =>
       (BuildContext ctxt) {
-        return null;
+        // Context shared amongst definitions
+        BuildContext sharedContext = ctxt;
+        // Declared constructor names.
+        List<Name> declaredNames = List<Name>();
+        // Build each datatype definition.
+        List<DatatypeDescriptor> descs = new List<DatatypeDescriptor>();
+        for (int i = 0; i < defs.length; i++) {
+          Triple<Name, List<Name>, List<Pair<Name, List<Build<Datatype>>>>>
+              def = defs[i];
+          // Create a binder for name.
+          Name name = def.fst;
+          Binder binder = binderOf(name);
+          // Check for duplicate parameters.
+          List<Name> typeParameters = def.snd;
+          List<Name> dups = checkDuplicates(typeParameters);
+          if (dups.length > 0) {
+            return reportDuplicates(dups, moduleError);
+          }
+          // Transform the parameters.
+          List<Quantifier> quantifiers = new List<Quantifier>();
+          for (int i = 0; i < typeParameters.length; i++) {
+            Quantifier q = Quantifier.of(binderOf(typeParameters[i]));
+            quantifiers[i] = q;
+          }
+          // Create a partial type descriptor.
+          // TODO add location information per descriptor.
+          DatatypeDescriptor desc =
+              DatatypeDescriptor.partial(binder, quantifiers, location);
+          // Bind the (partial) descriptor in the context.
+          sharedContext = sharedContext.putTypeDescriptor(name, desc);
+          // Expose the quantifiers.
+          BuildContext ctxt0 = sharedContext;
+          for (int j = 0; j < quantifiers.length; j++) {
+            ctxt0 = ctxt0.putQuantifier(typeParameters[i], quantifiers[j]);
+          }
+          // Build the data constructors.
+          List<Pair<Name, List<Build<Datatype>>>> constructors = def.thd;
+          List<DataConstructor> dataConstructors = new List<DataConstructor>();
+          for (int j = 0; j < constructors.length; j++) {
+            Pair<Name, List<Build<Datatype>>> constr = constructors[j];
+            // Create a binder for the name.
+            Name constrName = constr.fst;
+            Binder constrBinder = binderOf(constrName);
+            declaredNames.add(constrName);
+            // Build each datatype
+            List<Build<Datatype>> types = constr.snd;
+            List<Datatype> types0 = new List<Datatype>();
+            for (int k = 0; k < types.length; k++) {
+              types0.add(forgetfulBuild<Datatype>(types[k], ctxt0));
+            }
+            // Construct the data constructor node.
+            DataConstructor dataConstructor =
+                DataConstructor(constrBinder, types0, constrName.location);
+            dataConstructor.declarator = desc;
+            dataConstructors.add(dataConstructor);
+          }
+          // Finish the type descriptor.
+          desc.constructors = dataConstructors;
+          descs.add(desc);
+        }
+
+        // Build the deriving clause.
+        List<Derive> deriving0 = new List<Derive>();
+        for (int i = 0; i < deriving.length; i++) {
+          Object classDescriptor = null; // TODO look up in the environment.
+          deriving0.add(Derive(classDescriptor));
+        }
+        // Attach the deriving clauses to each datatype declaration.
+        for (int i = 0; i < descs.length; i++) {
+          descs[i].deriving = deriving0;
+        }
+
+        // Construct the datatypes node.
+        DatatypeDeclarations datatypeDeclarations =
+            DatatypeDeclarations(descs, location);
+
+        return Pair<BuildContext, ModuleMember>(
+            sharedContext, datatypeDeclarations);
       };
 
   Build<ModuleMember> valueDef(Name name, Build<Expression> body,

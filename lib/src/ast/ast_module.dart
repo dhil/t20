@@ -62,7 +62,6 @@ class Signature extends ModuleMember {
       : definitions = new List<Declaration>(),
         super(ModuleTag.SIGNATURE, location);
 
-
   void addDefinition(Declaration decl) {
     definitions.add(decl);
   }
@@ -112,19 +111,26 @@ class DataConstructor extends ModuleMember implements Declaration {
   }
 }
 
+class Derive {
+  Object classDescriptor; // TODO.
+  Derive(this.classDescriptor);
+}
+
 class DatatypeDescriptor extends ModuleMember
     implements Declaration, TypeDescriptor {
   Binder binder;
   List<Quantifier> parameters;
   List<DataConstructor> constructors;
-  List<int> deriving;
+  List<Derive> deriving;
 
   int get arity => parameters.length;
 
   DatatypeDescriptor(this.binder, this.parameters, this.constructors,
       this.deriving, Location location)
       : super(ModuleTag.DATATYPE_DEF, location);
-
+  DatatypeDescriptor.partial(
+      Binder binder, List<Quantifier> parameters, Location location)
+      : this(binder, parameters, null, null, location);
   T accept<T>(ModuleVisitor<T> v) {
     return v.visitDatatype(this);
   }
