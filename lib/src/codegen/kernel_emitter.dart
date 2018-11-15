@@ -10,17 +10,18 @@ import 'package:kernel/binary/ast_from_binary.dart';
 import 'package:kernel/binary/ast_to_binary.dart';
 
 class KernelEmitter {
+  final String platformFilePath;
   Component _platform;
   Component get platform {
     if (_platform == null) loadPlatform();
     return _platform;
   }
 
+  KernelEmitter(this.platformFilePath);
+
   void loadPlatform() {
     Component component = Component();
     try {
-      String platformFilePath =
-          "/usr/local/google/home/hillerstrom/projects/dart-sdk/sdk/out/ReleaseX64/vm_platform_strong.dill";
       File platformFile = new File(platformFilePath);
       new BinaryBuilder(platformFile.readAsBytesSync())
           .readSingleFileComponent(component);

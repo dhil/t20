@@ -23,6 +23,7 @@ class NamedOptions {
   static String get dump_dast => "dump-dast";
   static String get help => "help";
   static String get output => "output";
+  static String get vm_platform => "vm-platform";
   static String get trace => "trace";
   static String get verbose => "verbose";
   static String get version => "version";
@@ -68,6 +69,9 @@ ArgParser _setupArgParser() {
       help: "Enable verbose logging.");
   parser.addFlag(NamedOptions.version,
       negatable: false, defaultsTo: false, help: "Display the version.");
+  parser.addOption(NamedOptions.vm_platform,
+      help: "Specify where to locate the Dart VM Platform dill file.",
+      valueHelp: "file path");
 
   return _parser = parser;
 }
@@ -98,6 +102,7 @@ class Settings {
   final String exitAfter;
   final bool showHelp;
   final bool showVersion;
+  final String platformDill;
   final MultiOption trace;
   final bool verbose;
 
@@ -112,10 +117,16 @@ class Settings {
     var showHelp = results[NamedOptions.help];
     var showVersion = results[NamedOptions.version];
     var verbose = results[NamedOptions.verbose];
+    var platformDill = results[NamedOptions.vm_platform];
     var trace = new MultiOption(results[NamedOptions.trace], verbose ?? false);
 
     if (!_validateExitAfter(exitAfter)) {
       throw UnrecognisedOptionValue(NamedOptions.exit_after, exitAfter);
+    }
+
+    if (platformDill == null) {
+      platformDill = String.fromEnvironment("T20_DART_VM_PLATFORM_DILL",
+          defaultValue: "../sdk/out/ReleaseX64/vm_platform_strong.dill");
     }
 
     var sourceFile;
@@ -125,11 +136,19 @@ class Settings {
       throw new UsageError();
     }
     return Settings._(dumpAst, dumpDast, exitAfter, showHelp, showVersion,
-        sourceFile, trace, verbose);
+        sourceFile, trace, verbose, platformDill);
   }
 
-  const Settings._(this.dumpAst, this.dumpDast, this.exitAfter, this.showHelp,
-      this.showVersion, this.sourceFile, this.trace, this.verbose);
+  const Settings._(
+      this.dumpAst,
+      this.dumpDast,
+      this.exitAfter,
+      this.showHelp,
+      this.showVersion,
+      this.sourceFile,
+      this.trace,
+      this.verbose,
+      this.platformDill);
 
   static String usage() {
     ArgParser parser = _setupArgParser();

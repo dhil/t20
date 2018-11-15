@@ -69,8 +69,8 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
       }
 
       // Type check.
-      Result<ModuleMember, LocatedError> typeResult =
-          new TypeChecker().typeCheck(elabResult.result);
+      // Result<ModuleMember, LocatedError> typeResult =
+      //     new TypeChecker().typeCheck(elabResult.result);
 
       // Exit now, if requested.
       if (settings.exitAfter == "elaborator") {
@@ -78,7 +78,7 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
       }
 
       // Emit DILL.
-      KernelEmitter emitter = new KernelEmitter();
+      KernelEmitter emitter = new KernelEmitter(settings.platformDill);
       await emitter.emit(emitter.helloWorld(), "hello.dill");
 
       // Elaborate.
