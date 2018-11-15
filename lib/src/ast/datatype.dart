@@ -95,7 +95,7 @@ abstract class TransformDatatype extends TypeVisitor<Datatype> {
   List<Datatype> visitList(List<Datatype> types) {
     final List<Datatype> types0 = new List<Datatype>();
     for (int i = 0; i < types.length; i++) {
-      types0[i] = types[i].accept(this);
+      types0.add(types[i].accept(this));
     }
     return types0;
   }

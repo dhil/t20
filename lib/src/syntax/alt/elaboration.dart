@@ -281,7 +281,7 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
       SigInfo<String> si =
           TypeElaborator<SigInfo<String>, SigInfo<String>>(new ComputeSigInfo())
           .elaborate(sexp);
-      if (!si.hasExplicitForall) {
+      if (!si.hasExplicitForall && si.freeVariables.length > 0) {
         List<String> qs = si.boundVariables.union(si.freeVariables).toList();
         List<Name> qs0 = new List<Name>(qs.length);
         for (int i = 0; i < qs.length; i++) {

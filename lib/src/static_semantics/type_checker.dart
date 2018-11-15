@@ -200,7 +200,7 @@ class _TypeChecker {
       // [expType] as the type theory does not admit let generalisation.
     }
     // Synthesise a type for the continuation (body).
-    Datatype bodyType = synthesiseExpression(let, context);
+    Datatype bodyType = synthesiseExpression(let.body, context);
     return bodyType;
   }
 
@@ -285,6 +285,10 @@ class _TypeChecker {
             (pat as TuplePattern).components, synthesisePattern, context);
         break;
       case PatternTag.VAR:
+        VariablePattern varPattern = pat as VariablePattern;
+        varPattern.type = Skolem();
+        return varPattern.type;
+        break;
       case PatternTag.WILDCARD:
         return Skolem();
         break;

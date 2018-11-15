@@ -68,13 +68,24 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
         return false;
       }
 
-      // Type check.
-      // Result<ModuleMember, LocatedError> typeResult =
-      //     new TypeChecker().typeCheck(elabResult.result);
-
       // Exit now, if requested.
       if (settings.exitAfter == "elaborator") {
         return elabResult.wasSuccessful;
+      }
+
+      // Type check.
+      Result<ModuleMember, LocatedError> typeResult =
+          new TypeChecker().typeCheck(elabResult.result);
+
+      // Report errors, if any.
+      if (!typeResult.wasSuccessful) {
+        report(typeResult.errors);
+        return false;
+      }
+
+      // Exit now, if requested.
+      if (settings.exitAfter == "typechecker") {
+        return typeResult.wasSuccessful;
       }
 
       // Emit DILL.

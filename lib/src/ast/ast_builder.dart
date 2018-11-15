@@ -1098,7 +1098,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
       (BuildContext ctxt) {
         // Build each component.
         List<Datatype> components0 = new List<Datatype>();
-        for (int i = 0; i < components0.length; i++) {
+        for (int i = 0; i < components.length; i++) {
           components0.add(forgetfulBuild<Datatype>(components[i], ctxt));
         }
         // Construct the tuple type node.
