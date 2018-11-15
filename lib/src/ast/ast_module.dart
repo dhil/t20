@@ -75,6 +75,7 @@ class ValueDeclaration extends ModuleMember implements Declaration {
   Signature signature;
   Expression body;
   bool get isVirtual => false;
+  Datatype get type => signature.type;
 
   ValueDeclaration(this.signature, this.binder, this.body, Location location)
       : super(ModuleTag.VALUE_DEF, location);
@@ -89,6 +90,7 @@ class FunctionDeclaration extends ModuleMember implements Declaration {
   List<Pattern> parameters;
   Expression body;
   bool get isVirtual => false;
+  Datatype get type => signature.type;
 
   FunctionDeclaration(this.signature, this.binder, this.parameters, this.body,
       Location location)
@@ -121,6 +123,29 @@ class DataConstructor extends ModuleMember implements Declaration {
   List<Datatype> parameters;
   bool get isVirtual => false;
 
+  Datatype _type;
+  Datatype get type {
+    if (_type == null) {
+      // Construct the induced function type.
+      List<Datatype> domain = parameters;
+      Datatype codomain = declarator.type;
+      Datatype ft = ArrowType(domain, codomain);
+      if (declarator.parameters.length > 0) {
+        // It's necessary to copy the quantifiers as the [ForallType] enforces
+        // the invariant that the list is sorted.
+        List<Quantifier> quantifiers =
+            new List<Quantifier>(declarator.parameters.length);
+        List.copyRange<Quantifier>(quantifiers, 0, declarator.parameters);
+        ForallType forallType = new ForallType();
+        forallType.quantifiers = quantifiers;
+        forallType.body = ft;
+        ft = forallType;
+      }
+      _type = ft;
+    }
+    return _type;
+  }
+
   DataConstructor(this.binder, this.parameters, Location location)
       : super(ModuleTag.CONSTR, location);
 
@@ -148,6 +173,18 @@ class DatatypeDescriptor extends ModuleMember
   List<DataConstructor> constructors;
   List<Derive> deriving;
   bool get isVirtual => false;
+
+  TypeConstructor _type;
+  TypeConstructor get type {
+    if (_type == null) {
+      List<Datatype> arguments = new List<Datatype>(parameters.length);
+      for (int i = 0; i < parameters.length; i++) {
+        arguments[i] = TypeVariable.bound(parameters[i]);
+      }
+      _type = TypeConstructor.from(this, arguments);
+    }
+    return _type;
+  }
 
   int get arity => parameters.length;
 
@@ -199,6 +236,18 @@ class TypeAliasDescriptor extends ModuleMember
   List<Quantifier> parameters;
   Datatype rhs;
   bool get isVirtual => false;
+
+  TypeConstructor _type;
+  TypeConstructor get type {
+    if (_type == null) {
+      List<Datatype> arguments = new List<Datatype>(parameters.length);
+      for (int i = 0; i < parameters.length; i++) {
+        arguments[i] = TypeVariable.bound(parameters[i]);
+      }
+      _type = TypeConstructor.from(this, arguments);
+    }
+    return _type;
+  }
 
   int get arity => parameters.length;
 

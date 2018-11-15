@@ -9,6 +9,7 @@ import '../utils.dart' show Gensym;
 import 'binder.dart';
 import 'datatype.dart';
 import 'ast_declaration.dart';
+import 'ast_module.dart' show DataConstructor;
 // import 'ast_types.dart';
 
 abstract class PatternVisitor<T> {
@@ -61,13 +62,14 @@ class BoolPattern extends BaseValuePattern<bool> {
 }
 
 class ConstructorPattern extends Pattern {
-  Binder binder;
+  DataConstructor declarator;
   List<VariablePattern> components;
+  Datatype get type => declarator.type;
 
-  ConstructorPattern(this.binder, this.components, Location location)
+  ConstructorPattern(this.declarator, this.components, Location location)
       : super(PatternTag.CONSTR, location);
-  ConstructorPattern.nullary(Binder binder, Location location)
-      : this(binder, const <VariablePattern>[], location);
+  ConstructorPattern.nullary(DataConstructor declarator, Location location)
+      : this(declarator, const <VariablePattern>[], location);
 
   T accept<T>(PatternVisitor<T> v) {
     return v.visitConstructor(this);

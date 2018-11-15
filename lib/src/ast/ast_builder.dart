@@ -930,6 +930,13 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   Build<Pattern> constrPattern(Name name, List<Build<Pattern>> parameters,
           {Location location}) =>
       (BuildContext ctxt) {
+        // Check that the [name] refers to data constructor in the current scope.
+        Declaration decl = ctxt.getDeclaration(name);
+        if (decl is! DataConstructor) {
+          LocatedError err =
+              UnboundConstructorError(name.sourceName, name.location);
+          return patternError(err, location);
+        }
         // Copy the original context.
         BuildContext ctxt0 = ctxt;
         // Build each subpattern.
@@ -951,7 +958,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
 
         // Construct the constructor node.
         ConstructorPattern constr =
-            new ConstructorPattern(binderOf(name), parameters0, location);
+            new ConstructorPattern(decl as DataConstructor, parameters0, location);
 
         // Construct the output context.
         OutputBuildContext ctxt1 = new OutputBuildContext(declaredNames, ctxt0);

@@ -29,7 +29,10 @@ import 'syntax/alt/elaboration.dart';
 
 import 'fp.dart';
 
-bool compile(List<String> filePaths, Settings settings) {
+import 'static_semantics/type_checker.dart';
+import 'codegen/kernel_emitter.dart';
+
+Future<bool> compile(List<String> filePaths, Settings settings) async {
   RandomAccessFile currentFile;
   try {
     for (String path in filePaths) {
@@ -56,7 +59,8 @@ bool compile(List<String> filePaths, Settings settings) {
       }
 
       // Elaborate.
-      Result<ModuleMember, LocatedError> elabResult = new ASTBuilder().build(parseResult.result, BuildContext.withBuiltins());
+      Result<ModuleMember, LocatedError> elabResult = new ASTBuilder()
+          .build(parseResult.result, BuildContext.withBuiltins());
 
       // Report errors, if any.
       if (!elabResult.wasSuccessful) {
@@ -64,10 +68,18 @@ bool compile(List<String> filePaths, Settings settings) {
         return false;
       }
 
+      // Type check.
+      Result<ModuleMember, LocatedError> typeResult =
+          new TypeChecker().typeCheck(elabResult.result);
+
       // Exit now, if requested.
       if (settings.exitAfter == "elaborator") {
         return elabResult.wasSuccessful;
       }
+
+      // Emit DILL.
+      KernelEmitter emitter = new KernelEmitter();
+      await emitter.emit(emitter.helloWorld(), "hello.dill");
 
       // Elaborate.
       // if (settings.exitAfter == "elaborator") {

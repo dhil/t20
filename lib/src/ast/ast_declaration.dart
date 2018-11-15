@@ -8,8 +8,10 @@ import '../location.dart';
 // import 'ast_types.dart' show Datatype;
 
 import 'binder.dart';
+import 'datatype.dart';
 
 abstract class Declaration {
+  Datatype get type;
   Binder get binder;
   bool get isVirtual;
 }

@@ -32,7 +32,7 @@ void reportFatal(String errorMsg, StackTrace trace,
   stderr.writeln("$trace");
 }
 
-void main(List<String> args) {
+void main(List<String> args) async {
   int exitCode = 0;
   try {
     // Handle settings.
@@ -45,7 +45,8 @@ void main(List<String> args) {
     if (settings.sourceFile == null) throw new UsageError();
 
     // Run compilation pipeline.
-    if (!compile(<String>[settings.sourceFile], settings)) exitCode = 10;
+    bool result = await compile(<String>[settings.sourceFile], settings);
+    if (!result) exitCode = 10;
   } on UsageError {
     stdout.writeln(Settings.usage());
   } on UnknownOptionError catch (err) {

@@ -20,6 +20,21 @@ abstract class HasLength {
   int get length;
 }
 
+// Internal errors.
+class InternalError {
+  final String componentName;
+  final Object unhandled;
+  InternalError(this.componentName, this.unhandled);
+
+  String toString() {
+    return "internal error [$componentName]: $unhandled";
+  }
+}
+
+void unhandled(String componentName, Object unhandled) {
+  throw InternalError(componentName, unhandled);
+}
+
 // Syntax errors.
 abstract class SyntaxError implements LocatedError, T20Error {}
 
@@ -321,6 +336,14 @@ class UnboundNameError extends LocatedError
   }
 }
 
+class UnboundConstructorError extends UnboundNameError {
+  UnboundConstructorError(String name, Location location)
+      : super(name, location);
+  String toString() {
+    return "Unbound constructor '$name'";
+  }
+}
+
 // Type errors.
 abstract class TypeError implements T20Error {}
 
@@ -354,6 +377,7 @@ class TypeSignatureMismatchError extends LocatedError implements TypeError {
 }
 
 class TypeExpectationError extends LocatedError implements TypeError {
+  // TODO include expectation and actual.
   TypeExpectationError(Location location) : super(location);
 
   String toString() {
@@ -364,7 +388,8 @@ class TypeExpectationError extends LocatedError implements TypeError {
 class ArityMismatchError extends LocatedError implements TypeError {
   final int expected;
   final int actual;
-  ArityMismatchError(this.expected, this.actual, Location location) : super(location);
+  ArityMismatchError(this.expected, this.actual, Location location)
+      : super(location);
 
   String toString() {
     if (actual > expected) {

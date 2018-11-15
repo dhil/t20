@@ -9,5 +9,6 @@ executables:
   t20:
 dependencies:
   args: ^1.5.0
-  kernel: ^0.3.5
+  kernel:
+    path: /usr/local/google/home/hillerstrom/projects/dart-sdk/sdk/pkg/kernel
 
