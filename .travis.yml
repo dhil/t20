@@ -1,5 +1,7 @@
 language: dart
 dart:
   - dev
+env:
+  - T20_DART_VM_PLATFORM_DILL="/usr/lib/dart/lib/_internal/vm_platform_strong.dill"
 script:
   - bash tools/run-tests --measure
