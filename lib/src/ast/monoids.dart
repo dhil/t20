@@ -29,3 +29,12 @@ class ListMonoid<T> implements Monoid<List<T>> {
     return x;
   }
 }
+
+class StringMonoid implements Monoid<String> {
+  String get empty => "";
+  String compose(String x, String y) {
+    if (x == empty) return y;
+    else if (y == empty) return x;
+    else return "$x $y";
+  }
+}

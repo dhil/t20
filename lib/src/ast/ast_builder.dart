@@ -1085,7 +1085,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         }
         // Build each argument.
         List<Datatype> arguments0 = new List<Datatype>();
-        for (int i = 0; i < arguments0.length; i++) {
+        for (int i = 0; i < arguments.length; i++) {
           arguments0.add(forgetfulBuild<Datatype>(arguments[i], ctxt));
         }
         // Construct the constructor type node.

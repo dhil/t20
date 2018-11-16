@@ -32,6 +32,7 @@ Map<int, Datatype> unifyMany(List<Datatype> as, List<Datatype> bs) {
   for (int i = 0; i < as.length; i++) {
     Datatype ai = as[i];
     Datatype bi = bs[i];
+    print("$ai ~ $bi");
     Map<int, Datatype> result =
         unifyS(substitute(ai, subst), substitute(bi, subst));
     // Update substitution.

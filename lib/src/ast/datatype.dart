@@ -12,7 +12,7 @@ import '../utils.dart' show Gensym;
 
 import 'ast_declaration.dart';
 import 'binder.dart';
-import 'monoids.dart' show Monoid;
+import 'monoids.dart' show Monoid, StringMonoid;
 // import 'name.dart';
 
 abstract class TypeDescriptor {
@@ -90,6 +90,78 @@ abstract class ReduceDatatype<T> extends TypeVisitor<T> {
   T visitTypeVariable(TypeVariable _) => m.empty;
   T visitSkolem(Skolem _) => m.empty;
   T visitError(ErrorType error) => m.empty;
+}
+
+class StringifyDatatype extends ReduceDatatype<String> {
+  final StringMonoid _m = new StringMonoid();
+  Monoid<String> get m => _m;
+
+  String stringOfQuantifier(Quantifier q) => q.binder.sourceName;
+  String visitQuantifiers(List<Quantifier> qs) {
+    List<String> qs0 = new List<String>(qs.length);
+    for (int i = 0; i < qs.length; i++) {
+      qs0[i] = stringOfQuantifier(qs[i]);
+    }
+    return qs0.join(" ");
+  }
+
+  String visitBoolType(BoolType _) => "Bool";
+  String visitIntType(IntType _) => "Int";
+  String visitStringType(StringType _) => "String";
+
+  String visitForallType(ForallType forallType) {
+    String quantifiers = visitQuantifiers(forallType.quantifiers);
+    String body = forallType.body.accept(this);
+    if (forallType.quantifiers.length == 1) {
+      return "(forall $quantifiers $body)";
+    } else {
+      return "(forall ($quantifiers) $body)";
+    }
+  }
+
+  String visitArrowType(ArrowType arrowType) {
+    if (arrowType.domain.length == 0) {
+      String codomain = arrowType.codomain.accept(this);
+      return "(-> $codomain)";
+    } else {
+      String domain = visitList(arrowType.domain);
+      String codomain = arrowType.codomain.accept(this);
+      return "(-> $domain $codomain)";
+    }
+  }
+
+  String visitTupleType(TupleType tupleType) {
+    if (tupleType.components.length == 0) {
+      return "(*)";
+    } else {
+      String components = visitList(tupleType.components);
+      return "(* $components)";
+    }
+  }
+
+  String visitTypeConstructor(TypeConstructor constr) {
+    String name = constr.declarator.binder.sourceName;
+    if (constr.arguments.length == 0) {
+      return "$name";
+    } else {
+      String typeArguments = visitList(constr.arguments);
+      if (constr.arguments.length == 1) {
+        return "($name $typeArguments)";
+      } else {
+        return "($name ($typeArguments)";
+      }
+    }
+  }
+
+  String visitTypeVariable(TypeVariable v) => v.declarator.binder.sourceName;
+  String visitSkolem(Skolem s) {
+    Datatype type = s.type;
+    if (type == s) {
+      return "?";
+    } else {
+      return type.accept(this);
+    }
+  }
 }
 
 abstract class TransformDatatype extends TypeVisitor<Datatype> {
@@ -184,6 +256,10 @@ abstract class Datatype {
   const Datatype(this.tag);
 
   T accept<T>(TypeVisitor<T> v);
+
+  String toString() {
+    return accept<String>(StringifyDatatype());
+  }
 }
 
 abstract class BaseType extends Datatype {
