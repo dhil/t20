@@ -10,6 +10,7 @@ import '../unionfind.dart' as unionfind;
 import '../unionfind.dart' show Point;
 import '../utils.dart' show Gensym;
 
+import 'ast_declaration.dart';
 import 'binder.dart';
 import 'monoids.dart' show Monoid;
 // import 'name.dart';
@@ -123,10 +124,7 @@ abstract class TransformDatatype extends TypeVisitor<Datatype> {
   }
 
   Datatype visitTypeConstructor(TypeConstructor constr) {
-    TypeConstructor constr0 = new TypeConstructor();
-    constr0.ident = constr.ident;
-    constr0.arguments = visitList(constr.arguments);
-    return constr0;
+    return TypeConstructor.from(constr.declarator, visitList(constr.arguments));
   }
 
   Datatype visitTypeVariable(TypeVariable variable) => variable;
@@ -163,7 +161,7 @@ class _Substitutor extends TransformDatatype {
   // }
 
   Datatype visitTypeVariable(TypeVariable variable) {
-    if (_substMap.containsKey(variable.binder.ident)) {
+    if (_substMap.containsKey(variable.ident)) {
       return _substMap[variable.ident];
     } else {
       return variable;
@@ -243,18 +241,17 @@ class TupleType extends Datatype {
 class TypeVariable extends Datatype {
   // May be null during construction. Otherwise it is intended to point to its
   // binder.
-  Quantifier binder;
+  Quantifier declarator;
 
   TypeVariable() : super(TypeTag.VAR);
-  TypeVariable.bound(Quantifier binder)
-      : this.binder = binder,
-        super(TypeTag.VAR);
+  TypeVariable.bound(this.declarator)
+      : super(TypeTag.VAR);
 
   T accept<T>(TypeVisitor<T> v) {
     return v.visitTypeVariable(this);
   }
 
-  int get ident => binder.ident;
+  int get ident => declarator.binder.id;
 }
 
 class Skolem extends Datatype {
@@ -287,17 +284,17 @@ class Skolem extends Datatype {
 
 class Quantifier {
   final Kind kind = Kind.TYPE;
-  final int ident;
   final Binder binder;
   // final Set<Object> constraints;
 
-  Quantifier(this.ident) : binder = Binder.fresh(); // : constraints = new Set<Object>();
-  Quantifier.of(Binder binder) : ident = binder.id, this.binder = binder; // TODO: replace ident by binder.
+  Quantifier.fresh() : binder = Binder.fresh(); // : constraints = new Set<Object>();
+  Quantifier.of(Binder binder)
+      : this.binder = binder; // TODO: replace ident by binder.
 
   static int compare(Quantifier a, Quantifier b) {
-    if (a.ident < b.ident)
+    if (a.binder.id < b.binder.id)
       return -1;
-    else if (a.ident == b.ident)
+    else if (a.binder.id == b.binder.id)
       return 0;
     else
       return 1;
@@ -330,10 +327,8 @@ class ForallType extends Datatype {
 class TypeConstructor extends Datatype {
   TypeDescriptor declarator;
   List<Datatype> arguments;
-  int ident; // TODO: delete.
 
   TypeConstructor() : super(TypeTag.CONSTR);
-  TypeConstructor.of(this.ident, this.arguments) : super(TypeTag.CONSTR);
   TypeConstructor.from(this.declarator, this.arguments) : super(TypeTag.CONSTR);
 
   T accept<T>(TypeVisitor<T> v) {

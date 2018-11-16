@@ -78,13 +78,13 @@ class _FreeTypeVariables extends ReduceDatatype<Set<int>> {
   Monoid<Set<int>> get m => _m;
 
   Set<int> visitTypeVariable(TypeVariable variable) =>
-      new Set<int>()..add(variable.binder.ident);
+      new Set<int>()..add(variable.ident);
 
   Set<int> visitForallType(ForallType forallType) {
     Set<int> ftv = forallType.body.accept(this);
     Set<int> btv =
         forallType.quantifiers.fold(m.empty, (Set<int> acc, Quantifier q) {
-      acc.add(q.ident);
+      acc.add(q.binder.id);
       return acc;
     });
     return ftv.difference(btv);
@@ -104,7 +104,7 @@ Datatype instantiate(Datatype type, List<Datatype> arguments) {
     }
 
     Map<int, Datatype> subst = Map<int, Datatype>.fromIterables(
-        qs.map((Quantifier q) => q.ident), arguments);
+        qs.map((Quantifier q) => q.binder.id), arguments);
     return substitute(type.body, subst);
   }
 

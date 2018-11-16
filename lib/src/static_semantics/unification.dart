@@ -10,7 +10,7 @@ import '../unionfind.dart' as unionfind;
 import 'type_utils.dart';
 
 // Return substitution or throw an error.
-int _identOfQuantifier(Quantifier q) => q.ident;
+int _identOfQuantifier(Quantifier q) => q.binder.id;
 Map<int, Datatype> _updateSubstitutionMap(
     Map<int, Datatype> map, Map<int, Datatype> entries) {
   map.addAll(entries);
@@ -72,7 +72,7 @@ Map<int, Datatype> unifyS(Datatype a, Datatype b) {
 
   // a ~ b = [], if a = b
   if (a is TypeVariable && b is TypeVariable) {
-    if (a.binder.ident == b.binder.ident) {
+    if (a.ident == b.ident) {
       return const <int, Datatype>{};
     }
 
@@ -116,7 +116,7 @@ Map<int, Datatype> unifyS(Datatype a, Datatype b) {
 
   if (a is TypeConstructor && b is TypeConstructor) {
     // Check whether their tags agree.
-    if (a.ident != b.ident) {
+    if (a.declarator.binder.id != b.declarator.binder.id) {
       throw UnificationError();
     }
 

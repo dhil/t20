@@ -71,7 +71,7 @@ ArgParser _setupArgParser() {
       negatable: false, defaultsTo: false, help: "Display the version.");
   parser.addOption(NamedOptions.vm_platform,
       help: "Specify where to locate the Dart VM Platform dill file.",
-      valueHelp: "file path");
+      valueHelp: "file");
 
   return _parser = parser;
 }
