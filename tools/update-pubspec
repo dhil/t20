@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+#
+# Replaces the local reference in "dependency_overrides" clause for the Kernel
+# package in the pubspec.yaml with a remote reference.
+#
+
+PUBSPEC="$1"
+TARGET="$2"
+
+TEMP=$(mktemp)
+
+cat "$1" | head -n -1 > "$TEMP"
+echo "    git:" >> "$TEMP"
+echo "      url: git://github.com/dart-lang/sdk.git" >> "$TEMP"
+echo "      path: pkg/kernel" >> "$TEMP"
+
+mv "$TEMP" "$TARGET"
