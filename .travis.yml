@@ -1,9 +1,12 @@
-language: dart
+language: c
 before_install:
-  - bash tools/update-pubspec "pubspec.yaml" "pubspec.yaml"
-dart:
-  - dev
+  - sudo sh -c 'curl https://storage.googleapis.com/download.dartlang.org/linux/debian/dart_unstable.list > /etc/apt/sources.list.d/dart_unstable.list'
+  - sudo apt-get update
+  - sudo apt-get install dart
 env:
   - T20_DART_VM_PLATFORM_DILL="/usr/lib/dart/lib/_internal/vm_platform_strong.dill"
+  - PATH="/usr/lib/dart/bin:$PATH"
 script:
+  - bash tools/update-pubspec "pubspec.yaml" "pubspec.yaml"
+  - pub get
   - bash tools/run-tests --measure
