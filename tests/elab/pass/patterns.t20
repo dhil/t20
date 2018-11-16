@@ -3,42 +3,42 @@
 (: fst (forall ('a 'b) (-> (* 'a 'b) 'a)))
 (define (fst [, x _]) x)
 
-;; (: snd (-> (* 'a 'b) 'b))
-;; (define (snd [, _ y]) y)
+(: snd (-> (* 'a 'b) 'b))
+(define (snd [, _ y]) y)
 
-;; (: make-pair (-> 'a (-> 'a (* 'a 'b))))
-;; (define (make-pair x)
-;;   (lambda (y)
-;;     (, x y)))
+(: make-pair (-> 'a (-> 'a (* 'a 'b))))
+(define (make-pair x)
+  (lambda (y)
+    (, x y)))
 
-;; (: extend-pair (-> 'c (* 'a 'b) (* 'a 'b 'c)))
-;; (define (extend-pair c [, a b])
-;;   (, a b c))
+(: extend-pair (-> 'c (* 'a 'b) (* 'a 'b 'c)))
+(define (extend-pair c [, a b])
+  (, a b c))
 
-;; (: tuple-test0 Int)
-;; (define tuple-test0
-;;   (match (, 1 2 3 4)
-;;     [(, a _ _ _) a]
-;;     [(, _ b _ _) b]
-;;     [(, _ _ c _) c]
-;;     [(, _ _ _ d) d]
-;;     [(, a b c d) (+ a (* b (- d c)))]))
+(: tuple-test0 Int)
+(define tuple-test0
+  (match (, 1 2 3 4)
+    [(, a _ _ _) a]
+    [(, _ b _ _) b]
+    [(, _ _ c _) c]
+    [(, _ _ _ d) d]
+    [(, a b c d) (+ a (* b (- d c)))]))
 
-;; (: bool-test0 Bool)
-;; (define bool-test0
-;;   (match #t
-;;     [#t #t]
-;;     [#f #f]))
+(: bool-test0 Bool)
+(define bool-test0
+  (match #t
+    [#t #t]
+    [#f #f]))
 
-;; (: int-test0 Int)
-;; (define int-test0
-;;   (match 42
-;;     [42 0]
-;;     [_ 42]))
+(: int-test0 Int)
+(define int-test0
+  (match 42
+    [42 0]
+    [_ 42]))
 
-;; (: string-test0 String)
-;; (define string-test0
-;;   (match "Hello World!"
-;;     ["Hello" "World!"]
-;;     ["World!" "Hello"]
-;;     ["Hello World!" "foobar"]))
+(: string-test0 String)
+(define string-test0
+  (match "Hello World!"
+    ["Hello" "World!"]
+    ["World!" "Hello"]
+    ["Hello World!" "foobar"]))
