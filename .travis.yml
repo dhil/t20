@@ -1,9 +1,9 @@
 language: dart
+before_install:
+  - bash tools/update-pubspec "pubspec.yaml" "pubspec.yaml"
 dart:
   - dev
 env:
   - T20_DART_VM_PLATFORM_DILL="/usr/lib/dart/lib/_internal/vm_platform_strong.dill"
 script:
-  - bash tools/update-pubspec "pubspec.yaml" "pubspec.yaml"
-  - pub get
   - bash tools/run-tests --measure
