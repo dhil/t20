@@ -1,0 +1,4 @@
+;; Not quite an application term.
+
+(: almost-an-application (-> Int Int))
+(define (almost-an-application x) x + 2)

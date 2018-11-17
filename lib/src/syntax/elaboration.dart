@@ -241,7 +241,7 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
     if (desugar) {
       SigInfo<String> si =
           TypeElaborator<SigInfo<String>, SigInfo<String>>(new ComputeSigInfo())
-          .elaborate(sexp);
+              .elaborate(sexp);
       if (!si.hasExplicitForall && si.freeVariables.length > 0) {
         List<String> qs = si.boundVariables.union(si.freeVariables).toList();
         List<Name> qs0 = new List<Name>(qs.length);
@@ -360,7 +360,8 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
       // (define name E).
       if (list.length > 3) {
         return alg.errorModule(
-            BadSyntaxError(list[3].location, <String>[list.closingBracket()]));
+            BadSyntaxError(list[3].location, <String>[list.closingBracket()]),
+            location: list.location);
       }
       Atom atom = list[1];
       Name ident = termName(atom);
@@ -373,6 +374,11 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
         Atom atom = list0[0] as Atom;
         Name ident = termName(atom);
         List<Pat> parameters = expectMany<Sexp, Pat>(pattern, list0, start: 1);
+        if (list.length > 3) {
+          return alg.errorModule(
+              BadSyntaxError(list[3].location, <String>["end of function definition '${list.closingBracket()}'"]),
+              location: list.location);
+        }
         Exp body = expression(list[2]);
         return alg.functionDef(ident, parameters, body,
             location: list.location);
@@ -415,8 +421,9 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
     List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> defs =
         new List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>();
     for (int i = 1; i < end; i++) {
-      Either<LocatedError, Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>
-          result = parseDatatypeDecl(list[i], 0);
+      Either<LocatedError,
+              Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> result =
+          parseDatatypeDecl(list[i], 0);
       if (result.isLeft) {
         LocatedError err = result.value as LocatedError;
         return alg.errorModule(err);
