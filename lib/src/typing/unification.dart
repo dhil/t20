@@ -75,10 +75,12 @@ Map<int, Datatype> unifyS(Datatype a, Datatype b) {
   if (a is TypeVariable && b is TypeVariable) {
     if (a.ident == b.ident) {
       return const <int, Datatype>{};
+    } else {
+      return <int, Datatype>{a.ident: b};
     }
 
     // Error.
-    throw UnificationError();
+    // throw UnificationError();
   }
 
   // a ~ t
@@ -151,6 +153,7 @@ Map<int, Datatype> unifyS(Datatype a, Datatype b) {
     return result;
   }
 
+  print("unify fail: $a ~ $b");
   throw UnificationError();
 }
 

@@ -4,6 +4,9 @@
 
 library t20.settings;
 
+import 'dart:collection' show Map;
+import 'dart:io' show Platform;
+
 import 'package:args/args.dart';
 
 class UsageError {}
@@ -125,8 +128,9 @@ class Settings {
     }
 
     if (platformDill == null) {
-      platformDill = String.fromEnvironment("T20_DART_VM_PLATFORM_DILL",
-          defaultValue: "../sdk/out/ReleaseX64/vm_platform_strong.dill");
+      Map<String, String> env = Platform.environment;
+      platformDill = env['T20_DART_VM_PLATFORM_DILL'] ??
+          "/usr/lib/dart/lib/_internal/vm_platform_strong.dill";
     }
 
     var sourceFile;

@@ -149,15 +149,29 @@ class _TypeChecker {
   Datatype synthesiseApply(Apply apply, TypingContext context) {
     // Synthesise a type for the abstractor expression (left hand side).
     Datatype fnType = synthesiseExpression(apply.abstractor, context);
-    // Synthesise a type each argument expression.
-    List<Datatype> argumentTypes = new List<Datatype>(apply.arguments.length);
-    for (int i = 0; i < apply.arguments.length; i++) {
-      argumentTypes[i] = synthesiseExpression(apply.arguments[i], context);
-    }
     // Check that [fnType] is a function type, otherwise signal an error.
     if (!typeUtils.isFunctionType(fnType)) {
       LocatedError err = TypeExpectationError(apply.abstractor.location);
       return error(err, apply.location);
+    }
+    // Synthesise a type each argument expression.
+    final int numArguments = apply.arguments.length;
+    List<Datatype> parameterTypes = typeUtils.domain(fnType);
+    if (parameterTypes.length != numArguments) {
+      LocatedError err = ArityMismatchError(
+          parameterTypes.length, numArguments, apply.abstractor.location);
+      return error(err, apply.abstractor.location);
+    }
+    List<Datatype> argumentTypes = new List<Datatype>(numArguments);
+    for (int i = 0; i < numArguments; i++) {
+      Datatype argumentType = synthesiseExpression(apply.arguments[i], context);
+      argumentTypes[i] = typeUtils.stripQuantifiers(argumentType);
+      // if (typeUtils.isForallType(argumentType) &&
+      //     typeUtils.isFunctionType(argumentType)) {
+      //   argumentTypes[i] = typeUtils.unrigidify(argumentType);
+      // } else {
+      //   argumentTypes[i] = argumentType;
+      // }
     }
     // Check that the domain of [fnType] agrees with [argumentTypes].
     Map<int, Datatype> subst =

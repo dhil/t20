@@ -18,10 +18,11 @@ import 'io/bytestream.dart';
 
 import 'result.dart';
 
-import 'static_semantics/type_utils.dart' as typeUtils;
 import 'syntax/sexp.dart';
 import 'syntax/parse_sexp.dart';
-import 'syntax/alt/elaboration.dart';
+import 'syntax/elaboration.dart';
+
+import 'typing/type_utils.dart' as typeUtils;
 
 import 'fp.dart' show Pair;
 import 'location.dart';

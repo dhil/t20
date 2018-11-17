@@ -9,10 +9,10 @@ import '../location.dart';
 import '../immutable_collections.dart';
 import '../result.dart';
 
-import '../static_semantics/type_utils.dart' as typeUtils
-    show boolType, intType, stringType, extractQuantifiers;
-import '../syntax/alt/elaboration.dart' show ModuleElaborator, TypeElaborator;
+import '../syntax/elaboration.dart' show ModuleElaborator, TypeElaborator;
 import '../syntax/sexp.dart';
+import '../typing/type_utils.dart' as typeUtils
+    show boolType, intType, stringType, extractQuantifiers;
 
 import 'algebra.dart';
 import 'ast_module.dart';

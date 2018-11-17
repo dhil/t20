@@ -22,6 +22,7 @@ class KernelEmitter {
   void loadPlatform() {
     Component component = Component();
     try {
+      print("$platformFilePath");
       File platformFile = new File(platformFilePath);
       new BinaryBuilder(platformFile.readAsBytesSync())
           .readSingleFileComponent(component);

@@ -53,6 +53,31 @@ List<Quantifier> extractQuantifiers(Datatype t) {
   }
 }
 
+Datatype stripQuantifiers(Datatype t) {
+  if (t is ForallType) {
+    return t.body;
+  } else {
+    return t;
+  }
+}
+
+Datatype unrigidify(Datatype t) {
+  if (t is ForallType) {
+    ForallType forallType = t;
+    List<Datatype> skolems = new List<Datatype>(forallType.quantifiers.length);
+    for (int i = 0; i < skolems.length; i++) {
+      Datatype skolem = Skolem(); // Fresh unification variable.
+      skolems[i] = skolem;
+    }
+
+    Map<int, Datatype> subst = Map<int, Datatype>.fromIterables(
+        forallType.quantifiers.map((Quantifier q) => q.binder.id), skolems);
+    return substitute(forallType.body, subst);
+  } else {
+    return t;
+  }
+}
+
 // Base types.
 const Datatype unitType = const TupleType(const <Datatype>[]);
 bool isUnitType(Datatype type) {

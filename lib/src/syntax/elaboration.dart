@@ -4,50 +4,24 @@
 
 import 'dart:collection' show Set;
 
-import '../../ast/ast_common.dart' show Name;
-import '../../ast/algebra.dart';
-import '../../ast/traversals.dart' show SigInfo, ComputeSigInfo;
-import '../../errors/errors.dart';
-import '../../fp.dart';
-import '../../location.dart';
-import '../../unicode.dart' as unicode;
+import '../ast/algebra.dart';
+import '../ast/traversals.dart' show SigInfo, ComputeSigInfo;
+import '../errors/errors.dart';
+import '../fp.dart';
+import '../location.dart';
+import '../unicode.dart' as unicode;
 
-import '../sexp.dart';
+import 'sexp.dart';
 
 typedef Elab<S extends Sexp, T> = T Function(S);
 
 abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
-  // final NameAlgebra<Name> name;
-  // final ModuleAlgebra<Name, Mod, Exp, Pat, Typ> mod;
-  // final ExpAlgebra<Name, Exp, Pat, Typ> exp;
-  // final PatternAlgebra<Name, Pat, Typ> pat;
-  // final TypeAlgebra<Name, Typ> typ;
   final TAlgebra<Name, Mod, Exp, Pat, Typ> alg;
-
-  // BaseElaborator(this.name, this.mod, this.exp, this.pat, this.typ);
   BaseElaborator(this.alg);
 
   Result elaborate(Sexp sexp);
 
   // Combinators.
-  // T expect<S extends Sexp, T>(Elab<S, T> elab, S sexp, {int index = -1}) {
-  //   assert(elab != null && sexp != null);
-  //   if (sexp is SList && index >= 0) {
-  //     return elab((sexp as SList)[index]);
-  //   } else {
-  //     return elab(sexp);
-  //   }
-  // }
-
-  // Result expectSelf<S extends Sexp>(S sexp, {int index = -1}) {
-  //   assert(sexp != null);
-  //   if (sexp is SList && index >= 0) {
-  //     return elaborate((sexp as SList)[index]);
-  //   } else {
-  //     return elaborate(sexp);
-  //   }
-  // }
-
   List<T> expectMany<S extends Sexp, T>(Elab<S, T> elab, SList list,
       {int start = 0, int end = -1}) {
     assert(elab != null && list != null && start >= 0);
@@ -71,19 +45,6 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
     }
     return results;
   }
-
-  // List<T> expectManyOne<S extends Sexp, T>(Elab<S, T> elab, SList list,
-  //     {int start = 0, int end = -1, ErrorNode<T> error}) {
-  //   assert(elab != null && list != null && start >= 0);
-  //   List<T> results = expectMany<S, T>(elab, list, start: start, end: end);
-  //   if (results.length == 0) {
-  //     return <T>[
-  //       error != null ? error.make(BadSyntaxError(list.location.end)) : null
-  //     ];
-  //   } else {
-  //     return results;
-  //   }
-  // }
 
   // Atom validators.
   final Set<int> allowedIdentSymbols = Set.of(const <int>[
@@ -820,12 +781,6 @@ class SpecialForm {
 
 class ExpressionElaborator<Name, Exp, Pat, Typ>
     extends BaseElaborator<Exp, Name, Object, Exp, Pat, Typ> {
-  // ExpressionElaborator(
-  //     NameAlgebra<Name> name,
-  //     ExpAlgebra<Name, Exp, Pat, Typ> exp,
-  //     PatternAlgebra<Name, Pat, Typ> pat,
-  //     TypeAlgebra<Name, Typ> typ)
-  //     : super(name, null, exp, pat, typ);
   ExpressionElaborator(TAlgebra<Name, Object, Exp, Pat, Typ> alg) : super(alg);
 
   Exp elaborate(Sexp sexp) {
@@ -1043,9 +998,6 @@ class ExpressionElaborator<Name, Exp, Pat, Typ>
 
 class PatternElaborator<Name, Pat, Typ>
     extends BaseElaborator<Pat, Name, Object, Object, Pat, Typ> {
-  // PatternElaborator(NameAlgebra<Name> name, PatternAlgebra<Name, Pat, Typ> pat,
-  //     TypeAlgebra<Name, Typ> typ)
-  //     : super(name, null, null, pat, typ);
   PatternElaborator(TAlgebra<Name, Object, Object, Pat, Typ> alg) : super(alg);
 
   Pat elaborate(Sexp sexp, {bool allowHasType = true}) {
@@ -1184,17 +1136,3 @@ class ErrorNode<T> {
     return _error(err, location: err.location);
   }
 }
-
-// class NameErrorNode implements ErrorNode<Name> {
-//   static NameErrorNode _instance;
-
-//   NameErrorNode._();
-//   factory NameErrorNode() {
-//     if (_instance == null) _instance = NameErrorNode._();
-//     return _instance;
-//   }
-
-//   Name make(LocatedError err) {
-
-//   }
-// }

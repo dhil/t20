@@ -25,11 +25,11 @@ import 'result.dart';
 // import 'static_semantics/name_resolution.dart';
 // import 'static_semantics/type_checking.dart';
 import 'syntax/parse_sexp.dart';
-import 'syntax/alt/elaboration.dart';
+import 'syntax/elaboration.dart';
 
 import 'fp.dart';
 
-import 'static_semantics/type_checker.dart';
+import 'typing/type_checker.dart';
 import 'codegen/kernel_emitter.dart';
 
 Future<bool> compile(List<String> filePaths, Settings settings) async {

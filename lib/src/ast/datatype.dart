@@ -365,7 +365,7 @@ class Quantifier {
 
   Quantifier.fresh() : binder = Binder.fresh(); // : constraints = new Set<Object>();
   Quantifier.of(Binder binder)
-      : this.binder = binder; // TODO: replace ident by binder.
+      : this.binder = binder;
 
   static int compare(Quantifier a, Quantifier b) {
     if (a.binder.id < b.binder.id)
