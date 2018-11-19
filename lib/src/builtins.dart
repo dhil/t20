@@ -99,7 +99,10 @@ Map<int, ClassDescriptor> makeBuiltinClasses() {
     "Foldable": <String, String>{
       "fold-right": "(forall ('a 'b 'temp) [-> (-> 'a 'b 'b) 'temp 'b 'b])",
       "fold-left": "(forall ('a 'b 'temp)  [-> (-> 'a 'b 'a) 'a 'temp 'a])"
-    }
+    },
+    "Equatable": <String, String>{
+      "eq?": "(forall 'a [-> 'a 'a Bool])"
+    },
   };
 
   final Map<int, ClassDescriptor> classes =

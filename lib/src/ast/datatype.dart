@@ -404,6 +404,8 @@ class TypeConstructor extends Datatype {
   TypeDescriptor declarator;
   List<Datatype> arguments;
 
+  int get ident => declarator.binder.id;
+
   TypeConstructor() : super(TypeTag.CONSTR);
   TypeConstructor.from(this.declarator, this.arguments) : super(TypeTag.CONSTR);
 

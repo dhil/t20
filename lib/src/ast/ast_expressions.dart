@@ -151,6 +151,8 @@ class Lambda extends Expression {
   List<Pattern> parameters;
   Expression body;
 
+  int get arity => parameters.length;
+
   Lambda(this.parameters, this.body, Location location)
       : super(ExpTag.LAMBDA, location);
 
