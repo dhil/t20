@@ -229,3 +229,6 @@ doc/t20.pdf
 # Temporaries
 \#*
 *~
+
+# DILL files.
+*.dill
