@@ -314,14 +314,33 @@ class TupleType extends Datatype {
   }
 }
 
+class Quantifier {
+  final Kind kind = Kind.TYPE;
+  final Binder binder;
+  // final Set<Object> constraints;
+
+  Quantifier.fresh()
+      : binder = Binder.fresh(); // : constraints = new Set<Object>();
+  Quantifier.of(Binder binder) : this.binder = binder;
+
+  static int compare(Quantifier a, Quantifier b) {
+    if (a.binder.id < b.binder.id)
+      return -1;
+    else if (a.binder.id == b.binder.id)
+      return 0;
+    else
+      return 1;
+  }
+}
+
 class TypeVariable extends Datatype {
   // May be null during construction. Otherwise it is intended to point to its
   // binder.
   Quantifier declarator;
 
   TypeVariable() : super(TypeTag.VAR);
-  TypeVariable.bound(this.declarator)
-      : super(TypeTag.VAR);
+  TypeVariable.unbound() : this.bound(Quantifier.fresh());
+  TypeVariable.bound(this.declarator) : super(TypeTag.VAR);
 
   T accept<T>(TypeVisitor<T> v) {
     return v.visitTypeVariable(this);
@@ -355,25 +374,6 @@ class Skolem extends Datatype {
 
   void sameAs(Skolem other) {
     unionfind.union(_point, other._point);
-  }
-}
-
-class Quantifier {
-  final Kind kind = Kind.TYPE;
-  final Binder binder;
-  // final Set<Object> constraints;
-
-  Quantifier.fresh() : binder = Binder.fresh(); // : constraints = new Set<Object>();
-  Quantifier.of(Binder binder)
-      : this.binder = binder;
-
-  static int compare(Quantifier a, Quantifier b) {
-    if (a.binder.id < b.binder.id)
-      return -1;
-    else if (a.binder.id == b.binder.id)
-      return 0;
-    else
-      return 1;
   }
 }
 

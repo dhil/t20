@@ -15,6 +15,9 @@ abstract class Substitution {
   // Applies this substitution to the [type].
   Datatype apply(Datatype type);
 
+  // Applies this substitution to every type in [types].
+  List<Datatype> applyMany(List<Datatype> types);
+
   // Combines this substitution with an [other] substitution.
   Substitution combine(Substitution other);
 
@@ -41,7 +44,11 @@ class MutableSubstitution extends TransformDatatype implements Substitution {
   int get size => (_typeVarSubst?.length ?? 0) + (_skolemSubst?.length ?? 0);
 
   Datatype apply(Datatype type) {
-    return null;
+    return type.accept<Datatype>(this);
+  }
+
+  List<Datatype> applyMany(List<Datatype> types) {
+    return visitList(types);
   }
 
   Substitution combine(Substitution other) {
