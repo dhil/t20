@@ -6,6 +6,8 @@ import 'dart:collection' show List, Map;
 
 import '../location.dart';
 import '../errors/errors.dart' show LocatedError;
+import '../utils.dart' show ListUtils;
+
 import 'ast_declaration.dart';
 import 'ast_expressions.dart';
 import 'ast_patterns.dart';
@@ -82,6 +84,10 @@ class ValueDeclaration extends ModuleMember implements Declaration {
   T accept<T>(ModuleVisitor<T> v) {
     return v.visitValue(this);
   }
+
+  String toString() {
+    return "(define $binder (...)))";
+  }
 }
 
 class FunctionDeclaration extends ModuleMember implements Declaration {
@@ -98,6 +104,11 @@ class FunctionDeclaration extends ModuleMember implements Declaration {
 
   T accept<T>(ModuleVisitor<T> v) {
     return v.visitFunction(this);
+  }
+
+  String toString() {
+    String parameters0 = ListUtils.stringify(" ", parameters);
+    return "(define ($binder $parameters0) (...))";
   }
 }
 
@@ -126,22 +137,26 @@ class DataConstructor extends ModuleMember implements Declaration {
   Datatype _type;
   Datatype get type {
     if (_type == null) {
-      // Construct the induced function type.
-      List<Datatype> domain = parameters;
-      Datatype codomain = declarator.type;
-      Datatype ft = ArrowType(domain, codomain);
-      if (declarator.parameters.length > 0) {
-        // It's necessary to copy the quantifiers as the [ForallType] enforces
-        // the invariant that the list is sorted.
-        List<Quantifier> quantifiers =
-            new List<Quantifier>(declarator.parameters.length);
-        List.copyRange<Quantifier>(quantifiers, 0, declarator.parameters);
-        ForallType forallType = new ForallType();
-        forallType.quantifiers = quantifiers;
-        forallType.body = ft;
-        ft = forallType;
+      if (parameters.length > 0) {
+        // Construct the induced function type.
+        List<Datatype> domain = parameters;
+        Datatype codomain = declarator.type;
+        Datatype ft = ArrowType(domain, codomain);
+        if (declarator.parameters.length > 0) {
+          // It's necessary to copy the quantifiers as the [ForallType] enforces
+          // the invariant that the list is sorted.
+          List<Quantifier> quantifiers =
+              new List<Quantifier>(declarator.parameters.length);
+          List.copyRange<Quantifier>(quantifiers, 0, declarator.parameters);
+          ForallType forallType = new ForallType();
+          forallType.quantifiers = quantifiers;
+          forallType.body = ft;
+          ft = forallType;
+        }
+        _type = ft;
+      } else {
+        _type = declarator.type;
       }
-      _type = ft;
     }
     return _type;
   }
@@ -197,6 +212,17 @@ class DatatypeDescriptor extends ModuleMember
   T accept<T>(ModuleVisitor<T> v) {
     return v.visitDatatype(this);
   }
+
+  String toString() {
+    String parameterisedName;
+    if (parameters.length == 0) {
+      parameterisedName = binder.sourceName;
+    } else {
+      String parameters0 = ListUtils.stringify(" ", parameters);
+      parameterisedName = "(${binder.sourceName} $parameters0)";
+    }
+    return "(define-datatype $parameterisedName ...)";
+  }
 }
 
 class DatatypeDeclarations extends ModuleMember {
@@ -207,6 +233,10 @@ class DatatypeDeclarations extends ModuleMember {
 
   T accept<T>(ModuleVisitor<T> v) {
     return v.visitDatatypes(this);
+  }
+
+  String toString() {
+    return "(define-datatypes $declarations)";
   }
 }
 
@@ -227,6 +257,11 @@ class TopModule extends ModuleMember {
 
   T accept<T>(ModuleVisitor<T> v) {
     return v.visitTopModule(this);
+  }
+
+  String toString() {
+    String members0 = ListUtils.stringify(" ", members);
+    return "(module ...)";
   }
 }
 

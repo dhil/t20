@@ -189,134 +189,156 @@ Datatype unify(Datatype a, Datatype b) {
   // }
 }
 
-Substitution unify0(Datatype a, Datatype b) {
-  // Bool ~ Bool = []
-  // Int ~ Int = []
-  // String ~ String = []
-  if (a is BoolType && b is BoolType ||
-      a is IntType && b is IntType ||
-      a is StringType && b is StringType) {
-    return Substitution.empty();
-  }
+class Unifier {
+  final bool trace;
+  Unifier([this.trace = false]);
 
-  // %a ~ b = [b -> %a].
-  if (a is Skolem && b is TypeVariable) {
-    return Substitution.empty().bindVar(b, a);
-  }
-
-  // %a ~ %b = [].
-  if (a is Skolem && b is Skolem) {
-    return Substitution.empty();
-  }
-
-  // a ~ b = [], if b = a.
-  if (a is TypeVariable && b is TypeVariable) {
-    if (a.ident == b.ident) {
+  Substitution unify(Datatype a, Datatype b) {
+    if (trace) {
+      print("unify: $a ~ $b");
+    }
+    // Bool ~ Bool = []
+    // Int ~ Int = []
+    // String ~ String = []
+    if (a is BoolType && b is BoolType ||
+        a is IntType && b is IntType ||
+        a is StringType && b is StringType) {
       return Substitution.empty();
     }
-  }
 
-  // a ~ t = [a -> t], if occurs(a, t) = false.
-  if (a is TypeVariable) {
-    if (!occurs(a, b)) {
-      return Substitution.empty().bindVar(a, b);
-    } else {
-      throw OccursError();
+    // %a ~ b = [b -> %a].
+    if (a is Skolem && b is TypeVariable) {
+      Datatype type = a.type;
+      if (type == a) return Substitution.empty().bind(b, a);
+      else return unify(type, b);
     }
-  }
 
-  // This case is symmetric to the above.
-  if (b is TypeVariable) {
-    if (!occurs(b, a)) {
-      return Substitution.empty().bindVar(b, a);
-    } else {
-      throw OccursError();
+    // %a ~ %b = [].
+    if (a is Skolem && b is Skolem) {
+      return Substitution.empty();
     }
-  }
 
-  // [] ~* [] = []
-  // _ ~* [] = error
-  // [] *~ _ = error
-  // (x :: xs) ~* (y :: ys) = x ~ y ++ (xs ~* ys)
-
-  // ts0* -> t1 ~ ts2* -> t3 = (ts0* ~* ts2*) ++ (t1 ~ t3).
-  if (a is ArrowType && b is ArrowType) {
-    Substitution sigma0 = unifyMany0(a.domain, b.domain);
-    Substitution sigma1 = unify0(a.codomain, b.codomain);
-    return sigma0.combine(sigma1);
-  }
-
-  // (* ts0*) ~ (* ts1*) = ts0* ~* ts1*.
-  if (a is TupleType && b is TupleType) {
-    return unifyMany0(a.components, b.components);
-  }
-
-  // C ts0* ~ K ts1* = ts0* ~* ts1*, if C = K.
-  if (a is TypeConstructor && b is TypeConstructor) {
-    if (a.ident == b.ident) {
-      return unifyMany0(a.arguments, b.arguments);
+    if (a is Skolem) {
+      a.be(b);
+      return Substitution.empty();
     }
+
+    if (b is Skolem) {
+      b.be(a);
+      return Substitution.empty();
+    }
+
+    // a ~ b = [], if b = a.
+    if (a is TypeVariable && b is TypeVariable) {
+      if (a.ident == b.ident) {
+        return Substitution.empty();
+      }
+    }
+
+    // a ~ t = [a -> t], if occurs(a, t) = false.
+    if (a is TypeVariable) {
+      if (!occurs(a, b)) {
+        return Substitution.empty().bind(a, b);
+      } else {
+        throw OccursError();
+      }
+    }
+
+    // t ~ b = b ~ t
+    if (b is TypeVariable) {
+      return unify(b, a);
+    }
+
+    // [] ~* [] = []
+    // _ ~* [] = error
+    // [] *~ _ = error
+    // (x :: xs) ~* (y :: ys) = x ~ y ++ (xs ~* ys)
+
+    // ts0* -> t1 ~ ts2* -> t3 = (ts0* ~* ts2*) ++ (t1 ~ t3).
+    if (a is ArrowType && b is ArrowType) {
+      Substitution sigma0 = unifyMany(a.domain, b.domain);
+      Substitution sigma1 = unify(a.codomain, b.codomain);
+      return sigma0.combine(sigma1);
+    }
+
+    // (* ts0*) ~ (* ts1*) = ts0* ~* ts1*.
+    if (a is TupleType && b is TupleType) {
+      return unifyMany(a.components, b.components);
+    }
+
+    // C ts0* ~ K ts1* = ts0* ~* ts1*, if C = K.
+    if (a is TypeConstructor && b is TypeConstructor) {
+      if (a.ident == b.ident) {
+        return unifyMany(a.arguments, b.arguments);
+      }
+    }
+
+    throw UnificationError();
   }
 
-  throw UnificationError();
-}
+  Substitution unifyMany(List<Datatype> as, List<Datatype> bs) {
+    if (as.length != bs.length) throw UnificationError();
 
-Substitution unifyMany0(List<Datatype> as, List<Datatype> bs) {
-  if (as.length != bs.length) throw UnificationError();
-
-  Substitution subst = Substitution.empty();
-  for (int i = 0; i < as.length; i++) {
-    subst.combine(unify0(as[i], bs[i]));
-  }
-  return subst;
-}
-
-bool occurs(TypeVariable a, Datatype t) {
-  // t = b && a == b
-  if (t is TypeVariable) {
-    return t.ident == a.ident;
+    Substitution subst = Substitution.empty();
+    for (int i = 0; i < as.length; i++) {
+      subst.combine(unify(as[i], bs[i]));
+    }
+    return subst;
   }
 
-  // occurs*(a, []) = false
-  // occurs*(a, t :: ts) = occurs(a, t) || occurs*(a, ts).
+  bool occurs(TypeVariable a, Datatype t) {
+    // t = b && a == b
+    if (t is TypeVariable) {
+      return t.ident == a.ident;
+    }
 
-  // occurs*(a, ts*) || occurs(a, t1), where (ts* -> t1) = t.
-  if (t is ArrowType) {
-    return occursMany(a, t.domain) || occurs(a, t.codomain);
+    // occurs*(a, []) = false
+    // occurs*(a, t :: ts) = occurs(a, t) || occurs*(a, ts).
+
+    // occurs*(a, ts*) || occurs(a, t1), where (ts* -> t1) = t.
+    if (t is ArrowType) {
+      return occursMany(a, t.domain) || occurs(a, t.codomain);
+    }
+
+    // occurs(a, t1) && a \notin qs , where t1 = (forall qs. t1).
+    if (t is ForallType) {
+      return !boundBy(a, t) && occurs(a, t.body);
+    }
+
+    // occurs*(a, ts*), where (* ts*) = t.
+    if (t is TupleType) {
+      return occursMany(a, t.components);
+    }
+
+    // occurs*(a, ts*), where K ts* = t.
+    if (t is TypeConstructor) {
+      return occursMany(a, t.arguments);
+    }
+
+    if (t is Skolem) {
+      Datatype type = t.type;
+      if (t == type) return false;
+      return occurs(a, type);
+    }
+
+    return false;
   }
 
-  // occurs(a, t1) && a \notin qs , where t1 = (forall qs. t1).
-  if (t is ForallType) {
-    return !boundBy(a, t) && occurs(a, t.body);
+  bool occursMany(TypeVariable a, List<Datatype> ts) {
+    for (int i = 0; i < ts.length; i++) {
+      if (occurs(a, ts[i])) return true;
+    }
+    return false;
   }
 
-  // occurs*(a, ts*), where (* ts*) = t.
-  if (t is TupleType) {
-    return occursMany(a, t.components);
+  bool boundBy(TypeVariable a, ForallType forallType) {
+    for (int i = 0; i < forallType.quantifiers.length; i++) {
+      if (identical(a.declarator, forallType.quantifiers[i])) return true;
+    }
+    return false;
   }
 
-  // occurs*(a, ts*), where K ts* = t.
-  if (t is TypeConstructor) {
-    return occursMany(a, t.arguments);
+  bool escapeCheck(Skolem skolem, Datatype type) {
+    return false;
   }
-
-  return false;
-}
-
-bool occursMany(TypeVariable a, List<Datatype> ts) {
-  for (int i = 0; i < ts.length; i++) {
-    if (occurs(a, ts[i])) return true;
-  }
-  return false;
-}
-
-bool boundBy(TypeVariable a, ForallType forallType) {
-  for (int i = 0; i < forallType.quantifiers.length; i++) {
-    if (identical(a.declarator, forallType.quantifiers[i])) return true;
-  }
-  return false;
-}
-
-bool escapeCheck(Skolem skolem, Datatype type) {
-  return false;
 }

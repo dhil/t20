@@ -17,7 +17,7 @@ void reportInternal(dynamic error, StackTrace stack) {
   stderr.writeln("$stack");
 }
 
-void report(List<LocatedError> errors) {
+void report(List<T20Error> errors) {
   _ErrorReporter reporter = new _ErrorReporter();
   const int maxReports = 5;
   try {
@@ -33,15 +33,20 @@ void report(List<LocatedError> errors) {
 class _ErrorReporter {
   _ErrorReporter();
 
-  void report(LocatedError error) {
-    LocatedSourceString lss =
-        getLineText(error.location.uri, error.location.startOffset);
+  void report(T20Error error) {
     String errorKind = getErrorKind(error);
-    stderr.writeln(
-        "\u001B[31m\u001B[1m${lss.fileName}:${lss.line}:${lss.column} $errorKind: ${error.toString()}.\u001B[0m");
-    int length = computePointerLength(error);
-    stderr.writeln("${lss.sourceText}");
-    placePointer(lss.column, unicode.HAT, length);
+    if (error is LocatedError) {
+      LocatedSourceString lss =
+          getLineText(error.location.uri, error.location.startOffset);
+      stderr.writeln(
+          "\u001B[31m\u001B[1m${lss.fileName}:${lss.line}:${lss.column} $errorKind: ${error.toString()}.\u001B[0m");
+      int length = computePointerLength(error);
+      stderr.writeln("${lss.sourceText}");
+      placePointer(lss.column, unicode.HAT, length);
+    } else {
+      stderr.writeln(
+          "\u001B[31m\u001B[1m$errorKind: ${error.toString()}.\u001B[0m");
+    }
   }
 
   void placePointer(int column, [int symbol = unicode.HAT, int length = 1]) {

@@ -5,6 +5,7 @@
 import '../errors/errors.dart' show LocatedError;
 // import '../fp.dart' show Pair;
 import '../location.dart';
+import '../utils.dart' show ListUtils;
 import 'binder.dart';
 import 'datatype.dart';
 import 'ast_declaration.dart';
@@ -63,6 +64,10 @@ enum ExpTag {
 abstract class Constant<T> extends Expression {
   T value;
   Constant(this.value, ExpTag tag, Location location) : super(tag, location);
+
+  String toString() {
+    return "$value";
+  }
 }
 
 class BoolLit extends Constant<bool> {
@@ -74,6 +79,11 @@ class BoolLit extends Constant<bool> {
 
   static const String T_LITERAL = "#t";
   static const String F_LITERAL = "#f";
+
+  String toString() {
+    if (value) return T_LITERAL;
+    else return F_LITERAL;
+  }
 }
 
 class IntLit extends Constant<int> {
@@ -91,6 +101,10 @@ class StringLit extends Constant<String> {
   T accept<T>(ExpressionVisitor<T> v) {
     return v.visitString(this);
   }
+
+  String toString() {
+    return "\"$value\"";
+  }
 }
 
 class Apply extends Expression {
@@ -103,6 +117,15 @@ class Apply extends Expression {
   T accept<T>(ExpressionVisitor<T> v) {
     return v.visitApply(this);
   }
+
+  String toString() {
+    if (arguments.length == 0) {
+      return "($abstractor)";
+    } else {
+      String arguments0 = ListUtils.stringify(" ", arguments);
+      return "($abstractor $arguments0)";
+    }
+  }
 }
 
 class Variable extends Expression {
@@ -112,6 +135,10 @@ class Variable extends Expression {
 
   T accept<T>(ExpressionVisitor<T> v) {
     return v.visitVariable(this);
+  }
+
+  String toString() {
+    return "${declarator.binder}";
   }
 }
 
@@ -133,6 +160,10 @@ class Binding {
   Expression expression;
 
   Binding(this.pattern, this.expression);
+
+  String toString() {
+    return "($pattern ...)";
+  }
 }
 
 class Let extends Expression {
@@ -144,6 +175,11 @@ class Let extends Expression {
 
   T accept<T>(ExpressionVisitor<T> v) {
     return v.visitLet(this);
+  }
+
+  String toString() {
+    String valueBindings0 = ListUtils.stringify(" ", valueBindings);
+    return "(let ($valueBindings0) $body)";
   }
 }
 
@@ -159,6 +195,11 @@ class Lambda extends Expression {
   T accept<T>(ExpressionVisitor<T> v) {
     return v.visitLambda(this);
   }
+
+  String toString() {
+    String parameters0 = ListUtils.stringify(" ", parameters);
+    return "(lambda ($parameters0) (...))";
+  }
 }
 
 class Case {
@@ -166,6 +207,10 @@ class Case {
   Expression expression;
 
   Case(this.pattern, this.expression);
+
+  String toString() {
+    return "[$pattern $expression]";
+  }
 }
 
 class Match extends Expression {
@@ -177,6 +222,11 @@ class Match extends Expression {
 
   T accept<T>(ExpressionVisitor<T> v) {
     return v.visitMatch(this);
+  }
+
+  String toString() {
+    String cases0 = ListUtils.stringify(" ", cases);
+    return "(match $scrutinee cases0)";
   }
 }
 
@@ -190,6 +240,15 @@ class Tuple extends Expression {
   }
 
   bool get isUnit => components.length == 0;
+
+  String toString() {
+    if (isUnit) {
+      return "(,)";
+    } else {
+      String components0 = ListUtils.stringify(" ", components);
+      return "(, $components0)";
+    }
+  }
 }
 
 class TypeAscription extends Expression {

@@ -20,6 +20,7 @@ abstract class ImmutableMap<K, V> {
   int get size;
   Iterable<MapEntry<K, V>> get entries;
 
+  ImmutableMap<K, T> map<T>(T Function(K, V) mapper);
   ImmutableMap<K, V> put(K key, V value);
   V lookup(K key);
   ImmutableMap<K, V> remove(K key);
@@ -59,6 +60,11 @@ class _NaiveImmutableMap<K, V> implements ImmutableMap<K, V> {
       copy[entry.key] = entry.value;
     }
     return _NaiveImmutableMap.using(copy);
+  }
+
+  _NaiveImmutableMap<K, T> map<T>(T Function(K, V) mapper) {
+    return _NaiveImmutableMap.using(_underlying
+        .map((K key, V value) => MapEntry<K, T>(key, mapper(key, value))));
   }
 
   V lookup(K key) => _underlying[key];

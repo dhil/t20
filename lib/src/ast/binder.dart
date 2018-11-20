@@ -16,4 +16,12 @@ class Binder {
   Binder.fromSource(this._sourceName, this._location) : id = Gensym.freshInt();
   Binder.fresh() : this.fromSource(null, null);
   Binder.primitive(String name) : this.fromSource(name, null);
+
+  String toString() {
+    if (_sourceName == null) {
+      return "syn$id";
+    } else {
+      return "$_sourceName$id";
+    }
+  }
 }

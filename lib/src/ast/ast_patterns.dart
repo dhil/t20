@@ -50,6 +50,10 @@ abstract class BaseValuePattern<T> extends Pattern {
 
   BaseValuePattern(this.value, PatternTag tag, Location location)
       : super(tag, location);
+
+  String toString() {
+    return "$value";
+  }
 }
 
 class BoolPattern extends BaseValuePattern<bool> {
@@ -74,6 +78,10 @@ class ConstructorPattern extends Pattern {
   T accept<T>(PatternVisitor<T> v) {
     return v.visitConstructor(this);
   }
+
+  String toString() {
+    return "[${declarator.binder.sourceName} $components]";
+  }
 }
 
 class ErrorPattern extends Pattern {
@@ -95,6 +103,10 @@ class HasTypePattern extends Pattern {
 
   T accept<T>(PatternVisitor<T> v) {
     return v.visitHasType(this);
+  }
+
+  String toString() {
+    return "[$pattern : $type]";
   }
 }
 
@@ -125,9 +137,15 @@ class TuplePattern extends Pattern {
   T accept<T>(PatternVisitor<T> v) {
     return v.visitTuple(this);
   }
-}
 
-// abstract class NamePattern implements Pattern {}
+  String toString() {
+    if (components.length == 0) {
+      return "(*)";
+    } else {
+      return "(* $components)";
+    }
+  }
+}
 
 class VariablePattern extends Pattern implements Declaration {
   Binder binder;
@@ -139,6 +157,10 @@ class VariablePattern extends Pattern implements Declaration {
   T accept<T>(PatternVisitor<T> v) {
     return v.visitVariable(this);
   }
+
+  String toString() {
+    return "${binder}";
+  }
 }
 
 class WildcardPattern extends Pattern {
@@ -146,5 +168,9 @@ class WildcardPattern extends Pattern {
 
   T accept<T>(PatternVisitor<T> v) {
     return v.visitWildcard(this);
+  }
+
+  String toString() {
+    return "_";
   }
 }

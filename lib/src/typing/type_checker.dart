@@ -20,26 +20,37 @@ import 'unification.dart';
 class TypingContext {}
 
 class TypeChecker {
-  Result<ModuleMember, LocatedError> typeCheck(ModuleMember module) {
-    _TypeChecker typeChecker = _TypeChecker();
+  final bool _trace;
+  TypeChecker([this._trace = false]);
+
+  Result<ModuleMember, TypeError> typeCheck(ModuleMember module) {
+    _TypeChecker typeChecker = _TypeChecker(new Unifier(_trace), _trace);
     typeChecker.typeCheck(module, new TypingContext());
-    Result<ModuleMember, LocatedError> result;
+    Result<ModuleMember, TypeError> result;
     if (typeChecker.errors.length > 0) {
-      result = Result<ModuleMember, LocatedError>.failure(typeChecker.errors);
+      result = Result<ModuleMember, TypeError>.failure(typeChecker.errors);
     } else {
-      result = Result<ModuleMember, LocatedError>.success(module);
+      result = Result<ModuleMember, TypeError>.success(module);
     }
 
-    return Result<ModuleMember, LocatedError>.success(module);
+    return Result<ModuleMember, TypeError>.success(module);
   }
 }
 
 class _TypeChecker {
-  List<LocatedError> errors = new List<LocatedError>();
+  List<TypeError> errors = new List<TypeError>();
+  final bool trace;
+  final Unifier unifier;
 
-  Datatype error(LocatedError err, Location location) {
+  _TypeChecker(this.unifier, [this.trace]);
+
+  Datatype error(TypeError err, Location location) {
     errors.add(err);
     return ErrorType(err, location);
+  }
+
+  Pair<Substitution, Datatype> lift(Datatype type) {
+    return Pair<Substitution, Datatype>(Substitution.empty(), type);
   }
 
   // Main entry point.
@@ -51,12 +62,14 @@ class _TypeChecker {
 
   Pair<Substitution, Datatype> inferModule(
       ModuleMember member, Substitution subst) {
+    if (trace) {
+      print("infer module: $member");
+    }
     switch (member.tag) {
       case ModuleTag.CONSTR:
       case ModuleTag.DATATYPE_DEFS:
       case ModuleTag.OPEN:
-        return Pair<Substitution, Datatype>(
-            Substitution.empty(), typeUtils.unitType);
+        return lift(typeUtils.unitType);
         break;
       case ModuleTag.TOP:
         TopModule module = member as TopModule;
@@ -64,8 +77,7 @@ class _TypeChecker {
           inferModule(module.members[i],
               subst.size == 0 ? subst : Substitution.empty());
         }
-        return Pair<Substitution, Datatype>(
-            Substitution.empty(), typeUtils.unitType);
+        return lift(typeUtils.unitType);
         break;
       case ModuleTag.FUNC_DEF:
         return inferFunctionDefinition(member as FunctionDeclaration, subst);
@@ -76,61 +88,61 @@ class _TypeChecker {
       default:
         unhandled("inferModule", member.tag);
     }
-    return null;
   }
 
   Pair<Substitution, Datatype> inferFunctionDefinition(
-      FunctionDeclaration funDef, Substitution subst) {
+      FunctionDeclaration funDef, Substitution sigma) {
     if (funDef is VirtualFunctionDeclaration) {
-      return Pair<Substitution, Datatype>(
-          Substitution.empty(), funDef.signature.type);
+      return lift(funDef.signature.type);
     }
     Datatype sig = funDef.signature.type;
     if (!typeUtils.isFunctionType(sig)) {
-      LocatedError err = TypeExpectationError(funDef.signature.location);
-      error(err, funDef.signature.location);
-      return null; // TODO.
+      TypeError err = TypeExpectationError(funDef.signature.location);
+      return Pair<Substitution, Datatype>(
+          sigma, error(err, funDef.signature.location));
     }
     // Check the formal parameters.
     List<Datatype> domain = typeUtils.domain(sig);
     List<Pattern> parameters = funDef.parameters;
     if (domain.length != parameters.length) {
-      LocatedError err =
+      TypeError err =
           ArityMismatchError(domain.length, parameters.length, funDef.location);
-      error(err, funDef.location);
-      return null; // TODO.
+      return Pair<Substitution, Datatype>(sigma, error(err, funDef.location));
     }
     for (int i = 0; i < parameters.length; i++) {
-      checkPattern(parameters[i], domain[i], subst);
+      checkPattern(parameters[i], domain[i], sigma);
     }
     // Check the body type against the declared type.
-    checkExpression(funDef.body, typeUtils.codomain(sig), subst);
+    checkExpression(funDef.body, typeUtils.codomain(sig), sigma);
 
-    return null; // TODO.
+    return lift(sig);
   }
 
   Pair<Substitution, Datatype> inferValueDefinition(
-      ValueDeclaration valDef, Substitution subst) {
+      ValueDeclaration valDef, Substitution sigma) {
     Datatype sig = valDef.signature.type;
     // Check the body against the declared type.
-    checkExpression(valDef.body, sig, subst);
-    return null; // TODO.
+    // checkExpression(valDef.body, sig, sigma);
+    Pair<Substitution, Datatype> result = inferExpression(valDef.body, sigma);
+    Substitution sigma0 = result.fst;
+    Substitution sigma1 = subsumes(sig, sigma0.apply(result.snd), sigma0);
+    return lift(sig);
   }
 
   Pair<Substitution, Datatype> inferExpression(
       Expression exp, Substitution subst) {
+    if (trace) {
+      print("infer expression: $exp");
+    }
     switch (exp.tag) {
       case ExpTag.BOOL:
-        return Pair<Substitution, Datatype>(
-            Substitution.empty(), typeUtils.boolType);
+        return lift(typeUtils.boolType);
         break;
       case ExpTag.INT:
-        return Pair<Substitution, Datatype>(
-            Substitution.empty(), typeUtils.intType);
+        return lift(typeUtils.intType);
         break;
       case ExpTag.STRING:
-        return Pair<Substitution, Datatype>(
-            Substitution.empty(), typeUtils.stringType);
+        return lift(typeUtils.stringType);
         break;
       case ExpTag.APPLY:
         return inferApply(exp as Apply, subst);
@@ -152,8 +164,7 @@ class _TypeChecker {
             (exp as Tuple).components, inferExpression, subst);
         break;
       case ExpTag.VAR:
-        return Pair<Substitution, Datatype>(
-            Substitution.empty(), (exp as Variable).declarator.type);
+        return lift((exp as Variable).declarator.type);
         break;
       case ExpTag.TYPE_ASCRIPTION:
         throw "Not yet impleemented.";
@@ -164,54 +175,19 @@ class _TypeChecker {
   }
 
   Pair<Substitution, Datatype> inferApply(Apply appl, Substitution sigma) {
-    // // Infer a type for the abstractor expression (left hand side).
-    // Pair<Substitution, Datatype> result =
-    //     inferExpression(apply.abstractor, null);
-    // Datatype fnType = result.snd;
-    // // Check that [fnType] is a function type, otherwise signal an error.
-    // if (!typeUtils.isFunctionType(fnType)) {
-    //   LocatedError err = TypeExpectationError(apply.abstractor.location);
-    //   error(err, apply.location);
-    //   return null; // TODO.
-    // }
-    // // Infer a type each argument expression.
-    // final int numArguments = apply.arguments.length;
-    // List<Datatype> parameterTypes = typeUtils.domain(fnType);
-    // if (parameterTypes.length != numArguments) {
-    //   LocatedError err = ArityMismatchError(
-    //       parameterTypes.length, numArguments, apply.abstractor.location);
-    //   error(err, apply.abstractor.location);
-    //   return null; // TODO.
-    // }
-    // List<Datatype> argumentTypes = new List<Datatype>(numArguments);
-    // for (int i = 0; i < numArguments; i++) {
-    //   Pair<Substitution, Datatype> result =
-    //       inferExpression(apply.arguments[i], null);
-    //   Datatype argumentType = result.snd;
-    //   argumentTypes[i] = typeUtils.stripQuantifiers(argumentType);
-    //   // if (typeUtils.isForallType(argumentType) &&
-    //   //     typeUtils.isFunctionType(argumentType)) {
-    //   //   argumentTypes[i] = typeUtils.unrigidify(argumentType);
-    //   // } else {
-    //   //   argumentTypes[i] = argumentType;
-    //   // }
-    // }
-    // // Check that the domain of [fnType] agrees with [argumentTypes].
-    // Map<int, Datatype> subst =
-    //     unifyMany(typeUtils.domain(fnType), argumentTypes);
-    // // Check whether the function type needs to be instantiated.
-    // if (typeUtils.isForallType(fnType)) {
-    //   // Instantiate [fnType].
-    //   // TODO instantiation mismatch error.
-    //   fnType = substitute(fnType, subst);
-    // }
+    // Infer a type for the abstractor.
     Pair<Substitution, Datatype> result =
         inferExpression(appl.abstractor, sigma);
+    // Eliminate foralls.
     return apply(appl.arguments, result.snd, result.fst);
   }
 
   Pair<Substitution, Datatype> apply(
       List<Expression> arguments, Datatype type, Substitution sigma) {
+    if (trace) {
+      print("apply: $arguments, $type");
+    }
+    // TODO better error reporting.
     // if (type is! ArrowType) {
     //   // TODO error.
     //   return null;
@@ -225,7 +201,7 @@ class _TypeChecker {
 
     // apply xs* (\/qs+.t) sigma = apply xs* (t[qs+ -> as+]) sigma
     if (type is ForallType) {
-      Datatype body = guessInstantiation(type);
+      Datatype body = guessInstantiation(type.quantifiers, type.body);
       return apply(arguments, body, sigma);
     }
 
@@ -256,83 +232,102 @@ class _TypeChecker {
     }
     // unify
     ArrowType fnType = ArrowType(domain, a);
-    Substitution sigma1 = unify0(type, fnType);
+    Substitution sigma1 = unifier.unify(type, fnType);
     Substitution sigma2 = sigma0.combine(sigma1);
     return Pair<Substitution, Datatype>(sigma2, sigma2.apply(a));
   }
 
-  Pair<Substitution, Datatype> inferMatch(Match match, Substitution subst) {
+  Pair<Substitution, Datatype> inferMatch(Match match, Substitution sigma) {
     // Infer a type for the scrutinee.
     Pair<Substitution, Datatype> result =
-        inferExpression(match.scrutinee, null);
+        inferExpression(match.scrutinee, sigma);
     Datatype scrutineeType = result.snd;
     // Check the patterns (left hand sides) against the inferd type for the
     // scrutinee. Check the clause bodies (right hand sides) against the type of
     // their left hand sides.
-    Datatype branchType = Skolem();
-    for (int i = 0; i < match.cases.length; i++) {
-      Case case0 = match.cases[i];
-      checkPattern(case0.pattern, scrutineeType, null);
-      // branchType = checkExpression(case0.expression, branchType, null);
+    if (match.cases.length == 0) {
+      return lift(Skolem());
+    } else {
+      Substitution sigma0 = Substitution.empty();
+      Datatype branchType;
+      for (int i = 0; i < match.cases.length; i++) {
+        Case case0 = match.cases[i];
+        checkPattern(case0.pattern, scrutineeType, sigma);
+        if (branchType == null) {
+          // First case.
+          Pair<Substitution, Datatype> result =
+              inferExpression(case0.expression, sigma);
+          sigma0 = sigma0.combine(result.fst);
+          branchType = result.snd;
+        } else {
+          // Any subsequent case.
+          Substitution sigma1 =
+              checkExpression(case0.expression, branchType, sigma);
+          sigma0 = sigma0.combine(sigma1);
+        }
+      }
+      return Pair<Substitution, Datatype>(sigma0, branchType);
     }
-
-    // return branchType;
-    return null; // TODO.
   }
 
-  Pair<Substitution, Datatype> inferLet(Let let, Substitution subst) {
+  Pair<Substitution, Datatype> inferLet(Let let, Substitution sigma) {
     // Infer a type for each of the value bindings.
+    Substitution sigma0 = sigma;
+    Substitution sigma1 = Substitution.empty();
     for (int i = 0; i < let.valueBindings.length; i++) {
       Binding binding = let.valueBindings[i];
       // Infer a type for the expression (right hand side)
       Pair<Substitution, Datatype> result =
-          inferExpression(binding.expression, null);
+          inferExpression(binding.expression, sigma0);
+      Substitution sigma2 = result.fst;
       Datatype expType = result.snd;
       // Check the pattern (left hand side) against the inferd type.
-      checkPattern(binding.pattern, expType, null);
+      Substitution sigma3 = checkPattern(binding.pattern, expType, sigma2);
+      sigma1 = sigma1.combine(sigma3);
       // TODO: Check whether there are any free type/skolem variables in
       // [expType] as the type theory does not admit let generalisation.
     }
     // Infer a type for the continuation (body).
-    Pair<Substitution, Datatype> result = inferExpression(let.body, null);
-    Datatype bodyType = result.snd;
-    // return bodyType;
-    return null; // TODO.
+    return inferExpression(let.body, sigma1);
   }
 
-  Pair<Substitution, Datatype> inferLambda(Lambda lambda, Substitution subst) {
+  Pair<Substitution, Datatype> inferLambda(Lambda lambda, Substitution sigma) {
     // Infer types for the parameters.
     List<Datatype> domain = new List<Datatype>(lambda.parameters.length);
+    Substitution sigma0 = Substitution.empty();
     for (int i = 0; i < lambda.parameters.length; i++) {
       Pair<Substitution, Datatype> result =
-          inferPattern(lambda.parameters[i], null);
+          inferPattern(lambda.parameters[i], sigma);
+      sigma0 = sigma0.combine(result.fst);
       domain[i] = result.snd;
     }
     // Infer a type for the body.
-    Pair<Substitution, Datatype> result = inferExpression(lambda.body, null);
+    Pair<Substitution, Datatype> result = inferExpression(lambda.body, sigma0);
+    Substitution sigma1 = result.fst;
     Datatype codomain = result.snd;
 
     // Construct the arrow type.
-    ArrowType ft = ArrowType(domain, codomain);
-
-    // return ft;
-    return null; // TODO.
+    ArrowType ft = sigma1.apply(ArrowType(domain, codomain));
+    return Pair<Substitution, Datatype>(sigma1, ft);
   }
 
-  Pair<Substitution, Datatype> inferIf(If ifthenelse, Substitution subst) {
+  Pair<Substitution, Datatype> inferIf(If ifthenelse, Substitution sigma) {
     // Check that the condition has type bool.
-    checkExpression(ifthenelse.condition, typeUtils.boolType, null);
+    Substitution sigma1 =
+        checkExpression(ifthenelse.condition, typeUtils.boolType, sigma);
     // Infer a type for each branch.
     Pair<Substitution, Datatype> resultTrueBranch =
-        inferExpression(ifthenelse.thenBranch, null);
-    Datatype tt = resultTrueBranch.snd;
+        inferExpression(ifthenelse.thenBranch, sigma);
+    Substitution sigma2 = resultTrueBranch.fst;
+    Datatype tt = sigma2.apply(resultTrueBranch.snd);
     Pair<Substitution, Datatype> resultFalseBranch =
         inferExpression(ifthenelse.elseBranch, null);
-    Datatype ff = resultFalseBranch.snd;
+    sigma2 = resultFalseBranch.fst;
+    Datatype ff = sigma2.apply(resultFalseBranch.snd);
     // Check that types agree.
-    // Datatype branchType = unify(tt, ff);
-    // return branchType;
-    return null; // TODO.
+    Substitution sigma3 = unifier.unify(tt, ff);
+
+    return Pair<Substitution, Datatype>(sigma3, tt);
   }
 
   Pair<Substitution, Datatype> inferTuple<T>(
@@ -359,22 +354,27 @@ class _TypeChecker {
       Substitution Function(T, Datatype, Substitution) check,
       List<T> xs,
       List<Datatype> types,
-      Substitution subst) {
+      Substitution sigma) {
     if (xs.length != types.length) {
-      // TODO error.
-      return null;
+      Location loc = Location.dummy();
+      TypeError err = ArityMismatchError(types.length, xs.length, loc);
+      error(err, loc);
+      return sigma;
     }
 
-    Substitution subst0;
+    Substitution sigma0;
     for (int i = 0; i < types.length; i++) {
-      Substitution sigma0 = check(xs[i], types[i], subst);
-      subst0 = subst0 == null ? sigma0 : subst0.combine(sigma0);
+      Substitution sigma1 = check(xs[i], types[i], sigma);
+      sigma0 = sigma0 == null ? sigma1 : sigma0.combine(sigma1);
     }
-    return subst0;
+    return sigma0;
   }
 
   Substitution checkExpression(
       Expression exp, Datatype type, Substitution sigma) {
+    if (trace) {
+      print("check expression: $exp : $type");
+    }
     // check (\xs*. e) (ts* -> t) sigma = check e t sigma',
     // where sigma' = check*(xs*, ts*)
     //       check* [] [] _ = []
@@ -393,73 +393,62 @@ class _TypeChecker {
     // check e (\/qs+.t) sigma = check e (t[qs+ -> %a+]) sigma.
     if (type is ForallType) {
       ForallType forallType = type;
-      Substitution sigma0 = Substitution.empty();
-      for (int i = 0; i < forallType.quantifiers.length; i++) {
-        sigma0 = sigma0.bindVar(
-            TypeVariable.bound(forallType.quantifiers[i]), Skolem());
-      }
-      return checkExpression(exp, sigma0.apply(forallType.body), sigma);
+      // Substitution sigma0 = Substitution.empty();
+      // for (int i = 0; i < forallType.quantifiers.length; i++) {
+      //   sigma0 = sigma0.bind(
+      //       TypeVariable.bound(forallType.quantifiers[i]), Skolem());
+      // }
+      // return checkExpression(exp, sigma0.apply(forallType.body), sigma);
+      return checkExpression(exp, forallType.body, sigma);
     }
 
     // check e t sigma = subsumes e t' sigma', where (t', sigma') = infer e sigma
     Substitution subst0;
     Pair<Substitution, Datatype> result = inferExpression(exp, sigma);
     return subsumes(result.snd, type, result.fst);
-
-    // // Infer a type for [exp].
-    // Datatype expType = inferExpression(exp, null);
-    // // Unify [expType] and [type].
-    // Datatype resultType = unify(expType, type);
-    // // TODO handle unification errors.
-    // // return resultType;
   }
 
-  Substitution checkPattern(Pattern pat, Datatype type, Substitution subst) {
+  Substitution checkPattern(Pattern pat, Datatype type, Substitution sigma) {
+    if (trace) {
+      print("check pattern: $pat : $type");
+    }
     // Infer a type for [pat].
-    Pair<Substitution, Datatype> result = inferPattern(pat, null);
-    // Unify [patType] and [type].
-    // Datatype resultType = unify(patType, type);
-    // TODO handle unification errors.
-    // return resultType;
-    return null;
+    Pair<Substitution, Datatype> result = inferPattern(pat, sigma);
+    return subsumes(result.snd, type, result.fst);
   }
 
-  Pair<Substitution, Datatype> inferPattern(Pattern pat, Substitution subst) {
+  Pair<Substitution, Datatype> inferPattern(Pattern pat, Substitution sigma) {
     switch (pat.tag) {
       case PatternTag.BOOL:
-        return Pair<Substitution, Datatype>(
-            Substitution.empty(), typeUtils.boolType);
+        return lift(typeUtils.boolType);
         break;
       case PatternTag.INT:
-        return Pair<Substitution, Datatype>(
-            Substitution.empty(), typeUtils.intType);
+        return lift(typeUtils.intType);
         break;
       case PatternTag.STRING:
-        return Pair<Substitution, Datatype>(
-            Substitution.empty(), typeUtils.stringType);
+        return lift(typeUtils.stringType);
         break;
       case PatternTag.CONSTR:
-        return inferConstructorPattern(pat as ConstructorPattern, null);
+        return inferConstructorPattern(pat as ConstructorPattern, sigma);
         break;
       case PatternTag.HAS_TYPE:
         // Check the pattern type against the annotation.
         HasTypePattern hasType = pat as HasTypePattern;
-        // return checkPattern(hasType.pattern, hasType.type, null);
-        return null;
+        Substitution sigma1 =
+            checkPattern(hasType.pattern, hasType.type, sigma);
+        return Pair<Substitution, Datatype>(sigma1, hasType.type);
         break;
       case PatternTag.TUPLE:
         return inferTuple<Pattern>(
-            (pat as TuplePattern).components, inferPattern, null);
+            (pat as TuplePattern).components, inferPattern, sigma);
         break;
       case PatternTag.VAR:
         VariablePattern varPattern = pat as VariablePattern;
         varPattern.type = Skolem();
-        // return varPattern.type;
-        return null; // TODO.
+        return lift(varPattern.type);
         break;
       case PatternTag.WILDCARD:
-        // return Skolem();
-        return null; // TODO.
+        return lift(Skolem());
         break;
       default:
         unhandled("inferPattern", pat.tag);
@@ -467,96 +456,102 @@ class _TypeChecker {
   }
 
   Pair<Substitution, Datatype> inferConstructorPattern(
-      ConstructorPattern constr, Substitution subst) {
+      ConstructorPattern constr, Substitution sigma) {
     // Get the induced type.
     Datatype type = constr
         .type; // guaranteed to be compatible with `type_utils' function type api.
     // Arity check.
     List<Datatype> domain = typeUtils.domain(type);
     if (domain.length != constr.components.length) {
-      LocatedError err = ArityMismatchError(
+      TypeError err = ArityMismatchError(
           domain.length, constr.components.length, constr.location);
-      error(err, constr.location);
-      return null; // TODO.
+      return Pair<Substitution, Datatype>(sigma, error(err, constr.location));
     }
     // Infer a type for each subpattern and check it against the induced type.
-    // Map<int, Datatype> subst = new Map<int, Datatype>();
-    // for (int i = 0; i < constr.components.length; i++) {
-    //   Pair<Substitution, Datatype> result = inferPattern(constr.components[i], null);
-    //   sigma = sigma.combine(result.fst);
-    //   Datatype componentType = result.snd;
-    //   subst.addAll(unifyS(componentType, domain[i]));
-    // }
-    // // Instantiate the type.
-    // type = substitute(type, subst);
-    // return type;
-    return null; // TODO.
+    Substitution sigma1 = Substitution.empty();
+    List<Datatype> components = new List<Datatype>();
+    for (int i = 0; i < constr.components.length; i++) {
+      Pair<Substitution, Datatype> result =
+          inferPattern(constr.components[i], sigma);
+      sigma1 = sigma1.combine(result.fst);
+      components.add(result.snd);
+    }
+    return Pair<Substitution, Datatype>(
+        sigma1, TypeConstructor.from(constr.declarator.declarator, components));
   }
 
-  Substitution subsumes(Datatype type0, Datatype type1, Substitution subst) {
-    // subsumes (\/qs+. t) t' = subsumes t (t'[qs+ -> as+]), where a+ are fresh.
+  Substitution subsumes(Datatype type0, Datatype type1, Substitution sigma) {
+    if (trace) {
+      print("subsumes: $type0 <: $type1");
+    }
+    // subsumes (\/qs+. t) t' sigma = subsumes t (t'[qs+ -> as+]) sigma, where as+ are fresh.
     if (type0 is ForallType) {
       ForallType forallType = type0;
-      Datatype type2 = guessInstantiation(forallType);
-      return subsumes(type2, type1, subst);
+      Datatype type2 =
+          guessInstantiation(forallType.quantifiers, forallType.body);
+      return subsumes(type2, type1, sigma);
     }
 
-    // subsumes t (\/qs+. t') = subsumes t (t'[qs+ -> %as+]), where %as+ are fresh skolems.
+    // subsumes t (\/qs+. t') sigma = subsumes (t[qs+ -> %as+]) t' sigma, where %as+ are fresh skolems.
     if (type1 is ForallType) {
       ForallType forallType = type1;
-      Datatype type2 = guessInstantiation(forallType);
-      return subsumes(type0, type2, subst);
+      Datatype type2 =
+          guessInstantiation(forallType.quantifiers, type0, useSkolem: true);
+      return subsumes(type2, type1.body, sigma);
     }
 
     // subsumes (ts1* -> t2) (ts3* -> t4) sigma = subsumes* (ts3 sigma') (ts1 sigma') sigma',
     // where sigma' = subsumes* t2 t4 sigma.
     if (type0 is ArrowType && type1 is ArrowType) {
-      Substitution subst0 = subsumes(type0.codomain, type1.codomain, subst);
-      List<Datatype> domain0 = subst0.applyMany(type0.domain);
-      List<Datatype> domain1 = subst0.applyMany(type1.domain);
-      return subsumesMany(domain1, domain0, subst0);
+      Substitution sigma0 = subsumes(type0.codomain, type1.codomain, sigma);
+      List<Datatype> domain0 = sigma0.applyMany(type0.domain);
+      List<Datatype> domain1 = sigma0.applyMany(type1.domain);
+      return subsumesMany(domain1, domain0, sigma0);
     }
 
     // subsumes (* ts1*) (* ts2*) sigma = subsumesMany ts1* ts2* sigma
     if (type0 is TupleType && type1 is TupleType) {
-      return subsumesMany(type0.components, type1.components, subst);
+      return subsumesMany(type0.components, type1.components, sigma);
     }
 
     // subsumes (C ts1*) (K ts2*) sigma = subsumesMany ts1* ts2* sigma, if C = K.
     if (type0 is TypeConstructor && type1 is TypeConstructor) {
       if (type0.ident != type1.ident) {
-        // TODO error.
-        return null;
+        Location loc = Location.dummy();
+        TypeError err = TypeExpectationError(loc);
+        error(err, loc);
+        return sigma;
       }
-      return subsumesMany(type0.arguments, type1.arguments, subst);
+      return subsumesMany(type0.arguments, type1.arguments, sigma);
     }
 
     // Base case.
-    return unify0(type0, type1);
+    return unifier.unify(type0, type1);
   }
 
   Substitution subsumesMany(
-      List<Datatype> types1, List<Datatype> types2, Substitution subst) {
+      List<Datatype> types1, List<Datatype> types2, Substitution sigma) {
     if (types1.length != types2.length) {
       // TODO error.
-      return null;
+      return sigma;
     }
 
-    Substitution subst0 = Substitution.empty();
+    Substitution sigma0 = Substitution.empty();
     for (int i = 0; i < types1.length; i++) {
-      Substitution subst1 = subsumes(types1[i], types2[i], subst);
-      subst0 = subst0.combine(subst1);
+      Substitution sigma1 = subsumes(types1[i], types2[i], sigma);
+      sigma0 = sigma0.combine(sigma1);
     }
-    return subst0;
+    return sigma0;
   }
 
-  Datatype guessInstantiation(ForallType forallType, {bool useSkolem = false}) {
+  Datatype guessInstantiation(List<Quantifier> quantifiers, Datatype type,
+      {bool useSkolem = false}) {
     Substitution subst = Substitution.empty();
-    for (int i = 0; i < forallType.quantifiers.length; i++) {
-      Quantifier q = forallType.quantifiers[i];
-      subst.bindVar(
+    for (int i = 0; i < quantifiers.length; i++) {
+      Quantifier q = quantifiers[i];
+      subst.bind(
           TypeVariable.bound(q), useSkolem ? Skolem() : TypeVariable.unbound());
     }
-    return subst.apply(forallType.body);
+    return subst.apply(type);
   }
 }

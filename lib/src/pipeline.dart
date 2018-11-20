@@ -74,8 +74,8 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
       }
 
       // Type check.
-      Result<ModuleMember, LocatedError> typeResult =
-          new TypeChecker().typeCheck(elabResult.result);
+      Result<ModuleMember, TypeError> typeResult =
+          new TypeChecker(settings.trace["typechecker"]).typeCheck(elabResult.result);
 
       // Report errors, if any.
       if (!typeResult.wasSuccessful) {

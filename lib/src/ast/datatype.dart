@@ -4,7 +4,7 @@
 
 import 'dart:collection' show Set;
 
-import '../errors/errors.dart' show LocatedError;
+import '../errors/errors.dart' show T20Error;
 import '../location.dart';
 import '../unionfind.dart' as unionfind;
 import '../unionfind.dart' show Point;
@@ -96,7 +96,7 @@ class StringifyDatatype extends ReduceDatatype<String> {
   final StringMonoid _m = new StringMonoid();
   Monoid<String> get m => _m;
 
-  String stringOfQuantifier(Quantifier q) => q.binder.sourceName;
+  String stringOfQuantifier(Quantifier q) => q.binder.toString();
   String visitQuantifiers(List<Quantifier> qs) {
     List<String> qs0 = new List<String>(qs.length);
     for (int i = 0; i < qs.length; i++) {
@@ -153,11 +153,11 @@ class StringifyDatatype extends ReduceDatatype<String> {
     }
   }
 
-  String visitTypeVariable(TypeVariable v) => v.declarator.binder.sourceName;
+  String visitTypeVariable(TypeVariable v) => v.declarator.binder.toString();
   String visitSkolem(Skolem s) {
     Datatype type = s.type;
     if (type == s) {
-      return "?";
+      return "?${s.ident}";
     } else {
       return type.accept(this);
     }
@@ -331,12 +331,18 @@ class Quantifier {
     else
       return 1;
   }
+
+  String toString() {
+    return "$binder";
+  }
 }
 
 class TypeVariable extends Datatype {
   // May be null during construction. Otherwise it is intended to point to its
   // binder.
   Quantifier declarator;
+
+  bool get isQuantified => declarator != null;
 
   TypeVariable() : super(TypeTag.VAR);
   TypeVariable.unbound() : this.bound(Quantifier.fresh());
@@ -415,7 +421,7 @@ class TypeConstructor extends Datatype {
 }
 
 class ErrorType extends Datatype {
-  final LocatedError error;
+  final T20Error error;
 
   ErrorType(this.error, Location location) : super(TypeTag.ERROR);
 
