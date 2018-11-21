@@ -28,6 +28,7 @@ class NamedOptions {
   static String get output => "output";
   static String get vm_platform => "vm-platform";
   static String get trace => "trace";
+  static String get type_check => "type-check";
   static String get verbose => "verbose";
   static String get version => "version";
   static String get exit_after => "exit-after";
@@ -51,7 +52,7 @@ ArgParser _setupArgParser() {
   parser.addOption(NamedOptions.exit_after,
       defaultsTo: null,
       help: "Exit after running a particular component.",
-      valueHelp: "elaborator,parser");
+      valueHelp: "elaborator,parser,typechecker");
   parser.addFlag(NamedOptions.help,
       abbr: 'h',
       negatable: false,
@@ -64,7 +65,9 @@ ArgParser _setupArgParser() {
       defaultsTo: "stdout");
   parser.addMultiOption(NamedOptions.trace,
       help: "Trace the operational behaviour of a component.",
-      valueHelp: "elaborator,parser");
+      valueHelp: "elaborator,parser,typechecker");
+  parser.addFlag(NamedOptions.type_check,
+      negatable: true, defaultsTo: true, help: "Toggle type checking.");
   parser.addFlag(NamedOptions.verbose,
       abbr: 'v',
       negatable: false,
@@ -108,6 +111,7 @@ class Settings {
   final bool showVersion;
   final String platformDill;
   final MultiOption trace;
+  final bool typeCheck;
   final bool verbose;
 
   // Other settings.
@@ -123,6 +127,7 @@ class Settings {
     var verbose = results[NamedOptions.verbose];
     var platformDill = results[NamedOptions.vm_platform];
     var trace = new MultiOption(results[NamedOptions.trace], verbose ?? false);
+    var typeCheck = results[NamedOptions.type_check];
 
     if (!_validateExitAfter(exitAfter)) {
       throw UnrecognisedOptionValue(NamedOptions.exit_after, exitAfter);
@@ -141,7 +146,7 @@ class Settings {
       throw new UsageError();
     }
     return Settings._(dumpAst, dumpDast, exitAfter, showHelp, showVersion,
-        sourceFile, trace, verbose, platformDill);
+        sourceFile, trace, typeCheck, verbose, platformDill);
   }
 
   const Settings._(
@@ -152,6 +157,7 @@ class Settings {
       this.showVersion,
       this.sourceFile,
       this.trace,
+      this.typeCheck,
       this.verbose,
       this.platformDill);
 

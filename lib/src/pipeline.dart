@@ -74,18 +74,20 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
       }
 
       // Type check.
-      Result<ModuleMember, TypeError> typeResult =
-          new TypeChecker(settings.trace["typechecker"]).typeCheck(elabResult.result);
+      Result<ModuleMember, TypeError> typeResult;
+      if (settings.typeCheck) {
+        typeResult = new TypeChecker(settings.trace["typechecker"])
+            .typeCheck(elabResult.result);
 
-      // Report errors, if any.
-      if (!typeResult.wasSuccessful) {
-        report(typeResult.errors);
-        return false;
+        // Report errors, if any.
+        if (!typeResult.wasSuccessful) {
+          report(typeResult.errors);
+          return false;
+        }
       }
-
       // Exit now, if requested.
       if (settings.exitAfter == "typechecker") {
-        return typeResult.wasSuccessful;
+        return typeResult == null ? true : typeResult.wasSuccessful;
       }
 
       // Emit DILL.
