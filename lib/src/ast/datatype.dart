@@ -401,6 +401,8 @@ class Skolem extends Datatype {
   }
 
   static int currentLevel() => _currentLevel;
+
+  String get syntheticName => "?$ident";
 }
 
 class ForallType extends Datatype {

@@ -15,7 +15,6 @@ import '../utils.dart' show Gensym;
 
 import 'substitution.dart' show Substitution;
 import 'type_utils.dart' as typeUtils;
-import 'unification.dart';
 
 class TypingContext {}
 
@@ -24,7 +23,7 @@ class TypeChecker {
   TypeChecker([this._trace = false]);
 
   Result<ModuleMember, TypeError> typeCheck(ModuleMember module) {
-    _TypeChecker typeChecker = _TypeChecker(new Unifier(_trace), _trace);
+    _TypeChecker typeChecker = _TypeChecker(_trace);
     typeChecker.typeCheck(module, new TypingContext());
     Result<ModuleMember, TypeError> result;
     if (typeChecker.errors.length > 0) {
@@ -40,9 +39,8 @@ class TypeChecker {
 class _TypeChecker {
   List<TypeError> errors = new List<TypeError>();
   final bool trace;
-  final Unifier unifier;
 
-  _TypeChecker(this.unifier, [this.trace]);
+  _TypeChecker(this.trace);
 
   Datatype error(TypeError err, Location location) {
     errors.add(err);
@@ -51,6 +49,15 @@ class _TypeChecker {
 
   Pair<Substitution, Datatype> lift(Datatype type) {
     return Pair<Substitution, Datatype>(Substitution.empty(), type);
+  }
+
+
+  void enter() {
+    Skolem.increaseLevel();
+  }
+
+  void leave() {
+    Skolem.decreaseLevel();
   }
 
   // Main entry point.
@@ -179,35 +186,29 @@ class _TypeChecker {
     Pair<Substitution, Datatype> result =
         inferExpression(appl.abstractor, sigma);
     // Eliminate foralls.
-    return apply(appl.arguments, result.snd, result.fst);
+    return apply(appl.arguments, result.snd, result.fst, appl.location);
   }
 
-  Pair<Substitution, Datatype> apply(
-      List<Expression> arguments, Datatype type, Substitution sigma) {
+  Pair<Substitution, Datatype> apply(List<Expression> arguments, Datatype type,
+      Substitution sigma, Location location) {
     if (trace) {
       print("apply: $arguments, $type");
     }
-    // TODO better error reporting.
-    // if (type is! ArrowType) {
-    //   // TODO error.
-    //   return null;
-    // }
-
-    // ArrowType fnType = type;
-    // if (fnType.arity != arguments.length) {
-    //   // TODO error.
-    //   return null;
-    // }
-
     // apply xs* (\/qs+.t) sigma = apply xs* (t[qs+ -> as+]) sigma
     if (type is ForallType) {
       Datatype body = guessInstantiation(type.quantifiers, type.body);
-      return apply(arguments, body, sigma);
+      return apply(arguments, body, sigma, location);
     }
 
     // apply xs* (ts* -> t) sigma = (sigma', t sigma'), where sigma' = check* xs* ts* sigma
     if (type is ArrowType) {
       ArrowType fnType = type;
+      if (type.arity != arguments.length) {
+        TypeError err =
+            ArityMismatchError(type.arity, arguments.length, location);
+        errors.add(err);
+        return Pair<Substitution, Datatype>(sigma, type.codomain);
+      }
       Substitution sigma0 = checkMany<Expression>(
           checkExpression, arguments, fnType.domain, sigma);
       return Pair<Substitution, Datatype>(sigma0, fnType.codomain);
@@ -235,29 +236,7 @@ class _TypeChecker {
     }
 
     // ERROR.
-    throw "Apply error.";
-
-    // Base case.
-    // apply xs* t sigma = (sigma''', a sigma''')
-    // where a is fresh
-    //       (sigma', ts*) = infer* xs* sigma
-    //       sigma'' = t ~ (ts* -> a)
-    //       sigma''' = sigma' ++ sigma''
-    TypeVariable a = TypeVariable.unbound();
-    // infer*
-    Substitution sigma0 = Substitution.empty();
-    List<Datatype> domain = new List<Datatype>();
-    for (int i = 0; i < arguments.length; i++) {
-      Pair<Substitution, Datatype> result =
-          inferExpression(arguments[i], sigma);
-      sigma0 = sigma0.combine(result.fst);
-      domain.add(result.snd);
-    }
-    // unify
-    ArrowType fnType = ArrowType(domain, a);
-    Substitution sigma1 = unifier.unify(type, fnType);
-    Substitution sigma2 = sigma0.combine(sigma1);
-    return Pair<Substitution, Datatype>(sigma2, sigma2.apply(a));
+    unhandled("apply", "$arguments, $type");
   }
 
   Pair<Substitution, Datatype> inferMatch(Match match, Substitution sigma) {
@@ -348,7 +327,7 @@ class _TypeChecker {
     sigma2 = resultFalseBranch.fst;
     Datatype ff = sigma2.apply(resultFalseBranch.snd);
     // Check that types agree.
-    Substitution sigma3 = unifier.unify(tt, ff);
+    Substitution sigma3 = subsumes(tt, ff, sigma2);
 
     return Pair<Substitution, Datatype>(sigma3, tt);
   }
@@ -443,15 +422,53 @@ class _TypeChecker {
       print("check pattern: $pat : $type");
     }
 
+    // Literal pattern check against their respective base types.
+    if (pat is BoolPattern && type is BoolType ||
+        pat is IntPattern && type is IntType ||
+        pat is StringPattern && type is StringType) {
+      return sigma;
+    }
+
     // check x t sigma = sigma.
     if (pat is VariablePattern) {
       pat.type = type;
       return sigma;
     }
 
+    // check (, ps*) (, ts*) sigma = check* ps* ts* sigma
+    if (pat is TuplePattern && type is TupleType) {
+      if (pat.components.length != type.components.length) {
+        TypeError err = CheckTuplePatternError(type.toString(), pat.location);
+        errors.add(err);
+        return sigma;
+      }
+
+      if (pat.components.length == 0) return sigma;
+
+      Substitution sigma0 = Substitution.empty();
+      for (int i = 0; i < pat.components.length; i++) {
+        Substitution sigma1 =
+            checkPattern(pat.components[i], type.components[i], sigma);
+        sigma0 = sigma0.combine(sigma1);
+      }
+
+      // Store the type.
+      pat.type = sigma0.apply(type);
+
+      return sigma0;
+    }
+
     // Infer a type for [pat].
     Pair<Substitution, Datatype> result = inferPattern(pat, sigma);
-    return subsumes(result.snd, type, result.fst);
+
+    Substitution sigma0;
+    try {
+      sigma0 = subsumes(result.snd, type, result.fst);
+    } on TypeError catch (e) {
+      errors.add(e);
+      return sigma;
+    }
+    return sigma0;
   }
 
   Pair<Substitution, Datatype> inferPattern(Pattern pat, Substitution sigma) {
@@ -517,6 +534,7 @@ class _TypeChecker {
         sigma1, TypeConstructor.from(constr.declarator.declarator, components));
   }
 
+  // Implements the subsumption/subtyping relation <:.
   Substitution subsumes(Datatype lhs, Datatype rhs, Substitution sigma) {
     if (trace) {
       print("subsumes: $lhs <: $rhs");
@@ -540,20 +558,14 @@ class _TypeChecker {
     if (a is Skolem && b is Skolem) {
       if (a.ident == b.ident) {
         return sigma;
-      } // else {
-      //   // ERROR.
-      //   throw "Different skolems.";
-      // }
+      }
     }
 
     // a <: b, if a = b.
     if (a is TypeVariable && b is TypeVariable) {
       if (a.ident == b.ident) {
         return sigma;
-      } // else {
-      //   // ERROR.
-      //   throw "Different type variables.";
-      // }
+      }
     }
 
     // Base types subsumes themselves.
@@ -566,7 +578,7 @@ class _TypeChecker {
     // as* -> a <: bs* -> b, if a sigma' <: b sigma', where sigma' = bs* <:* as*
     if (a is ArrowType && b is ArrowType) {
       if (a.arity != b.arity) {
-        throw "Arity mistmatch!";
+        throw ConstructorMismatchError(a.toString(), b.toString());
       }
 
       Substitution sigma0 = Substitution.empty();
@@ -582,7 +594,7 @@ class _TypeChecker {
     // (* as*) <: (* bs*), if as* <: bs*.
     if (a is TupleType && b is TupleType) {
       if (a.arity != b.arity) {
-        throw "Arity mismatch!";
+        throw ConstructorMismatchError(a.toString(), b.toString());
       }
 
       if (a.arity == 0) return sigma;
@@ -597,12 +609,8 @@ class _TypeChecker {
 
     // C as* <: K bs*, if C = K and as* <: bs*
     if (a is TypeConstructor && b is TypeConstructor) {
-      if (a.ident != b.ident) {
-        throw "Tag mismatch!";
-      }
-
-      if (a.arguments.length != b.arguments.length) {
-        throw "Arity mismatch!";
+      if (a.ident != b.ident || a.arguments.length != b.arguments.length) {
+        throw ConstructorMismatchError(a.toString(), b.toString());
       }
 
       if (a.arguments.length == 0) return sigma;
@@ -631,8 +639,7 @@ class _TypeChecker {
       if (!typeUtils.freeTypeVariables(b).contains(a.ident)) {
         return instantiateLeft(a, b, sigma);
       } else {
-        // ERROR.
-        throw "$a is in FTV($b)";
+        throw OccursError(a.syntheticName, b.toString());
       }
     }
 
@@ -641,12 +648,11 @@ class _TypeChecker {
       if (!typeUtils.freeTypeVariables(a).contains(b.ident)) {
         return instantiateRight(a, b, sigma);
       } else {
-        // ERROR
-        throw "$b is in FTV($a)";
+        throw OccursError(b.syntheticName, a.toString());
       }
     }
 
-    throw "Subsumption error.";
+    unhandled("subsumes", "$a <: $b");
 
     // // subsumes (\/qs+. t) t' sigma = subsumes t (t'[qs+ -> as+]) sigma, where as+ are fresh.
     // if (type0 is ForallType) {
@@ -731,10 +737,9 @@ class _TypeChecker {
           a.sameAs(b);
           return sigma;
         }
-        // b.sameAs(a); // TODO solve or same as?
       } else {
-        // ERROR.
-        throw "$b escapes its scope.";
+        // Escape error.
+        throw SkolemEscapeError(b.syntheticName);
       }
     }
 
@@ -825,7 +830,7 @@ class _TypeChecker {
           return sigma;
         }
       } else {
-        throw "$b escapes its scope!";
+        throw SkolemEscapeError(b.syntheticName);
       }
     }
 

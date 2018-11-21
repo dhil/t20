@@ -360,9 +360,36 @@ class InstantiationError extends TypeError {
 
 class UnificationError extends TypeError {}
 
-class SkolemEscapeError extends UnificationError {}
+class SkolemEscapeError extends UnificationError {
+  final String name;
+  SkolemEscapeError(this.name);
 
-class OccursError extends UnificationError {}
+  String toString() {
+    return "The existential $name escapes its scope";
+  }
+}
+
+class OccursError extends UnificationError {
+  final String variable;
+  final String type;
+
+  OccursError(this.variable, this.type) : super();
+
+  String toString() {
+    return "Occurs check: the existential $variable occurs in $type";
+  }
+}
+
+class ConstructorMismatchError extends UnificationError {
+  final String left;
+  final String right;
+
+  ConstructorMismatchError(this.left, this.right) : super();
+
+  String toString() {
+    return "The constructor '$left' does not subsume '$right'";
+  }
+}
 
 class TypeSignatureMismatchError extends LocatedError implements TypeError {
   final int expected;
@@ -397,5 +424,15 @@ class ArityMismatchError extends LocatedError implements TypeError {
     } else {
       return "Arity mismatch: too few arguments";
     }
+  }
+}
+
+class CheckTuplePatternError extends LocatedError implements TypeError {
+  final String type;
+
+  CheckTuplePatternError(this.type, Location location) : super(location);
+
+  String toString() {
+    return "The pattern is expected to have type '$type'";
   }
 }
