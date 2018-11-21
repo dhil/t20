@@ -92,6 +92,7 @@ bool _validateExitAfter(String value, [bool allowNull = true]) {
   switch (value) {
     case "elaborator":
     case "parser":
+    case "typechecker":
       return true;
     default:
       return allowNull && value == null;

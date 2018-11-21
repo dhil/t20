@@ -137,17 +137,19 @@ class DataConstructor extends ModuleMember implements Declaration {
   Datatype _type;
   Datatype get type {
     if (_type == null) {
+      List<Quantifier> quantifiers;
+      if (declarator.parameters.length > 0) {
+        // It's necessary to copy the quantifiers as the [ForallType] enforces
+        // the invariant that the list is sorted.
+        quantifiers = new List<Quantifier>(declarator.parameters.length);
+        List.copyRange<Quantifier>(quantifiers, 0, declarator.parameters);
+      }
       if (parameters.length > 0) {
         // Construct the induced function type.
         List<Datatype> domain = parameters;
         Datatype codomain = declarator.type;
         Datatype ft = ArrowType(domain, codomain);
-        if (declarator.parameters.length > 0) {
-          // It's necessary to copy the quantifiers as the [ForallType] enforces
-          // the invariant that the list is sorted.
-          List<Quantifier> quantifiers =
-              new List<Quantifier>(declarator.parameters.length);
-          List.copyRange<Quantifier>(quantifiers, 0, declarator.parameters);
+        if (quantifiers != null) {
           ForallType forallType = new ForallType();
           forallType.quantifiers = quantifiers;
           forallType.body = ft;
@@ -155,7 +157,14 @@ class DataConstructor extends ModuleMember implements Declaration {
         }
         _type = ft;
       } else {
-        _type = declarator.type;
+        if (quantifiers != null) {
+          ForallType forallType = new ForallType();
+          forallType.quantifiers = quantifiers;
+          forallType.body = declarator.type;
+          _type = forallType;
+        } else {
+          _type = declarator.type;
+        }
       }
     }
     return _type;

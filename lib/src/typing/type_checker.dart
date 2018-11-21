@@ -392,7 +392,7 @@ class _TypeChecker {
       }
     }
 
-    // check e (\/qs+.t) sigma = check e (t[qs+ -> %a+]) sigma.
+    // check e (\/qs+.t) sigma = check e (t[qs+ -> %sa+]) sigma.
     if (type is ForallType) {
       ForallType forallType = type;
       // Substitution sigma0 = Substitution.empty();
