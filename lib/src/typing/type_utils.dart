@@ -41,8 +41,10 @@ bool isFunctionType(Datatype ft) {
 }
 
 bool isForallType(Datatype t) {
-  if (t is ForallType) return true;
-  else return false;
+  if (t is ForallType)
+    return true;
+  else
+    return false;
 }
 
 List<Quantifier> extractQuantifiers(Datatype t) {
@@ -86,10 +88,10 @@ bool isUnitType(Datatype type) {
   }
   return false;
 }
-const Datatype boolType = const BoolType();
-const Datatype intType  = const IntType();
-const Datatype stringType = const StringType();
 
+const Datatype boolType = const BoolType();
+const Datatype intType = const IntType();
+const Datatype stringType = const StringType();
 
 class _FreeTypeVariables extends ReduceDatatype<Set<int>> {
   static _FreeTypeVariables _instance;
@@ -114,6 +116,8 @@ class _FreeTypeVariables extends ReduceDatatype<Set<int>> {
     });
     return ftv.difference(btv);
   }
+
+  Set<int> visitSkolem(Skolem skolem) => new Set<int>()..add(skolem.ident);
 }
 
 Set<int> freeTypeVariables(Datatype type) {

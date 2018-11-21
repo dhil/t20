@@ -85,7 +85,7 @@ class ImmutableSubstitution extends TransformDatatype implements Substitution {
 
   Datatype visitSkolem(Skolem skolem) {
     Datatype type = skolem.type;
-    if (type == skolem) return type;
+    if (type == null) return skolem;
     else return type.accept(this);
   }
 }

@@ -156,7 +156,7 @@ class StringifyDatatype extends ReduceDatatype<String> {
   String visitTypeVariable(TypeVariable v) => v.declarator.binder.toString();
   String visitSkolem(Skolem s) {
     Datatype type = s.type;
-    if (type == s) {
+    if (type == null || type == s) {
       return "?${s.ident}";
     } else {
       return type.accept(this);
@@ -242,6 +242,8 @@ class _Substitutor extends TransformDatatype {
 
   Datatype visitSkolem(Skolem skolem) {
     Datatype type = skolem.type;
+    if (type == null) return skolem;
+
     if (type is TypeVariable) {
       if (_substMap.containsKey(type.ident)) {
         return _substMap[type.ident];
@@ -359,19 +361,19 @@ class Skolem extends Datatype {
   Point<Datatype> _point;
   final int _ident;
   int get ident => _ident;
+  int _level;
+  int get level => _level;
 
-  Skolem._(this._ident) : super(TypeTag.VAR);
-  factory Skolem() {
-    Skolem s = new Skolem._(Gensym.freshInt());
-    s._point = unionfind.singleton(s);
-    return s;
-  }
+  Skolem._(this._ident)
+      : _point = unionfind.singleton(null),
+        _level = currentLevel(),
+        super(TypeTag.VAR);
+  Skolem() : this._(Gensym.freshInt());
 
   T accept<T>(TypeVisitor<T> v) {
     return v.visitSkolem(this);
   }
 
-  // Never null.
   Datatype get type => unionfind.find(_point);
 
   void be(Datatype type) {
@@ -381,6 +383,24 @@ class Skolem extends Datatype {
   void sameAs(Skolem other) {
     unionfind.union(_point, other._point);
   }
+
+  void solve(Datatype type) {
+    unionfind.change(_point, type);
+  }
+
+  bool get isSolved => unionfind.find(_point) != null;
+
+  // Levels.
+  static int _currentLevel = 0;
+  static void increaseLevel() {
+    ++_currentLevel;
+  }
+
+  static void decreaseLevel() {
+    --_currentLevel;
+  }
+
+  static int currentLevel() => _currentLevel;
 }
 
 class ForallType extends Datatype {

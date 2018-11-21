@@ -289,7 +289,10 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
 
   Pair<BuildContext, Pattern> patternError(
       LocatedError error, Location location) {
-    return addError<Pattern>(error, new ErrorPattern(error, location));
+    errors.add(error);
+    return Pair<BuildContext, Pattern>(
+        OutputBuildContext(const <Name>[], emptyContext),
+        new ErrorPattern(error, location));
   }
 
   Pair<BuildContext, Datatype> typeError(
@@ -957,8 +960,8 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         }
 
         // Construct the constructor node.
-        ConstructorPattern constr =
-            new ConstructorPattern(decl as DataConstructor, parameters0, location);
+        ConstructorPattern constr = new ConstructorPattern(
+            decl as DataConstructor, parameters0, location);
 
         // Construct the output context.
         OutputBuildContext ctxt1 = new OutputBuildContext(declaredNames, ctxt0);

@@ -109,11 +109,13 @@ class _TypeChecker {
           ArityMismatchError(domain.length, parameters.length, funDef.location);
       return Pair<Substitution, Datatype>(sigma, error(err, funDef.location));
     }
+    Substitution sigma0 = Substitution.empty();
     for (int i = 0; i < parameters.length; i++) {
-      checkPattern(parameters[i], domain[i], sigma);
+      Substitution sigma1 = checkPattern(parameters[i], domain[i], sigma);
+      sigma0 = sigma0.combine(sigma1);
     }
     // Check the body type against the declared type.
-    checkExpression(funDef.body, typeUtils.codomain(sig), sigma);
+    sigma0 = checkExpression(funDef.body, typeUtils.codomain(sig), sigma0);
 
     return lift(sig);
   }
@@ -122,10 +124,8 @@ class _TypeChecker {
       ValueDeclaration valDef, Substitution sigma) {
     Datatype sig = valDef.signature.type;
     // Check the body against the declared type.
-    // checkExpression(valDef.body, sig, sigma);
-    Pair<Substitution, Datatype> result = inferExpression(valDef.body, sigma);
-    Substitution sigma0 = result.fst;
-    Substitution sigma1 = subsumes(sig, sigma0.apply(result.snd), sigma0);
+    // TODO somehow disallow instantiation.
+    Substitution sigma0 = checkExpression(valDef.body, sig, sigma);
     return lift(sig);
   }
 
@@ -210,9 +210,32 @@ class _TypeChecker {
       ArrowType fnType = type;
       Substitution sigma0 = checkMany<Expression>(
           checkExpression, arguments, fnType.domain, sigma);
-      return Pair<Substitution, Datatype>(
-          sigma0, sigma0.apply(fnType.codomain));
+      return Pair<Substitution, Datatype>(sigma0, fnType.codomain);
     }
+
+    if (type is Skolem) {
+      Skolem a = type;
+      // Construct a function type whose immediate constituents are skolem
+      // variables.
+      List<Datatype> domain = new List<Datatype>();
+      for (int i = 0; i < arguments.length; i++) {
+        domain.add(Skolem());
+      }
+      Datatype codomain = Skolem();
+      ArrowType fnType = ArrowType(domain, codomain);
+      // Solve a = (a0,...,aN-1) -> aN.
+      a.solve(fnType);
+      // Check each argument.
+      Substitution sigma0 = Substitution.empty();
+      for (int i = 0; i < domain.length; i++) {
+        Substitution sigma1 = checkExpression(arguments[i], domain[i], sigma);
+        sigma0 = sigma0.combine(sigma1);
+      }
+      return Pair<Substitution, Datatype>(sigma0, codomain);
+    }
+
+    // ERROR.
+    throw "Apply error.";
 
     // Base case.
     // apply xs* t sigma = (sigma''', a sigma''')
@@ -293,13 +316,13 @@ class _TypeChecker {
 
   Pair<Substitution, Datatype> inferLambda(Lambda lambda, Substitution sigma) {
     // Infer types for the parameters.
-    List<Datatype> domain = new List<Datatype>(lambda.parameters.length);
+    List<Datatype> domain = new List<Datatype>();
     Substitution sigma0 = Substitution.empty();
     for (int i = 0; i < lambda.parameters.length; i++) {
       Pair<Substitution, Datatype> result =
           inferPattern(lambda.parameters[i], sigma);
       sigma0 = sigma0.combine(result.fst);
-      domain[i] = result.snd;
+      domain.add(result.snd);
     }
     // Infer a type for the body.
     Pair<Substitution, Datatype> result = inferExpression(lambda.body, sigma0);
@@ -402,16 +425,30 @@ class _TypeChecker {
       return checkExpression(exp, forallType.body, sigma);
     }
 
+    if (type is BoolType && exp is BoolLit ||
+        type is IntType && exp is IntLit ||
+        type is StringType && exp is StringLit) {
+      return sigma;
+    }
+
     // check e t sigma = subsumes e t' sigma', where (t', sigma') = infer e sigma
-    Substitution subst0;
     Pair<Substitution, Datatype> result = inferExpression(exp, sigma);
-    return subsumes(result.snd, type, result.fst);
+    sigma = result.fst;
+    Datatype left = result.snd;
+    return subsumes(sigma.apply(left), sigma.apply(type), sigma);
   }
 
   Substitution checkPattern(Pattern pat, Datatype type, Substitution sigma) {
     if (trace) {
       print("check pattern: $pat : $type");
     }
+
+    // check x t sigma = sigma.
+    if (pat is VariablePattern) {
+      pat.type = type;
+      return sigma;
+    }
+
     // Infer a type for [pat].
     Pair<Substitution, Datatype> result = inferPattern(pat, sigma);
     return subsumes(result.snd, type, result.fst);
@@ -480,53 +517,180 @@ class _TypeChecker {
         sigma1, TypeConstructor.from(constr.declarator.declarator, components));
   }
 
-  Substitution subsumes(Datatype type0, Datatype type1, Substitution sigma) {
+  Substitution subsumes(Datatype lhs, Datatype rhs, Substitution sigma) {
     if (trace) {
-      print("subsumes: $type0 <: $type1");
-    }
-    // subsumes (\/qs+. t) t' sigma = subsumes t (t'[qs+ -> as+]) sigma, where as+ are fresh.
-    if (type0 is ForallType) {
-      ForallType forallType = type0;
-      Datatype type2 =
-          guessInstantiation(forallType.quantifiers, forallType.body);
-      return subsumes(type2, type1, sigma);
+      print("subsumes: $lhs <: $rhs");
     }
 
-    // subsumes t (\/qs+. t') sigma = subsumes (t[qs+ -> %as+]) t' sigma, where %as+ are fresh skolems.
-    if (type1 is ForallType) {
-      ForallType forallType = type1;
-      Datatype type2 =
-          guessInstantiation(forallType.quantifiers, type0, useSkolem: true);
-      return subsumes(type2, type1.body, sigma);
+    Datatype a;
+    Datatype b;
+    if (lhs is Skolem && lhs.isSolved) {
+      a = lhs.type;
+    } else {
+      a = lhs;
     }
 
-    // subsumes (ts1* -> t2) (ts3* -> t4) sigma = subsumes* (ts3 sigma') (ts1 sigma') sigma',
-    // where sigma' = subsumes* t2 t4 sigma.
-    if (type0 is ArrowType && type1 is ArrowType) {
-      Substitution sigma0 = subsumes(type0.codomain, type1.codomain, sigma);
-      List<Datatype> domain0 = sigma0.applyMany(type0.domain);
-      List<Datatype> domain1 = sigma0.applyMany(type1.domain);
-      return subsumesMany(domain1, domain0, sigma0);
+    if (rhs is Skolem && rhs.isSolved) {
+      b = rhs.type;
+    } else {
+      b = rhs;
     }
 
-    // subsumes (* ts1*) (* ts2*) sigma = subsumesMany ts1* ts2* sigma
-    if (type0 is TupleType && type1 is TupleType) {
-      return subsumesMany(type0.components, type1.components, sigma);
-    }
-
-    // subsumes (C ts1*) (K ts2*) sigma = subsumesMany ts1* ts2* sigma, if C = K.
-    if (type0 is TypeConstructor && type1 is TypeConstructor) {
-      if (type0.ident != type1.ident) {
-        Location loc = Location.dummy();
-        TypeError err = TypeExpectationError(loc);
-        error(err, loc);
+    // %a <: %b if %a = %b.
+    if (a is Skolem && b is Skolem) {
+      if (a.ident == b.ident) {
         return sigma;
-      }
-      return subsumesMany(type0.arguments, type1.arguments, sigma);
+      } // else {
+      //   // ERROR.
+      //   throw "Different skolems.";
+      // }
     }
 
-    // Base case.
-    return unifier.unify(type0, type1);
+    // a <: b, if a = b.
+    if (a is TypeVariable && b is TypeVariable) {
+      if (a.ident == b.ident) {
+        return sigma;
+      } // else {
+      //   // ERROR.
+      //   throw "Different type variables.";
+      // }
+    }
+
+    // Base types subsumes themselves.
+    if (a is BoolType && b is BoolType ||
+        a is IntType && b is IntType ||
+        a is StringType && b is StringType) {
+      return sigma;
+    }
+
+    // as* -> a <: bs* -> b, if a sigma' <: b sigma', where sigma' = bs* <:* as*
+    if (a is ArrowType && b is ArrowType) {
+      if (a.arity != b.arity) {
+        throw "Arity mistmatch!";
+      }
+
+      Substitution sigma0 = Substitution.empty();
+      for (int i = 0; i < a.domain.length; i++) {
+        Substitution sigma1 = subsumes(b.domain[i], a.domain[i], sigma);
+        sigma0 = sigma0.combine(sigma1);
+      }
+
+      return subsumes(
+          sigma0.apply(a.codomain), sigma0.apply(b.codomain), sigma0);
+    }
+
+    // (* as*) <: (* bs*), if as* <: bs*.
+    if (a is TupleType && b is TupleType) {
+      if (a.arity != b.arity) {
+        throw "Arity mismatch!";
+      }
+
+      if (a.arity == 0) return sigma;
+
+      Substitution sigma0 = Substitution.empty();
+      for (int i = 0; i < a.components.length; i++) {
+        Substitution sigma1 = subsumes(a.components[i], b.components[i], sigma);
+        sigma0 = sigma0.combine(sigma1);
+      }
+      return sigma0;
+    }
+
+    // C as* <: K bs*, if C = K and as* <: bs*
+    if (a is TypeConstructor && b is TypeConstructor) {
+      if (a.ident != b.ident) {
+        throw "Tag mismatch!";
+      }
+
+      if (a.arguments.length != b.arguments.length) {
+        throw "Arity mismatch!";
+      }
+
+      if (a.arguments.length == 0) return sigma;
+
+      Substitution sigma0 = Substitution.empty();
+      for (int i = 0; i < a.arguments.length; i++) {
+        Substitution sigma1 = subsumes(a.arguments[i], b.arguments[i], sigma);
+        sigma0 = sigma0.combine(sigma1);
+      }
+      return sigma0;
+    }
+
+    // \/qs.A <: B, if A[%as/qs] <: B
+    if (a is ForallType) {
+      Datatype type = guessInstantiation(a.quantifiers, a.body);
+      return subsumes(type, b, sigma);
+    }
+
+    // a <: \/qs.b, if a <: b
+    if (b is ForallType) {
+      return subsumes(a, b.body, sigma);
+    }
+
+    // %a <: b, if %a \notin FTV(b) and %a <:= b
+    if (a is Skolem && !a.isSolved) {
+      if (!typeUtils.freeTypeVariables(b).contains(a.ident)) {
+        return instantiateLeft(a, b, sigma);
+      } else {
+        // ERROR.
+        throw "$a is in FTV($b)";
+      }
+    }
+
+    // a <: %b, if %b \notin FTV(a) and a <:= %b
+    if (b is Skolem && !b.isSolved) {
+      if (!typeUtils.freeTypeVariables(a).contains(b.ident)) {
+        return instantiateRight(a, b, sigma);
+      } else {
+        // ERROR
+        throw "$b is in FTV($a)";
+      }
+    }
+
+    throw "Subsumption error.";
+
+    // // subsumes (\/qs+. t) t' sigma = subsumes t (t'[qs+ -> as+]) sigma, where as+ are fresh.
+    // if (type0 is ForallType) {
+    //   ForallType forallType = type0;
+    //   Datatype type2 =
+    //       guessInstantiation(forallType.quantifiers, forallType.body);
+    //   return subsumes(type2, type1, sigma);
+    // }
+
+    // // subsumes t (\/qs+. t') sigma = subsumes (t[qs+ -> %as+]) t' sigma, where %as+ are fresh skolems.
+    // if (type1 is ForallType) {
+    //   ForallType forallType = type1;
+    //   Datatype type2 =
+    //       guessInstantiation(forallType.quantifiers, type0, useSkolem: true);
+    //   return subsumes(type2, type1.body, sigma);
+    // }
+
+    // // subsumes (ts1* -> t2) (ts3* -> t4) sigma = subsumes* (ts3 sigma') (ts1 sigma') sigma',
+    // // where sigma' = subsumes* t2 t4 sigma.
+    // if (type0 is ArrowType && type1 is ArrowType) {
+    //   Substitution sigma0 = subsumes(type0.codomain, type1.codomain, sigma);
+    //   List<Datatype> domain0 = sigma0.applyMany(type0.domain);
+    //   List<Datatype> domain1 = sigma0.applyMany(type1.domain);
+    //   return subsumesMany(domain1, domain0, sigma0);
+    // }
+
+    // // subsumes (* ts1*) (* ts2*) sigma = subsumesMany ts1* ts2* sigma
+    // if (type0 is TupleType && type1 is TupleType) {
+    //   return subsumesMany(type0.components, type1.components, sigma);
+    // }
+
+    // // subsumes (C ts1*) (K ts2*) sigma = subsumesMany ts1* ts2* sigma, if C = K.
+    // if (type0 is TypeConstructor && type1 is TypeConstructor) {
+    //   if (type0.ident != type1.ident) {
+    //     Location loc = Location.dummy();
+    //     TypeError err = TypeExpectationError(loc);
+    //     error(err, loc);
+    //     return sigma;
+    //   }
+    //   return subsumesMany(type0.arguments, type1.arguments, sigma);
+    // }
+
+    // // Base case.
+    // return unifier.unify(type0, type1);
   }
 
   Substitution subsumesMany(
@@ -546,12 +710,195 @@ class _TypeChecker {
 
   Datatype guessInstantiation(List<Quantifier> quantifiers, Datatype type,
       {bool useSkolem = false}) {
-    Substitution subst = Substitution.empty();
+    Substitution sigma = Substitution.empty();
     for (int i = 0; i < quantifiers.length; i++) {
       Quantifier q = quantifiers[i];
-      subst.bind(
-          TypeVariable.bound(q), useSkolem ? Skolem() : TypeVariable.unbound());
+      sigma = sigma.bind(TypeVariable.bound(q), Skolem());
     }
-    return subst.apply(type);
+    return sigma.apply(type);
+  }
+
+  Substitution instantiateLeft(Datatype a, Datatype b, Substitution sigma) {
+    if (trace) {
+      print("instantiate left: $a <:= $b");
+    }
+    // TODO refactor.
+
+    // %a <:= %b, if level(%a) <= level(%b).
+    if (a is Skolem && b is Skolem) {
+      if (a.level <= b.level) {
+        if (!a.isSolved) {
+          a.sameAs(b);
+          return sigma;
+        }
+        // b.sameAs(a); // TODO solve or same as?
+      } else {
+        // ERROR.
+        throw "$b escapes its scope.";
+      }
+    }
+
+    // %a <:= bs* -> b, if %a' <:= b sigma', where
+    // %a = %as* -> %a'
+    // sigma' = bs* <: %as*
+    if (a is Skolem && b is ArrowType) {
+      List<Datatype> domain = List<Datatype>();
+      for (int i = 0; i < b.arity; i++) {
+        domain.add(Skolem());
+      }
+      Datatype codomain = Skolem();
+      a.solve(ArrowType(domain, codomain));
+
+      Substitution sigma0 = Substitution.empty();
+      for (int i = 0; i < domain.length; i++) {
+        Substitution sigma1 = subsumes(b.domain[i], domain[i], sigma);
+        sigma0 = sigma0.combine(sigma1);
+      }
+
+      return instantiateLeft(codomain, sigma0.apply(b.codomain), sigma0);
+    }
+
+    // %a <:= \/qs.b, if %a <:= b
+    if (a is Skolem && b is ForallType) {
+      return instantiateLeft(a, b.body, sigma);
+    }
+
+    // %a <:= (* bs*), if %as* <:= bs*, where
+    // %a = (* %as* ), where %as* are fresh.
+    if (a is Skolem && b is TupleType) {
+      List<Datatype> components = new List<Datatype>();
+      for (int i = 0; i < b.components.length; i++) {
+        components.add(Skolem());
+      }
+      a.solve(TupleType(components));
+
+      Substitution sigma0 = Substitution.empty();
+      for (int i = 0; i < components.length; i++) {
+        Substitution sigma1 =
+            instantiateLeft(components[i], b.components[i], sigma);
+        sigma0 = sigma0.combine(sigma1);
+      }
+      return sigma0;
+    }
+
+    // %a <:= K bs*, if %as* <:= bs*, where
+    // %a = K %as*, where %as* are fresh.
+    if (a is Skolem && b is TypeConstructor) {
+      List<Datatype> arguments = new List<Datatype>();
+      for (int i = 0; i < b.arguments.length; i++) {
+        arguments.add(Skolem());
+      }
+      a.solve(TypeConstructor.from(b.declarator, arguments));
+
+      Substitution sigma0 = Substitution.empty();
+      for (int i = 0; i < arguments.length; i++) {
+        Substitution sigma1 =
+            instantiateLeft(arguments[i], b.arguments[i], sigma);
+        sigma0 = sigma0.combine(sigma1);
+      }
+      return sigma0;
+    }
+
+    // %a <:= b, if b is a monotype.
+    if (a is Skolem) {
+      if (!a.isSolved) {
+        a.solve(b);
+        return sigma;
+      }
+    }
+
+    throw "InstantiateLeft error!";
+  }
+
+  Substitution instantiateRight(Datatype a, Datatype b, Substitution sigma) {
+    if (trace) {
+      print("instantiate right: $a <=: $b");
+    }
+    // TODO refactor.
+
+    // %a <=: %b, if level(%a) <= level(%b)
+    if (a is Skolem && b is Skolem) {
+      if (a.level <= b.level) {
+        // TODO check that a is unsolved.
+        if (!b.isSolved) {
+          b.sameAs(a);
+          return sigma;
+        }
+      } else {
+        throw "$b escapes its scope!";
+      }
+    }
+
+    // \/qs.a <=: %b, if a[%bs/qs] <=: %a.
+    if (a is ForallType && b is Skolem) {
+      Datatype type = guessInstantiation(a.quantifiers, a.body);
+      return instantiateRight(type, b, sigma);
+    }
+
+    // as* -> a <=: %b, if %a' sigma' <=: %b'
+    // %b = %bs* -> %b'
+    // sigma' = %bs* <: %as*
+    if (a is ArrowType && b is Skolem) {
+      List<Datatype> domain = List<Datatype>();
+      for (int i = 0; i < a.arity; i++) {
+        domain.add(Skolem());
+      }
+      Datatype codomain = Skolem();
+      b.solve(ArrowType(domain, codomain));
+
+      Substitution sigma0 = Substitution.empty();
+      for (int i = 0; i < domain.length; i++) {
+        Substitution sigma1 = subsumes(domain[i], a.domain[i], sigma);
+        sigma0 = sigma0.combine(sigma1);
+      }
+
+      return instantiateRight(sigma0.apply(a.codomain), codomain, sigma0);
+    }
+
+    // (* as*) <=: %b, if as* <=: %bs*, where
+    // %b = (* %bs* ), where %bs* are fresh.
+    if (a is TupleType && b is Skolem) {
+      List<Datatype> components = new List<Datatype>();
+      for (int i = 0; i < a.components.length; i++) {
+        components.add(Skolem());
+      }
+      b.solve(TupleType(components));
+
+      Substitution sigma0 = Substitution.empty();
+      for (int i = 0; i < components.length; i++) {
+        Substitution sigma1 =
+            instantiateRight(a.components[i], components[i], sigma);
+        sigma0 = sigma0.combine(sigma1);
+      }
+      return sigma0;
+    }
+
+    // K as* <=: %b, if as* <:= %bs*, where
+    // %b = K %bs*, where %bs* are fresh.
+    if (a is TypeConstructor && b is Skolem) {
+      List<Datatype> arguments = new List<Datatype>();
+      for (int i = 0; i < a.arguments.length; i++) {
+        arguments.add(Skolem());
+      }
+      b.solve(TypeConstructor.from(a.declarator, arguments));
+
+      Substitution sigma0 = Substitution.empty();
+      for (int i = 0; i < arguments.length; i++) {
+        Substitution sigma1 =
+            instantiateRight(a.arguments[i], arguments[i], sigma);
+        sigma0 = sigma0.combine(sigma1);
+      }
+      return sigma0;
+    }
+
+    // a <=: %b, if a is a monotype.
+    if (b is Skolem) {
+      if (!b.isSolved) {
+        b.solve(a);
+        return sigma;
+      }
+    }
+
+    throw "InstantiateRight error!";
   }
 }

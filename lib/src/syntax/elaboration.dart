@@ -1112,6 +1112,8 @@ class PatternElaborator<Name, Pat, Typ>
       } else if (isValidTermName(atom.value)) {
         Name name = termName(atom);
         return alg.varPattern(name, location: atom.location);
+      } else {
+        return alg.errorPattern(BadSyntaxError(sexp.location));
       }
     } else {
       return alg.errorPattern(BadSyntaxError(sexp.location));
