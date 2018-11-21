@@ -2,13 +2,17 @@
 #
 # Test script driver.
 #
-
 MEASURE=0
 STARTTIME=
 ACCUMULATOR=0
 if [[ $1 == "--measure" ]]; then
   MEASURE=1
   STARTTIME=`date +%s.%N`
+  shift
+fi
+
+if [[ -d $1 || -f $1 ]]; then
+   TESTNAME=$1
 fi
 
 T20="./t20"
@@ -39,6 +43,15 @@ function runtests()
       SKIPPED=$(($SKIPPED + 1))
       continue
     fi
+    runtest "$flags" "$test" $expectation
+  done
+}
+
+function runtest()
+{
+    local flags=$1
+    local test=$2
+    local expectation=$3
 
     local starttime=
     local endtime=
@@ -89,19 +102,52 @@ function runtests()
 
     rm -f $stdout_log
     rm -f $stderr_log
-  done
 }
 
-for dir in $(ls -d $TESTS_DIR/*); do
-  # Run pass and fail tests, if they exists.
-  if [[ -d "$dir/pass" ]]; then
-    runtests $dir "pass" 0
-  fi
+if [[ -d $TESTNAME ]]; then
+    if [[ -d "$TESTNAME/pass" ]]; then
+        runtests $TESTNAME "pass" 0
+    elif [[ $(basename $TESTNAME) == "pass" ]]; then
+        runtests $TESTNAME "" 0
+    fi
 
-  if [[ -d "$dir/fail" ]]; then
-    runtests $dir "fail" 10
-  fi
-done
+    if [[ -d "$TESTNAME/fail" ]]; then
+        runtests $TESTNAME "fail" 10
+    elif [[ $(basename $TESTNAME) == "fail" ]]; then
+        runtests $TESTNAME "" 10
+    fi
+elif [[ -f $TESTNAME ]]; then
+    directory=$(dirname $TESTNAME)
+    expectation=$(basename $directory)
+    if [[ $expectation == "pass" ]]; then
+        if [[ -f "$(dirname $TESTNAME)/$FLAGS_FILE" ]]; then
+            flags=$(head -n 1 "$(dirname $TESTNAME)/$FLAGS_FILE")
+            runtest "$flags" $TESTNAME 0
+        else
+            runtest "" $TESTNAME 0
+        fi
+    elif [[ $expectation == "fail" ]]; then
+        if [[ -f "$(dirname $TESTNAME)/$FLAGS_FILE" ]]; then
+            flags=$(head -n 1 "$(dirname $TESTNAME)/$FLAGS_FILE")
+            runtest "$flags" $TESTNAME 10
+        else
+            runtest "" $TESTNAME 10
+        fi
+    else
+        echo "Cannot run test script without an expectation."
+    fi
+else
+    for dir in $(ls -d $TESTS_DIR/*); do
+        # Run pass and fail tests, if they exists.
+        if [[ -d "$dir/pass" ]]; then
+            runtests $dir "pass" 0
+        fi
+
+        if [[ -d "$dir/fail" ]]; then
+            runtests $dir "fail" 10
+        fi
+    done
+fi
 
 echo -e "\033[1m== Summary ==\033[0m"
 echo -e "# \033[1;32m$TICK\033[0m successes: $SUCCESSES"

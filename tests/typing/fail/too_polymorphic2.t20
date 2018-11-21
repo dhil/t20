@@ -1,0 +1,3 @@
+;; The type signature is too general.
+(: f (-> 'a 'a))
+(define (f [x : Int]) x)

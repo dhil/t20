@@ -1,0 +1,5 @@
+;; The type signature is too general.
+(: f (-> 'a 'a))
+(define f
+  (lambda ([x : Bool])
+   x))
