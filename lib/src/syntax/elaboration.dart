@@ -376,7 +376,9 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
         List<Pat> parameters = expectMany<Sexp, Pat>(pattern, list0, start: 1);
         if (list.length > 3) {
           return alg.errorModule(
-              BadSyntaxError(list[3].location, <String>["end of function definition '${list.closingBracket()}'"]),
+              BadSyntaxError(list[3].location, <String>[
+                "end of function definition '${list.closingBracket()}'"
+              ]),
               location: list.location);
         }
         Exp body = expression(list[2]);
@@ -583,6 +585,7 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
 class Typenames {
   static const String arrow = "->";
   static const String boolean = "Bool";
+  static const String constraint = "=>";
   static const String integer = "Int";
   static const String string = "String";
   static const String forall = "forall";
@@ -672,6 +675,11 @@ class TypeElaborator<Name, Typ>
         return functionType(head, list);
       }
 
+      // Constraint: (=> C* T).
+      if (head.value == Typenames.constraint) {
+        return constraintType(head, list);
+      }
+
       // Forall type: (forall id+ T).
       if (head.value == Typenames.forall) {
         return forallType(head, list);
@@ -717,7 +725,7 @@ class TypeElaborator<Name, Typ>
 
   Typ forallType(Atom forall, SList list) {
     assert(forall.value == Typenames.forall);
-    if (list.length < 3 || list.length > 3) {
+    if (list.length != 3) {
       if (list.length < 3) {
         return alg.errorType(BadSyntaxError(list.location.end));
       } else {
@@ -736,6 +744,57 @@ class TypeElaborator<Name, Typ>
     } else {
       return alg.errorType(BadSyntaxError(
           list[1].location, const <String>["list of quantifiers"]));
+    }
+  }
+
+  Typ constraintType(Atom arrow, SList list) {
+    assert(arrow.value == Typenames.constraint);
+    if (list.length != 3) {
+      if (list.length < 3) {
+        return alg.errorType(BadSyntaxError(list.location.end),
+            location: list.location);
+      } else {
+        return alg.errorType(
+            BadSyntaxError(list[3].location, <String>[list.closingBracket()]),
+            location: list.location);
+      }
+    }
+
+    if (list[1] is SList) {
+      // A constraint has the form (K 'a).
+      List<Pair<Name, Typ>> constraints = List<Pair<Name, Typ>>();
+      List<Sexp> sexps = (list[1] as SList).sexps;
+      for (int i = 0; i < sexps.length; i++) {
+        Sexp sexp = sexps[i];
+        if (sexp is SList) {
+          SList constraint = sexp;
+          if (constraint.length != 2) {
+            if (constraint.length < 2) {
+              return alg.errorType(
+                  BadSyntaxError(
+                      constraint.location.end, const <String>["type variable"]),
+                  location: constraint.location);
+            } else {
+              return alg.errorType(
+                  BadSyntaxError(constraint[2].location,
+                      <String>[constraint.closingBracket()]),
+                  location: constraint.location);
+            }
+          }
+          Name name = typeName(constraint[0]);
+          Typ typeVariable = elaborate(constraint[1]);
+          constraints.add(new Pair<Name, Typ>(name, typeVariable));
+        } else {
+          return alg.errorType(
+              BadSyntaxError(sexp.location, const <String>["constraint"]),
+              location: list.location);
+        }
+      }
+      Typ body = elaborate(list[2]);
+      return body; // alg.constraintType(constraints, body, location: list[1].location);
+    } else {
+      return alg.errorType(
+          BadSyntaxError(list[1].location, const <String>["constraints"]));
     }
   }
 

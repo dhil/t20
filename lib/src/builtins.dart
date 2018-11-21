@@ -94,14 +94,14 @@ Map<int, ClassDescriptor> makeBuiltinClasses() {
       <String, Map<String, String>>{
     // TODO patch up types when support for constraints has been implemented.
     "Mappable": <String, String>{
-      "map": "(forall ('a 'b 'temp1 'temp2) (-> (-> 'a 'b) 'temp1 'temp2))"
+      "map": "(forall ('a 'b 'f 'temp2) (=> ([Mappable 'f]) (-> (-> 'a 'b) 'f 'temp2)))"
     },
     "Foldable": <String, String>{
-      "fold-right": "(forall ('a 'b 'temp) [-> (-> 'a 'b 'b) 'temp 'b 'b])",
-      "fold-left": "(forall ('a 'b 'temp)  [-> (-> 'a 'b 'a) 'a 'temp 'a])"
+      "fold-right": "(forall ('a 'b 'f) (=> ([Foldable 'f]) [-> (-> 'a 'b 'b) 'f 'b 'b]))",
+      "fold-left": "(forall ('a 'b 'temp) (=> ([Foldable 'f]) [-> (-> 'a 'b 'a) 'a 'temp 'a]))"
     },
     "Equatable": <String, String>{
-      "eq?": "(forall 'a [-> 'a 'a Bool])"
+      "eq?": "(forall 'a (=> ([Equatable 'a]) [-> 'a 'a Bool]))"
     },
   };
 
