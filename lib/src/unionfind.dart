@@ -8,7 +8,7 @@
 // An equivalence class is modelled as set of points.
 class Point<A> {
   _Node<A> link;
-  Point(this.link);
+  Point._(this.link);
 }
 
 abstract class _Node<A> {}
@@ -27,7 +27,7 @@ class _LinkNode<A> implements _Node<A> {
 
 // Creates an equivalence class containing only [data].
 Point<A> singleton<A>(A data) {
-  return new Point<A>(new _InfoNode<A>(1, data));
+  return new Point<A>._(new _InfoNode<A>(1, data));
 }
 
 // Returns the representative point of the equivalence class.

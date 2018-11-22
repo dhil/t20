@@ -16,15 +16,13 @@ import '../utils.dart' show Gensym;
 import 'substitution.dart' show Substitution;
 import 'type_utils.dart' as typeUtils;
 
-class TypingContext {}
-
 class TypeChecker {
   final bool _trace;
   TypeChecker([this._trace = false]);
 
   Result<ModuleMember, TypeError> typeCheck(ModuleMember module) {
     _TypeChecker typeChecker = _TypeChecker(_trace);
-    typeChecker.typeCheck(module, new TypingContext());
+    typeChecker.typeCheck(module);
     Result<ModuleMember, TypeError> result;
     if (typeChecker.errors.length > 0) {
       result = Result<ModuleMember, TypeError>.failure(typeChecker.errors);
@@ -51,17 +49,40 @@ class _TypeChecker {
     return Pair<Substitution, Datatype>(Substitution.empty(), type);
   }
 
-
+  // Skolem management.
+  // Current type level.
+  int _currentLevel = 1;
+  // Increases the type-level by one.
   void enter() {
-    Skolem.increaseLevel();
+    if (trace) {
+      print("level incr: $_currentLevel --> ${_currentLevel+1}");
+    }
+    ++_currentLevel;
   }
 
+  // Decreases the type level by one.
   void leave() {
-    Skolem.decreaseLevel();
+    if (trace) {
+      print("level decr: $_currentLevel --> ${_currentLevel-1}");
+    }
+    --_currentLevel;
+  }
+
+  // Updates the level of the provided [skolem].
+  void update(Skolem skolem) {
+    if (trace) {
+      print("update: $skolem --> $_currentLevel");
+    }
+    skolem.level = _currentLevel;
+  }
+
+  // Factory method for skolems/existential variables.
+  Skolem skolem() {
+    return Skolem(_currentLevel);
   }
 
   // Main entry point.
-  ModuleMember typeCheck(ModuleMember member, TypingContext initialContext) {
+  ModuleMember typeCheck(ModuleMember member) {
     Pair<Substitution, Datatype> result =
         inferModule(member, Substitution.empty());
     return member;
@@ -218,20 +239,29 @@ class _TypeChecker {
       Skolem a = type;
       // Construct a function type whose immediate constituents are skolem
       // variables.
+
+      enter();
+      Datatype codomain = skolem();
+
       List<Datatype> domain = new List<Datatype>();
+      enter(); // Allow
       for (int i = 0; i < arguments.length; i++) {
-        domain.add(Skolem());
+        domain.add(skolem());
       }
-      Datatype codomain = Skolem();
+
       ArrowType fnType = ArrowType(domain, codomain);
       // Solve a = (a0,...,aN-1) -> aN.
+      enter();
       a.solve(fnType);
+      update(a);
       // Check each argument.
       Substitution sigma0 = Substitution.empty();
       for (int i = 0; i < domain.length; i++) {
         Substitution sigma1 = checkExpression(arguments[i], domain[i], sigma);
         sigma0 = sigma0.combine(sigma1);
       }
+
+      leave();leave();
       return Pair<Substitution, Datatype>(sigma0, codomain);
     }
 
@@ -248,7 +278,7 @@ class _TypeChecker {
     // scrutinee. Check the clause bodies (right hand sides) against the type of
     // their left hand sides.
     if (match.cases.length == 0) {
-      return lift(Skolem());
+      return lift(skolem());
     } else {
       Substitution sigma0 = Substitution.empty();
       Datatype branchType;
@@ -297,6 +327,7 @@ class _TypeChecker {
     // Infer types for the parameters.
     List<Datatype> domain = new List<Datatype>();
     Substitution sigma0 = Substitution.empty();
+    enter();
     for (int i = 0; i < lambda.parameters.length; i++) {
       Pair<Substitution, Datatype> result =
           inferPattern(lambda.parameters[i], sigma);
@@ -304,11 +335,14 @@ class _TypeChecker {
       domain.add(result.snd);
     }
     // Infer a type for the body.
+    enter();
     Pair<Substitution, Datatype> result = inferExpression(lambda.body, sigma0);
     Substitution sigma1 = result.fst;
     Datatype codomain = result.snd;
 
     // Construct the arrow type.
+    leave();
+    leave();
     ArrowType ft = sigma1.apply(ArrowType(domain, codomain));
     return Pair<Substitution, Datatype>(sigma1, ft);
   }
@@ -388,20 +422,20 @@ class _TypeChecker {
         ArrowType fnType = type;
         Substitution sigma0 = checkMany<Pattern>(
             checkPattern, lambda.parameters, fnType.domain, sigma);
-        return checkExpression(lambda.body, fnType.codomain, sigma0);
+        enter();
+        Substitution sigma1 = checkExpression(lambda.body, fnType.codomain, sigma0);
+        leave();
+        return sigma1;
       }
     }
 
     // check e (\/qs+.t) sigma = check e (t[qs+ -> %sa+]) sigma.
     if (type is ForallType) {
       ForallType forallType = type;
-      // Substitution sigma0 = Substitution.empty();
-      // for (int i = 0; i < forallType.quantifiers.length; i++) {
-      //   sigma0 = sigma0.bind(
-      //       TypeVariable.bound(forallType.quantifiers[i]), Skolem());
-      // }
-      // return checkExpression(exp, sigma0.apply(forallType.body), sigma);
-      return checkExpression(exp, forallType.body, sigma);
+      enter();
+      Substitution sigma0 = checkExpression(exp, forallType.body, sigma);
+      leave();
+      return sigma0;
     }
 
     if (type is BoolType && exp is BoolLit ||
@@ -498,11 +532,11 @@ class _TypeChecker {
         break;
       case PatternTag.VAR:
         VariablePattern varPattern = pat as VariablePattern;
-        varPattern.type = Skolem();
+        varPattern.type = skolem();
         return lift(varPattern.type);
         break;
       case PatternTag.WILDCARD:
-        return lift(Skolem());
+        return lift(skolem());
         break;
       default:
         unhandled("inferPattern", pat.tag);
@@ -626,7 +660,8 @@ class _TypeChecker {
     // \/qs.A <: B, if A[%as/qs] <: B
     if (a is ForallType) {
       Datatype type = guessInstantiation(a.quantifiers, a.body);
-      return subsumes(type, b, sigma);
+      Substitution sigma0 = subsumes(type, b, sigma);
+      return sigma0;
     }
 
     // a <: \/qs.b, if a <: b
@@ -653,50 +688,6 @@ class _TypeChecker {
     }
 
     unhandled("subsumes", "$a <: $b");
-
-    // // subsumes (\/qs+. t) t' sigma = subsumes t (t'[qs+ -> as+]) sigma, where as+ are fresh.
-    // if (type0 is ForallType) {
-    //   ForallType forallType = type0;
-    //   Datatype type2 =
-    //       guessInstantiation(forallType.quantifiers, forallType.body);
-    //   return subsumes(type2, type1, sigma);
-    // }
-
-    // // subsumes t (\/qs+. t') sigma = subsumes (t[qs+ -> %as+]) t' sigma, where %as+ are fresh skolems.
-    // if (type1 is ForallType) {
-    //   ForallType forallType = type1;
-    //   Datatype type2 =
-    //       guessInstantiation(forallType.quantifiers, type0, useSkolem: true);
-    //   return subsumes(type2, type1.body, sigma);
-    // }
-
-    // // subsumes (ts1* -> t2) (ts3* -> t4) sigma = subsumes* (ts3 sigma') (ts1 sigma') sigma',
-    // // where sigma' = subsumes* t2 t4 sigma.
-    // if (type0 is ArrowType && type1 is ArrowType) {
-    //   Substitution sigma0 = subsumes(type0.codomain, type1.codomain, sigma);
-    //   List<Datatype> domain0 = sigma0.applyMany(type0.domain);
-    //   List<Datatype> domain1 = sigma0.applyMany(type1.domain);
-    //   return subsumesMany(domain1, domain0, sigma0);
-    // }
-
-    // // subsumes (* ts1*) (* ts2*) sigma = subsumesMany ts1* ts2* sigma
-    // if (type0 is TupleType && type1 is TupleType) {
-    //   return subsumesMany(type0.components, type1.components, sigma);
-    // }
-
-    // // subsumes (C ts1*) (K ts2*) sigma = subsumesMany ts1* ts2* sigma, if C = K.
-    // if (type0 is TypeConstructor && type1 is TypeConstructor) {
-    //   if (type0.ident != type1.ident) {
-    //     Location loc = Location.dummy();
-    //     TypeError err = TypeExpectationError(loc);
-    //     error(err, loc);
-    //     return sigma;
-    //   }
-    //   return subsumesMany(type0.arguments, type1.arguments, sigma);
-    // }
-
-    // // Base case.
-    // return unifier.unify(type0, type1);
   }
 
   Substitution subsumesMany(
@@ -719,7 +710,7 @@ class _TypeChecker {
     Substitution sigma = Substitution.empty();
     for (int i = 0; i < quantifiers.length; i++) {
       Quantifier q = quantifiers[i];
-      sigma = sigma.bind(TypeVariable.bound(q), Skolem());
+      sigma = sigma.bind(TypeVariable.bound(q), skolem());
     }
     return sigma.apply(type);
   }
@@ -733,8 +724,8 @@ class _TypeChecker {
     // %a <:= %b, if level(%a) <= level(%b).
     if (a is Skolem && b is Skolem) {
       if (a.level <= b.level) {
-        if (!a.isSolved) {
-          a.sameAs(b);
+        if (!b.isSolved) {
+          b.equate(a);
           return sigma;
         }
       } else {
@@ -747,12 +738,18 @@ class _TypeChecker {
     // %a = %as* -> %a'
     // sigma' = bs* <: %as*
     if (a is Skolem && b is ArrowType) {
+      enter();
+      Datatype codomain = skolem();
+
+      enter();
       List<Datatype> domain = List<Datatype>();
       for (int i = 0; i < b.arity; i++) {
-        domain.add(Skolem());
+        domain.add(skolem());
       }
-      Datatype codomain = Skolem();
+
+      enter();
       a.solve(ArrowType(domain, codomain));
+      update(a);
 
       Substitution sigma0 = Substitution.empty();
       for (int i = 0; i < domain.length; i++) {
@@ -760,7 +757,9 @@ class _TypeChecker {
         sigma0 = sigma0.combine(sigma1);
       }
 
-      return instantiateLeft(codomain, sigma0.apply(b.codomain), sigma0);
+      Substitution sigma1 = instantiateLeft(codomain, sigma0.apply(b.codomain), sigma0);
+      leave(); leave(); leave();
+      return sigma1;
     }
 
     // %a <:= \/qs.b, if %a <:= b
@@ -773,7 +772,7 @@ class _TypeChecker {
     if (a is Skolem && b is TupleType) {
       List<Datatype> components = new List<Datatype>();
       for (int i = 0; i < b.components.length; i++) {
-        components.add(Skolem());
+        components.add(skolem());
       }
       a.solve(TupleType(components));
 
@@ -791,7 +790,7 @@ class _TypeChecker {
     if (a is Skolem && b is TypeConstructor) {
       List<Datatype> arguments = new List<Datatype>();
       for (int i = 0; i < b.arguments.length; i++) {
-        arguments.add(Skolem());
+        arguments.add(skolem());
       }
       a.solve(TypeConstructor.from(b.declarator, arguments));
 
@@ -821,41 +820,49 @@ class _TypeChecker {
     }
     // TODO refactor.
 
-    // %a <=: %b, if level(%a) <= level(%b)
+    // %a <=: %b, if level(%b) <= level(%a)
     if (a is Skolem && b is Skolem) {
       if (a.level <= b.level) {
-        // TODO check that a is unsolved.
-        if (!b.isSolved) {
-          b.sameAs(a);
+        if (!a.isSolved) {
+          a.equate(b);
           return sigma;
         }
       } else {
-        throw SkolemEscapeError(b.syntheticName);
+        throw SkolemEscapeError(a.syntheticName);
       }
     }
 
     // \/qs.a <=: %b, if a[%bs/qs] <=: %a.
     if (a is ForallType && b is Skolem) {
       Datatype type = guessInstantiation(a.quantifiers, a.body);
-      return instantiateRight(type, b, sigma);
+      Substitution sigma0 = instantiateRight(type, b, sigma);
+      return sigma0;
     }
 
     // as* -> a <=: %b, if %a' sigma' <=: %b'
     // %b = %bs* -> %b'
     // sigma' = %bs* <: %as*
     if (a is ArrowType && b is Skolem) {
+      enter();
+      Datatype codomain = skolem();
+
+      enter();
       List<Datatype> domain = List<Datatype>();
       for (int i = 0; i < a.arity; i++) {
-        domain.add(Skolem());
+        domain.add(skolem());
       }
-      Datatype codomain = Skolem();
+
+      enter();
       b.solve(ArrowType(domain, codomain));
+      update(b);
 
       Substitution sigma0 = Substitution.empty();
       for (int i = 0; i < domain.length; i++) {
         Substitution sigma1 = subsumes(domain[i], a.domain[i], sigma);
         sigma0 = sigma0.combine(sigma1);
       }
+
+      leave(); leave(); leave();
 
       return instantiateRight(sigma0.apply(a.codomain), codomain, sigma0);
     }
@@ -865,7 +872,7 @@ class _TypeChecker {
     if (a is TupleType && b is Skolem) {
       List<Datatype> components = new List<Datatype>();
       for (int i = 0; i < a.components.length; i++) {
-        components.add(Skolem());
+        components.add(skolem());
       }
       b.solve(TupleType(components));
 
@@ -883,7 +890,7 @@ class _TypeChecker {
     if (a is TypeConstructor && b is Skolem) {
       List<Datatype> arguments = new List<Datatype>();
       for (int i = 0; i < a.arguments.length; i++) {
-        arguments.add(Skolem());
+        arguments.add(skolem());
       }
       b.solve(TypeConstructor.from(a.declarator, arguments));
 

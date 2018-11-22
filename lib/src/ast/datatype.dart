@@ -157,7 +157,7 @@ class StringifyDatatype extends ReduceDatatype<String> {
   String visitSkolem(Skolem s) {
     Datatype type = s.type;
     if (type == null || type == s) {
-      return "?${s.ident}";
+      return s.syntheticName;
     } else {
       return type.accept(this);
     }
@@ -202,55 +202,6 @@ abstract class TransformDatatype extends TypeVisitor<Datatype> {
   Datatype visitTypeVariable(TypeVariable variable) => variable;
   Datatype visitSkolem(Skolem skolem) => skolem;
   Datatype visitError(ErrorType error) => error;
-}
-
-Datatype substitute(Datatype type, Map<int, Datatype> substMap) {
-  if (substMap.length == 0) return type;
-  return _Substitutor.from(substMap).substitute(type);
-}
-
-class _Substitutor extends TransformDatatype {
-  final Map<int, Datatype> _substMap;
-  _Substitutor.from(Map<int, Datatype> substitutionMap)
-      : _substMap = substitutionMap;
-
-  Datatype substitute(Datatype type) {
-    return type.accept(this);
-  }
-
-  // Datatype visitForallType(ForallType forallType) {
-  //   Set<int> quantifiers = forallType.quantifiers.fold(new Set<int>(), (Set<int> acc, Quantifier q) {
-  //       acc.add(q.ident);
-  //       return acc;
-  //     });
-  //   Set<int> idents = Set<int>.of(_substMap.keys);
-  //   Set<int> diff = quantifiers.difference(idents);
-  //   if (diff.length != 0) {
-  //     return null;
-  //   } else {
-  //     return forallType.body.accept(this);
-  //   }
-  // }
-
-  Datatype visitTypeVariable(TypeVariable variable) {
-    if (_substMap.containsKey(variable.ident)) {
-      return _substMap[variable.ident];
-    } else {
-      return variable;
-    }
-  }
-
-  Datatype visitSkolem(Skolem skolem) {
-    Datatype type = skolem.type;
-    if (type == null) return skolem;
-
-    if (type is TypeVariable) {
-      if (_substMap.containsKey(type.ident)) {
-        return _substMap[type.ident];
-      }
-    }
-    return skolem;
-  }
 }
 
 abstract class Datatype {
@@ -361,14 +312,15 @@ class Skolem extends Datatype {
   Point<Datatype> _point;
   final int _ident;
   int get ident => _ident;
-  int _level;
-  int get level => _level;
 
-  Skolem._(this._ident)
-      : _point = unionfind.singleton(null),
-        _level = currentLevel(),
+  int level;
+
+  String get syntheticName => "?$ident@$level";
+
+  Skolem(this.level)
+      : _ident = Gensym.freshInt(),
+        _point = unionfind.singleton(null),
         super(TypeTag.VAR);
-  Skolem() : this._(Gensym.freshInt());
 
   T accept<T>(TypeVisitor<T> v) {
     return v.visitSkolem(this);
@@ -376,11 +328,7 @@ class Skolem extends Datatype {
 
   Datatype get type => unionfind.find(_point);
 
-  void be(Datatype type) {
-    unionfind.change(_point, type);
-  }
-
-  void sameAs(Skolem other) {
+  void equate(Skolem other) {
     unionfind.union(_point, other._point);
   }
 
@@ -389,20 +337,6 @@ class Skolem extends Datatype {
   }
 
   bool get isSolved => unionfind.find(_point) != null;
-
-  // Levels.
-  static int _currentLevel = 0;
-  static void increaseLevel() {
-    ++_currentLevel;
-  }
-
-  static void decreaseLevel() {
-    --_currentLevel;
-  }
-
-  static int currentLevel() => _currentLevel;
-
-  String get syntheticName => "?$ident";
 }
 
 class ForallType extends Datatype {

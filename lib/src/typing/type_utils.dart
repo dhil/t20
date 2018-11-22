@@ -63,23 +63,6 @@ Datatype stripQuantifiers(Datatype t) {
   }
 }
 
-Datatype unrigidify(Datatype t) {
-  if (t is ForallType) {
-    ForallType forallType = t;
-    List<Datatype> skolems = new List<Datatype>(forallType.quantifiers.length);
-    for (int i = 0; i < skolems.length; i++) {
-      Datatype skolem = Skolem(); // Fresh unification variable.
-      skolems[i] = skolem;
-    }
-
-    Map<int, Datatype> subst = Map<int, Datatype>.fromIterables(
-        forallType.quantifiers.map((Quantifier q) => q.binder.id), skolems);
-    return substitute(forallType.body, subst);
-  } else {
-    return t;
-  }
-}
-
 // Base types.
 const Datatype unitType = const TupleType(const <Datatype>[]);
 bool isUnitType(Datatype type) {
@@ -123,19 +106,4 @@ class _FreeTypeVariables extends ReduceDatatype<Set<int>> {
 Set<int> freeTypeVariables(Datatype type) {
   _FreeTypeVariables ftv = _FreeTypeVariables();
   return type.accept(ftv);
-}
-
-Datatype instantiate(Datatype type, List<Datatype> arguments) {
-  if (type is ForallType) {
-    List<Quantifier> qs = type.quantifiers;
-    if (qs.length != arguments.length) {
-      throw InstantiationError(qs.length, arguments.length);
-    }
-
-    Map<int, Datatype> subst = Map<int, Datatype>.fromIterables(
-        qs.map((Quantifier q) => q.binder.id), arguments);
-    return substitute(type.body, subst);
-  }
-
-  return type;
 }
