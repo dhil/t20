@@ -48,6 +48,17 @@ abstract class TypeCatamorphism<Name, Typ> extends TypeAlgebra<Name, Typ> {
       arguments.fold(name2typ.apply(name), typ.compose);
   Typ tupleType(List<Typ> components, {Location location}) =>
       components.fold(typ.empty, typ.compose);
+  Typ constraintType(List<Pair<Name, Typ>> constraints, Typ body,
+      {Location location}) {
+    Typ result = typ.empty;
+    for (int i = 0; i < constraints.length; i++) {
+      Pair<Name, Typ> constraint = constraints[i];
+      typ.compose(
+          result, typ.compose(name2typ.apply(constraint.fst), constraint.snd));
+    }
+    return typ.compose(result, body);
+  }
+
   Typ errorType(LocatedError error, {Location location}) => typ.empty;
 }
 
@@ -243,6 +254,17 @@ abstract class Catamorphism<Name, Mod, Exp, Pat, Typ>
       arguments.fold(name2typ.apply(name), typ.compose);
   Typ tupleType(List<Typ> components, {Location location}) =>
       components.fold(typ.empty, typ.compose);
+  Typ constraintType(List<Pair<Name, Typ>> constraints, Typ body,
+      {Location location}) {
+    Typ result = typ.empty;
+    for (int i = 0; i < constraints.length; i++) {
+      Pair<Name, Typ> constraint = constraints[i];
+      typ.compose(
+          result, typ.compose(name2typ.apply(constraint.fst), constraint.snd));
+    }
+    return typ.compose(result, body);
+  }
+
   Typ errorType(LocatedError error, {Location location}) => typ.empty;
 
   Name termName(String ident, {Location location}) => name.empty;
@@ -270,21 +292,21 @@ abstract class Reduction<T> extends Catamorphism<T, T, T, T, T> {
 }
 
 // Error accumulator.
-class ErrorCollector extends Reduction<List<LocatedError>> {
-  final ListMonoid<LocatedError> _m = new ListMonoid<LocatedError>();
-  Monoid<List<LocatedError>> get m => _m;
+// class ErrorCollector extends Reduction<List<LocatedError>> {
+//   final ListMonoid<LocatedError> _m = new ListMonoid<LocatedError>();
+//   Monoid<List<LocatedError>> get m => _m;
 
-  List<LocatedError> errorModule(LocatedError error, {Location location}) =>
-      <LocatedError>[error];
-  List<LocatedError> errorExp(LocatedError error, {Location location}) =>
-      <LocatedError>[error];
-  List<LocatedError> errorPattern(LocatedError error, {Location location}) =>
-      <LocatedError>[error];
-  List<LocatedError> errorType(LocatedError error, {Location location}) =>
-      <LocatedError>[error];
-  List<LocatedError> errorName(LocatedError error, {Location location}) =>
-      <LocatedError>[error];
-}
+//   List<LocatedError> errorModule(LocatedError error, {Location location}) =>
+//       <LocatedError>[error];
+//   List<LocatedError> errorExp(LocatedError error, {Location location}) =>
+//       <LocatedError>[error];
+//   List<LocatedError> errorPattern(LocatedError error, {Location location}) =>
+//       <LocatedError>[error];
+//   List<LocatedError> errorType(LocatedError error, {Location location}) =>
+//       <LocatedError>[error];
+//   List<LocatedError> errorName(LocatedError error, {Location location}) =>
+//       <LocatedError>[error];
+// }
 
 // Free type variables.
 class FreeTypeVars<Name> extends Reduction<Set<Name>> {
@@ -343,35 +365,35 @@ class TrueBiasedMonoid implements Monoid<bool> {
   bool compose(bool x, bool y) => x || y;
 }
 
-class CheckSignatureHasForall extends Reduction<bool> {
-  final TrueBiasedMonoid _m = new TrueBiasedMonoid();
-  Monoid<bool> get m => _m;
+// class CheckSignatureHasForall extends Reduction<bool> {
+//   final TrueBiasedMonoid _m = new TrueBiasedMonoid();
+//   Monoid<bool> get m => _m;
 
-  bool module(List<bool> members, {Location location}) =>
-      members.every((b) => b == true);
-  // bool datatype(bool binder, List<bool> typeParameters,
-  //         List<Pair<bool, List<bool>>> constructors, List<bool> deriving,
-  //         {Location location}) =>
-  //     true;
+//   bool module(List<bool> members, {Location location}) =>
+//       members.every((b) => b == true);
+//   // bool datatype(bool binder, List<bool> typeParameters,
+//   //         List<Pair<bool, List<bool>>> constructors, List<bool> deriving,
+//   //         {Location location}) =>
+//   //     true;
 
-  bool datatypes(
-          List<Triple<bool, List<bool>, List<Pair<bool, List<bool>>>>> defs,
-          List<bool> deriving,
-          {Location location}) =>
-      true;
-  bool valueDef(bool name, bool body, {Location location}) => true;
-  bool functionDef(bool name, List<bool> parameters, bool body,
-          {Location location}) =>
-      true;
-  bool typename(bool binder, List<bool> typeParameters, bool type,
-          {Location location}) =>
-      true;
-  bool signature(bool name, bool type, {Location location}) => type;
-  bool errorModule(LocatedError error, {Location location}) => true;
+//   bool datatypes(
+//           List<Triple<bool, List<bool>, List<Pair<bool, List<bool>>>>> defs,
+//           List<bool> deriving,
+//           {Location location}) =>
+//       true;
+//   bool valueDef(bool name, bool body, {Location location}) => true;
+//   bool functionDef(bool name, List<bool> parameters, bool body,
+//           {Location location}) =>
+//       true;
+//   bool typename(bool binder, List<bool> typeParameters, bool type,
+//           {Location location}) =>
+//       true;
+//   bool signature(bool name, bool type, {Location location}) => type;
+//   bool errorModule(LocatedError error, {Location location}) => true;
 
-  bool forallType(List<bool> quantifiers, bool type, {Location location}) =>
-      true;
-}
+//   bool forallType(List<bool> quantifiers, bool type, {Location location}) =>
+//       true;
+// }
 
 // Transforms.
 abstract class Transformation<Name, Mod, Exp, Pat, Typ>
@@ -463,6 +485,9 @@ abstract class Transformation<Name, Mod, Exp, Pat, Typ>
       alg.typeConstr(name, arguments, location: location);
   Typ tupleType(List<Typ> components, {Location location}) =>
       alg.tupleType(components, location: location);
+  Typ constraintType(List<Pair<Name, Typ>> constraints, Typ body,
+          {Location location}) =>
+      alg.constraintType(constraints, body, location: location);
   Typ errorType(LocatedError error, {Location location}) =>
       alg.errorType(error, location: location);
 
@@ -678,6 +703,22 @@ abstract class ContextualTransformation<C, Name, Mod, Exp, Pat, Typ>
           {Location location}) =>
       (C c) => alg.tupleType(components.map((f) => f(c)).toList(),
           location: location);
+  Transformer<C, Typ> constraintType(
+          List<Pair<Transformer<C, Name>, Transformer<C, Typ>>> constraints,
+          Transformer<C, Typ> body,
+          {Location location}) =>
+      (C ctxt) {
+        List<Pair<Name, Typ>> constraints0 = new List<Pair<Name, Typ>>();
+        for (int i = 0; i < constraints.length; i++) {
+          Pair<Transformer<C, Name>, Transformer<C, Typ>> constraint =
+              constraints[i];
+          Name name = constraint.fst(ctxt);
+          Typ type = constraint.snd(ctxt);
+          constraints0.add(Pair<Name, Typ>(name, type));
+        }
+        Typ body0 = body(ctxt);
+        return alg.constraintType(constraints0, body0, location: location);
+      };
   Transformer<C, Typ> errorType(LocatedError error, {Location location}) =>
       (C _) => alg.errorType(error, location: location);
 
@@ -1192,6 +1233,34 @@ abstract class AccumulatingContextualTransformation<S, C, Name, Mod, Exp, Pat,
 
         return Pair<S, Typ>(
             state, alg.tupleType(components0, location: location));
+      };
+
+  AccuTransformer<S, C, Typ> constraintType(
+          List<Pair<AccuTransformer<S, C, Name>, AccuTransformer<S, C, Typ>>>
+              constraints,
+          AccuTransformer<S, C, Typ> body,
+          {Location location}) =>
+      (C ctxt) {
+        S state = m.empty;
+        List<Pair<Name, Typ>> constraints0 = new List<Pair<Name, Typ>>();
+        for (int i = 0; i < constraints.length; i++) {
+          Pair<AccuTransformer<S, C, Name>, AccuTransformer<S, C, Typ>>
+              constraint = constraints[i];
+          Pair<S, Name> r0 = constraint.fst(ctxt);
+          state = m.compose(state, r0.fst);
+          Name name = r0.snd;
+
+          Pair<S, Typ> r1 = constraint.snd(ctxt);
+          state = m.compose(state, r1.fst);
+          Typ type = r1.snd;
+
+          constraints0.add(Pair<Name, Typ>(name, type));
+        }
+        Pair<S, Typ> r2 = body(ctxt);
+        state = m.compose(state, r2.fst);
+        Typ body0 = r2.snd;
+        return Pair<S, Typ>(
+            state, alg.constraintType(constraints0, body0, location: location));
       };
 
   AccuTransformer<S, C, Typ> errorType(LocatedError error,

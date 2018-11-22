@@ -71,6 +71,7 @@ abstract class TypeAlgebra<Name, Typ> {
   Typ arrowType(List<Typ> domain, Typ codomain, {Location location});
   Typ typeConstr(Name name, List<Typ> arguments, {Location location});
   Typ tupleType(List<Typ> components, {Location location});
+  Typ constraintType(List<Pair<Name, Typ>> constraints, Typ body, {Location location});
 
   Typ errorType(LocatedError error, {Location location});
 }

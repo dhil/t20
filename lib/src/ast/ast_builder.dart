@@ -1109,6 +1109,14 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         return Pair<BuildContext, Datatype>(ctxt, tupleType);
       };
 
+  Build<Datatype> constraintType(
+          List<Pair<Name, Build<Datatype>>> constraints,
+          Build<Datatype> body,
+          {Location location}) =>
+      (BuildContext ctxt) {
+        return null; // TODO.
+      };
+
   Build<Datatype> errorType(LocatedError error, {Location location}) =>
       (BuildContext ctxt) {
         return typeError(error, location);
