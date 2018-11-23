@@ -130,6 +130,8 @@ class Apply extends Expression {
 class Variable extends Expression {
   Declaration declarator;
 
+  int get ident => declarator.binder.id;
+
   Variable(this.declarator, Location location) : super(ExpTag.VAR, location);
 
   T accept<T>(ExpressionVisitor<T> v) {

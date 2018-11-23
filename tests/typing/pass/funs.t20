@@ -11,27 +11,27 @@
 ;; (: id' (-> 'a 'a))
 ;; (define id' (id-eta' id))
 
-(define-datatype (List 'a)
-  [cons 'a (List 'a)]
-  [nil]
-  (derive! Foldable Mappable))
+;; (define-datatype (List 'a)
+;;   [cons 'a (List 'a)]
+;;   [nil]
+;;   (derive! Foldable Mappable))
 
-(: flip (-> [-> 'a 'b 'c] [-> 'b 'a 'c]))
-(define (flip f)
-  (lambda (y x)
-    (f x y)))
+;; (: flip (-> [-> 'a 'b 'c] [-> 'b 'a 'c]))
+;; (define (flip f)
+;;   (lambda (y x)
+;;     (f x y)))
 
-(: list-reverse (-> [List 'a] [List 'a]))
-(define (list-reverse xs)
-  (fold-left (flip cons) xs nil))
+;; (: list-reverse (-> [List 'a] [List 'a]))
+;; (define (list-reverse xs)
+;;   (fold-left (flip cons) xs nil))
 
 ;; (: three-to-one (List Int))
 ;; (define three-to-one
 ;;   (list-reverse (cons 1 (cons 2 (cons 3 nil)))))
 
-(: list-append (-> (List 'a) (List 'a) (List 'a)))
-(define (list-append xs ys)
-  (fold-right cons xs ys))
+;; (: list-append (-> (List 'a) (List 'a) (List 'a)))
+;; (define (list-append xs ys)
+;;   (fold-right cons xs ys))
 
 ;; (: wrong (List 'a))
 ;; (define wrong
@@ -39,3 +39,15 @@
 
 ;; (: wrong 'a)
 ;; (define wrong 1)
+
+(: compose (-> (-> 'a 'b) (-> 'b 'c) (-> 'a 'c)))
+(define (compose f g)
+  (lambda (x)
+    (g (f x))))
+
+(: id (-> 'a 'a))
+(define (id x) x)
+
+(: id-2 (-> 'a 'a))
+(define (id-2 x)
+  ((compose id id) x))

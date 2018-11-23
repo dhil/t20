@@ -16,6 +16,21 @@ class NullMonoid<T> implements Monoid<T> {
   T compose(T x, T y) => null;
 }
 
+class LAndMonoid implements Monoid<bool> {
+  static LAndMonoid _instance;
+
+  LAndMonoid._();
+  factory LAndMonoid() {
+    if (_instance == null) {
+      _instance = LAndMonoid._();
+    }
+    return _instance;
+  }
+
+  bool get empty => true;
+  bool compose(bool x, bool y) => x && y;
+}
+
 class SetMonoid<T> implements Monoid<Set<T>> {
   Set<T> get empty => new Set<T>();
   Set<T> compose(Set<T> x, Set<T> y) => x.union(y);

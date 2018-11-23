@@ -257,3 +257,53 @@ class _Nil<T> implements ImmutableList<T> {
     return "[]";
   }
 }
+
+class DoublyList<T> {
+  final T element;
+  final ImmutableList<T> _pred;
+  final ImmutableList<T> _succ;
+
+  bool get isEmpty => _pred.isEmpty && _succ.isEmpty;
+  bool get isInitial => _pred.isEmpty;
+  bool get isFinal => _succ.isEmpty;
+
+  DoublyList._(this._pred, this.element, this._succ);
+  factory DoublyList.singleton(T element) {
+    ImmutableList<T> nil = ImmutableList<T>.empty();
+    return DoublyList<T>._(nil, element, nil);
+  }
+  factory DoublyList.empty() {
+    ImmutableList<T> nil = ImmutableList<T>.empty();
+    return DoublyList._(nil, null, nil);
+  }
+
+  DoublyList<T> get predecessor {
+    if (isInitial) return this;
+
+    T prevElement = _pred.head;
+    return DoublyList<T>._(_pred.tail, prevElement, _succ.cons(element));
+  }
+
+  DoublyList<T> get successor {
+    if (isFinal) return this;
+
+    T nextElement = _succ.head;
+    return DoublyList<T>._(_pred.cons(element), nextElement, _succ.tail);
+  }
+
+  DoublyList<T> insertAfter(T newElement) {
+    if (isEmpty) {
+      return DoublyList<T>._(_pred, newElement, _succ);
+    } else {
+      return DoublyList<T>._(_pred, newElement, _succ.cons(element));
+    }
+  }
+
+  DoublyList<T> insertBefore(T newElement) {
+    if (isEmpty) {
+      return DoublyList<T>._(_pred, newElement, _succ);
+    } else {
+      return DoublyList<T>._(_pred.cons(newElement), element, _succ);
+    }
+  }
+}

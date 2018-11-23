@@ -150,6 +150,8 @@ class VariablePattern extends Pattern implements Declaration {
   Binder binder;
   bool get isVirtual => false;
 
+  int get ident => binder.id;
+
   VariablePattern(this.binder, Location location)
       : super(PatternTag.VAR, location);
 

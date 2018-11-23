@@ -12,8 +12,13 @@ import 'fp.dart';
 
 class Gensym {
   static int _i = 0;
+  static int _j = 0;
   static int freshInt() {
     return ++Gensym._i;
+  }
+
+  static int freshNegativeInt() {
+    return --Gensym._j;
   }
 
   static String freshString([String prefix = null]) {

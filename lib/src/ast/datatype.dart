@@ -267,6 +267,7 @@ class TupleType extends Datatype {
 class Quantifier {
   final Kind kind = Kind.TYPE;
   final Binder binder;
+  int get ident => binder.id;
   // final Set<Object> constraints;
 
   Quantifier.fresh()
@@ -310,11 +311,11 @@ class Skolem extends Datatype {
   final int _ident;
   int get ident => _ident;
 
-  int level;
+  int level = 0; // TODO remove.
 
-  String get syntheticName => "?$ident@$level";
+  String get syntheticName => "?$ident";
 
-  Skolem(this.level)
+  Skolem()
       : _ident = Gensym.freshInt(),
         _point = unionfind.singleton(null),
         super(TypeTag.VAR);
@@ -334,6 +335,10 @@ class Skolem extends Datatype {
   }
 
   bool get isSolved => unionfind.find(_point) != null;
+
+  bool painted = false;
+  void paint() => painted = true;
+  void reset() => painted = false;
 }
 
 class ForallType extends Datatype {
