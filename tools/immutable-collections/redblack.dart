@@ -1,6 +1,6 @@
 // Immutable Red Black tree.
 
-import 'dart:collection' show Iterable, IterableMixin, Iterator, Queue;
+import 'dart:collection' show IterableMixin, Queue;
 
 class Pair<A, B> {
   final A fst;
