@@ -6,7 +6,6 @@ import '../errors/errors.dart' show LocatedError;
 // import '../fp.dart' show Pair;
 import '../location.dart';
 import '../utils.dart' show ListUtils;
-import 'binder.dart';
 import 'datatype.dart';
 import 'ast_declaration.dart';
 // import 'ast_types.dart';

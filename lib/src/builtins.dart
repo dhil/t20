@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'dart:collection';
-
 import 'ast/ast_builder.dart';
 import 'ast/ast_declaration.dart';
 import 'ast/ast_module.dart';
@@ -13,15 +11,10 @@ import 'compilation_unit.dart';
 import 'errors/errors.dart'; // TODO remove.
 import 'errors/error_reporting.dart'; // TODO remove.
 
-import 'io/bytestream.dart';
-
 import 'result.dart';
 
 import 'syntax/sexp.dart';
 import 'syntax/parse_sexp.dart';
-import 'syntax/elaboration.dart';
-
-import 'typing/type_utils.dart' as typeUtils;
 
 Datatype parseDatatype(String sexp) {
   // Parse source.

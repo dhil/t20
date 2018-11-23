@@ -7,27 +7,20 @@ library t20.pipeline;
 import 'dart:io';
 
 import '../settings.dart';
-import 'builtins.dart' as builtins;
 // import 'ast/algebra.dart';
 // import 'ast/datatype.dart';
 // import 'ast/name.dart';
 // import 'ast/nullalgebras.dart';
 // import 'ast/traversals.dart';
 import 'ast/ast_module.dart';
-import 'ast/datatype.dart';
-import 'ast/binder.dart';
 import 'ast/ast_builder.dart';
 import 'compilation_unit.dart';
 import 'errors/error_reporting.dart';
 import 'errors/errors.dart';
-import 'io/bytestream.dart';
 import 'result.dart';
 // import 'static_semantics/name_resolution.dart';
 // import 'static_semantics/type_checking.dart';
 import 'syntax/parse_sexp.dart';
-import 'syntax/elaboration.dart';
-
-import 'fp.dart';
 
 import 'typing/type_checker.dart';
 import 'codegen/kernel_emitter.dart';

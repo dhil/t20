@@ -4,7 +4,6 @@
 
 library t20.settings;
 
-import 'dart:collection' show Map;
 import 'dart:io' show Platform;
 
 import 'package:args/args.dart';

@@ -4,7 +4,6 @@
 
 import '../location.dart';
 import '../errors/errors.dart' show LocatedError;
-import '../utils.dart' show Gensym;
 // import 'ast_common.dart';
 import 'binder.dart';
 import 'datatype.dart';

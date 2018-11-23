@@ -52,11 +52,6 @@ library t20.ast;
 //    | ∗ T*                 (* n-ary tuple types *)
 
 import 'ast_common.dart';
-import 'ast_declaration.dart';
-import 'ast_expressions.dart';
-import 'ast_module.dart';
-import 'ast_patterns.dart';
-import 'ast_types.dart';
 
 export 'ast_common.dart';
 export 'ast_declaration.dart';

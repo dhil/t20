@@ -2,9 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'dart:collection';
-
-import '../builtins.dart';
 import '../errors/errors.dart'
     show
         ArityMismatchError,
@@ -12,10 +9,9 @@ import '../errors/errors.dart'
         TypeExpectationError,
         TypeSignatureMismatchError;
 
-import '../fp.dart' show Pair, Triple, Either;
+import '../fp.dart' show Pair, Triple;
 import '../immutable_collections.dart';
 import '../location.dart';
-import '../utils.dart' show Gensym;
 
 import '../ast/algebra.dart';
 import '../ast/datatype.dart';
