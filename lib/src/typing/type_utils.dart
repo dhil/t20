@@ -4,7 +4,6 @@
 
 import '../ast/datatype.dart';
 import '../ast/monoids.dart';
-import '../errors/errors.dart' show TypeError, InstantiationError;
 
 // A collection of convenient utility functions for inspecting / destructing
 // types.

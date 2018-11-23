@@ -6,10 +6,8 @@ library t20.syntax.elaborator;
 
 import '../ast/ast.dart';
 import '../errors/errors.dart';
-import '../location.dart';
 import '../result.dart';
-import 'sexp.dart'
-    show Atom, Error, Sexp, SexpVisitor, SList, StringLiteral, Toplevel;
+import 'sexp.dart' show Sexp;
 
 import 'module_elaborator.dart';
 

@@ -4,7 +4,6 @@
 
 library t20.syntax.parser;
 
-import 'dart:collection';
 import 'dart:io';
 
 import '../compilation_unit.dart';

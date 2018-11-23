@@ -11,7 +11,6 @@ import '../errors/errors.dart';
 import '../fp.dart' show Pair;
 import '../location.dart';
 import '../result.dart';
-import '../utils.dart' show Gensym;
 
 import 'substitution.dart' show Substitution;
 import 'type_utils.dart' as typeUtils;

@@ -1,8 +1,6 @@
 // I'm using PCF as a prototype language for assessing whether object algebras
 // are a worthwhile implementation strategy for the IR of T20.
 
-import 'dart:collection';
-
 // A product type.
 class Pair<A, B> {
   final A fst;

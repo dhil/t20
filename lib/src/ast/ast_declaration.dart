@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import '../location.dart';
-
 // import 'ast_common.dart' show Name;
 // import 'ast_types.dart' show Datatype;
 

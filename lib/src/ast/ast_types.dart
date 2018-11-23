@@ -5,7 +5,6 @@
 import '../location.dart';
 
 import 'ast_common.dart';
-import 'ast_declaration.dart';
 
 // Abstract syntax (algebraic specification in EBNF notation).
 // Types

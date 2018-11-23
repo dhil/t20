@@ -9,7 +9,6 @@ import 'dart:io';
 
 import 'errors.dart';
 import '../io/bytestream.dart';
-import '../location.dart';
 import '../unicode.dart' as unicode;
 
 void reportInternal(dynamic error, StackTrace stack) {

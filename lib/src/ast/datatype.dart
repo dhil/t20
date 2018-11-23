@@ -8,7 +8,6 @@ import '../unionfind.dart' as unionfind;
 import '../unionfind.dart' show Point;
 import '../utils.dart' show Gensym;
 
-import 'ast_declaration.dart';
 import 'binder.dart';
 import 'monoids.dart' show Monoid, StringMonoid;
 // import 'name.dart';
