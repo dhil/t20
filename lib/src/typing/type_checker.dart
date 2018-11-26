@@ -51,20 +51,22 @@ class _TypeChecker {
   // Skolem management.
   // Current type level.
   int _currentLevel = 1;
+  int _low = 1;
+  int _high = 0;
   // Increases the type-level by one.
   void enter() {
     if (trace) {
-      print("level incr: $_currentLevel --> ${_currentLevel+1}");
+      print("level incr: $_currentLevel --> ${_currentLevel + 1}");
     }
-    ++_currentLevel;
+    ++_low;
   }
 
   // Decreases the type level by one.
   void leave() {
     if (trace) {
-      print("level decr: $_currentLevel --> ${_currentLevel-1}");
+      print("level decr: $_currentLevel --> ${_currentLevel - 1}");
     }
-    --_currentLevel;
+    --_low;
   }
 
   // Updates the level of the provided [skolem].
@@ -72,12 +74,31 @@ class _TypeChecker {
     if (trace) {
       print("update: $skolem --> $_currentLevel");
     }
-    skolem.level = _currentLevel;
+    // skolem.level = _currentLevel;
   }
 
   // Factory method for skolems/existential variables.
   Skolem skolem() {
-    return Skolem(_currentLevel);
+    return Skolem(_low, _high);
+  }
+
+  Skolem fork(Skolem a) {
+    return Skolem(a.low, a.high + 1);
+  }
+
+  List<Skolem> forkMany(Skolem a, int length) {
+    List<Skolem> xs = List<Skolem>();
+    for (int i = 0; i < length; i++) {
+      xs.add(fork(a));
+    }
+    return xs;
+  }
+
+  bool inScope(Skolem a, Skolem b) {
+    if (a.low <= b.low && b.high == 0)
+      return true;
+    else
+      return a.low <= b.low && a.high <= b.high;
   }
 
   // Main entry point.
@@ -216,6 +237,7 @@ class _TypeChecker {
     }
     // apply xs* (\/qs+.t) sigma = apply xs* (t[qs+ -> as+]) sigma
     if (type is ForallType) {
+      enter();
       Datatype body = guessInstantiation(type.quantifiers, type.body);
       return apply(arguments, body, sigma, location);
     }
@@ -238,21 +260,14 @@ class _TypeChecker {
       Skolem a = type;
       // Construct a function type whose immediate constituents are skolem
       // variables.
+      Datatype codomain = fork(a);
 
-      enter();
-      Datatype codomain = skolem();
-
-      List<Datatype> domain = new List<Datatype>();
-      enter(); // Allow
-      for (int i = 0; i < arguments.length; i++) {
-        domain.add(skolem());
-      }
+      List<Datatype> domain = forkMany(codomain, arguments.length);
 
       ArrowType fnType = ArrowType(domain, codomain);
       // Solve a = (a0,...,aN-1) -> aN.
-      enter();
       a.solve(fnType);
-      update(a);
+
       // Check each argument.
       Substitution sigma0 = Substitution.empty();
       for (int i = 0; i < domain.length; i++) {
@@ -260,7 +275,6 @@ class _TypeChecker {
         sigma0 = sigma0.combine(sigma1);
       }
 
-      leave();leave();
       return Pair<Substitution, Datatype>(sigma0, codomain);
     }
 
@@ -323,26 +337,35 @@ class _TypeChecker {
   }
 
   Pair<Substitution, Datatype> inferLambda(Lambda lambda, Substitution sigma) {
-    // Infer types for the parameters.
-    List<Datatype> domain = new List<Datatype>();
-    Substitution sigma0 = Substitution.empty();
+    // Type for the codomain.
     enter();
+    Skolem codomain = skolem();
+
+    // Infer types for the parameters.
+    enter();
+    List<Datatype> domain = new List<Datatype>();
+    Substitution sigma0 = sigma;
+
     for (int i = 0; i < lambda.parameters.length; i++) {
       Pair<Substitution, Datatype> result =
           inferPattern(lambda.parameters[i], sigma);
       sigma0 = sigma0.combine(result.fst);
       domain.add(result.snd);
     }
-    // Infer a type for the body.
+    // Store the next level.
+    int high = _high;
+    int low = _low;
     enter();
-    Pair<Substitution, Datatype> result = inferExpression(lambda.body, sigma0);
-    Substitution sigma1 = result.fst;
-    Datatype codomain = result.snd;
+
+    // Infer a type for the body.
+    Substitution sigma1 = checkExpression(lambda.body, codomain, sigma0);
+
+    // Restore the level.
+    _high = high;
+    _low = low;
 
     // Construct the arrow type.
-    leave();
-    leave();
-    ArrowType ft = sigma1.apply(ArrowType(domain, codomain));
+    ArrowType ft = ArrowType(domain, codomain);
     return Pair<Substitution, Datatype>(sigma1, ft);
   }
 
@@ -419,21 +442,27 @@ class _TypeChecker {
       if (exp is Lambda) {
         Lambda lambda = exp;
         ArrowType fnType = type;
+        int high = _high;
+        int low = _low;
+        enter();
+
         Substitution sigma0 = checkMany<Pattern>(
             checkPattern, lambda.parameters, fnType.domain, sigma);
-        enter();
-        Substitution sigma1 = checkExpression(lambda.body, fnType.codomain, sigma0);
-        leave();
+        Substitution sigma1 =
+            checkExpression(lambda.body, fnType.codomain, sigma0);
+        _high = high;
+        _low = low;
         return sigma1;
       }
     }
 
     // check e (\/qs+.t) sigma = check e (t[qs+ -> %sa+]) sigma.
     if (type is ForallType) {
-      ForallType forallType = type;
+      int low = _low;
       enter();
+      ForallType forallType = type;
       Substitution sigma0 = checkExpression(exp, forallType.body, sigma);
-      leave();
+      _low = low;
       return sigma0;
     }
 
@@ -658,14 +687,25 @@ class _TypeChecker {
 
     // \/qs.A <: B, if A[%as/qs] <: B
     if (a is ForallType) {
+      int high = _high;
+      int low = _low;
+      enter();
       Datatype type = guessInstantiation(a.quantifiers, a.body);
       Substitution sigma0 = subsumes(type, b, sigma);
+      _high = high;
+      _low = low;
       return sigma0;
     }
 
     // a <: \/qs.b, if a <: b
     if (b is ForallType) {
-      return subsumes(a, b.body, sigma);
+      int high = _high;
+      int low = _low;
+      enter();
+      Substitution sigma1 = subsumes(a, b.body, sigma);
+      _high = high;
+      _low = low;
+      return sigma1;
     }
 
     // %a <: b, if %a \notin FTV(b) and %a <:= b
@@ -714,15 +754,15 @@ class _TypeChecker {
     return sigma.apply(type);
   }
 
-  Substitution instantiateLeft(Datatype a, Datatype b, Substitution sigma) {
+  Substitution instantiateLeft(Skolem a, Datatype b, Substitution sigma) {
     if (trace) {
       print("instantiate left: $a <:= $b");
     }
     // TODO refactor.
 
     // %a <:= %b, if level(%a) <= level(%b).
-    if (a is Skolem && b is Skolem) {
-      if (a.level <= b.level) {
+    if (b is Skolem) {
+      if (inScope(a, b)) {
         if (!b.isSolved) {
           b.equate(a);
           return sigma;
@@ -736,43 +776,39 @@ class _TypeChecker {
     // %a <:= bs* -> b, if %a' <:= b sigma', where
     // %a = %as* -> %a'
     // sigma' = bs* <: %as*
-    if (a is Skolem && b is ArrowType) {
-      enter();
-      Datatype codomain = skolem();
+    if (b is ArrowType) {
+      Datatype codomain = fork(a);
 
-      enter();
-      List<Datatype> domain = List<Datatype>();
-      for (int i = 0; i < b.arity; i++) {
-        domain.add(skolem());
-      }
+      List<Datatype> domain = forkMany(codomain, b.arity);
 
-      enter();
       a.solve(ArrowType(domain, codomain));
-      update(a);
 
-      Substitution sigma0 = Substitution.empty();
+      Substitution sigma0 = sigma;
       for (int i = 0; i < domain.length; i++) {
         Substitution sigma1 = subsumes(b.domain[i], domain[i], sigma);
         sigma0 = sigma0.combine(sigma1);
       }
 
-      Substitution sigma1 = instantiateLeft(codomain, sigma0.apply(b.codomain), sigma0);
-      leave(); leave(); leave();
+      Substitution sigma1 =
+          instantiateLeft(codomain, sigma0.apply(b.codomain), sigma0);
       return sigma1;
     }
 
     // %a <:= \/qs.b, if %a <:= b
-    if (a is Skolem && b is ForallType) {
-      return instantiateLeft(a, b.body, sigma);
+    if (b is ForallType) {
+      int high = _high;
+      int low = _low;
+      enter();
+      Substitution sigma1 = instantiateLeft(a, b.body, sigma);
+      _high = high;
+      _low = low;
+      return sigma1;
     }
 
     // %a <:= (* bs*), if %as* <:= bs*, where
     // %a = (* %as* ), where %as* are fresh.
-    if (a is Skolem && b is TupleType) {
-      List<Datatype> components = new List<Datatype>();
-      for (int i = 0; i < b.components.length; i++) {
-        components.add(skolem());
-      }
+    if (b is TupleType) {
+      List<Datatype> components = forkMany(a, b.components.length);
       a.solve(TupleType(components));
 
       Substitution sigma0 = Substitution.empty();
@@ -786,11 +822,8 @@ class _TypeChecker {
 
     // %a <:= K bs*, if %as* <:= bs*, where
     // %a = K %as*, where %as* are fresh.
-    if (a is Skolem && b is TypeConstructor) {
-      List<Datatype> arguments = new List<Datatype>();
-      for (int i = 0; i < b.arguments.length; i++) {
-        arguments.add(skolem());
-      }
+    if (b is TypeConstructor) {
+      List<Datatype> arguments = forkMany(a, b.arguments.length);
       a.solve(TypeConstructor.from(b.declarator, arguments));
 
       Substitution sigma0 = Substitution.empty();
@@ -813,15 +846,15 @@ class _TypeChecker {
     throw "InstantiateLeft error!";
   }
 
-  Substitution instantiateRight(Datatype a, Datatype b, Substitution sigma) {
+  Substitution instantiateRight(Datatype a, Skolem b, Substitution sigma) {
     if (trace) {
       print("instantiate right: $a <=: $b");
     }
     // TODO refactor.
 
     // %a <=: %b, if level(%b) <= level(%a)
-    if (a is Skolem && b is Skolem) {
-      if (a.level <= b.level) {
+    if (a is Skolem) {
+      if (inScope(b, a)) {
         if (!a.isSolved) {
           a.equate(b);
           return sigma;
@@ -832,50 +865,43 @@ class _TypeChecker {
     }
 
     // \/qs.a <=: %b, if a[%bs/qs] <=: %a.
-    if (a is ForallType && b is Skolem) {
+    if (a is ForallType) {
+      int high = _high;
+      int low = _low;
+      enter();
       Datatype type = guessInstantiation(a.quantifiers, a.body);
       Substitution sigma0 = instantiateRight(type, b, sigma);
+      _low = low;
+      _high = high;
       return sigma0;
     }
 
     // as* -> a <=: %b, if %a' sigma' <=: %b'
     // %b = %bs* -> %b'
     // sigma' = %bs* <: %as*
-    if (a is ArrowType && b is Skolem) {
-      enter();
-      Datatype codomain = skolem();
+    if (a is ArrowType) {
+      Datatype codomain = fork(b);
 
-      enter();
-      List<Datatype> domain = List<Datatype>();
-      for (int i = 0; i < a.arity; i++) {
-        domain.add(skolem());
-      }
+      List<Datatype> domain = forkMany(codomain, a.arity);
 
-      enter();
       b.solve(ArrowType(domain, codomain));
-      update(b);
 
-      Substitution sigma0 = Substitution.empty();
+      Substitution sigma0 = sigma;
       for (int i = 0; i < domain.length; i++) {
         Substitution sigma1 = subsumes(domain[i], a.domain[i], sigma);
         sigma0 = sigma0.combine(sigma1);
       }
-
-      leave(); leave(); leave();
 
       return instantiateRight(sigma0.apply(a.codomain), codomain, sigma0);
     }
 
     // (* as*) <=: %b, if as* <=: %bs*, where
     // %b = (* %bs* ), where %bs* are fresh.
-    if (a is TupleType && b is Skolem) {
-      List<Datatype> components = new List<Datatype>();
-      for (int i = 0; i < a.components.length; i++) {
-        components.add(skolem());
-      }
+    if (a is TupleType) {
+      List<Datatype> components = forkMany(b, a.components.length);
       b.solve(TupleType(components));
 
-      Substitution sigma0 = Substitution.empty();
+      Substitution sigma0 = sigma;
       for (int i = 0; i < components.length; i++) {
         Substitution sigma1 =
             instantiateRight(a.components[i], components[i], sigma);
@@ -886,14 +912,11 @@ class _TypeChecker {
 
     // K as* <=: %b, if as* <:= %bs*, where
     // %b = K %bs*, where %bs* are fresh.
-    if (a is TypeConstructor && b is Skolem) {
-      List<Datatype> arguments = new List<Datatype>();
-      for (int i = 0; i < a.arguments.length; i++) {
-        arguments.add(skolem());
-      }
+    if (a is TypeConstructor) {
+      List<Datatype> arguments = forkMany(b, a.arguments.length);
       b.solve(TypeConstructor.from(a.declarator, arguments));
 
-      Substitution sigma0 = Substitution.empty();
+      Substitution sigma0 = sigma;
       for (int i = 0; i < arguments.length; i++) {
         Substitution sigma1 =
             instantiateRight(a.arguments[i], arguments[i], sigma);

@@ -310,11 +310,11 @@ class Skolem extends Datatype {
   final int _ident;
   int get ident => _ident;
 
-  int level;
+  int low, high;
 
-  String get syntheticName => "?$ident@$level";
+  String get syntheticName => "?$ident@($low, $high)";
 
-  Skolem(this.level)
+  Skolem(this.low, this.high)
       : _ident = Gensym.freshInt(),
         _point = unionfind.singleton(null),
         super(TypeTag.VAR);
