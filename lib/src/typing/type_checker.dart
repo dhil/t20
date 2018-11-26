@@ -136,7 +136,7 @@ class _TypeChecker {
 
     ScopedEntry scope = checkManyPatterns(parameters, domain, ctxt);
     // Check the body type against the declared type.
-    checkExpression(funDef.body, typeUtils.codomain(sig), ctxt);
+    ctxt = checkExpression(funDef.body, typeUtils.codomain(sig), ctxt);
     // Drop [scope].
     ctxt.drop(scope);
 
@@ -148,7 +148,10 @@ class _TypeChecker {
   Datatype inferValueDefinition(ValueDeclaration valDef, OrderedContext ctxt) {
     Datatype sig = valDef.signature.type;
     // Check the body against the declared type.
-    checkExpression(valDef.body, sig, ctxt);
+    ctxt = checkExpression(valDef.body, sig, ctxt);
+
+    Ascription ascription = Ascription(valDef, sig);
+    ctxt.insertLast(ascription);
     return sig;
   }
 
@@ -182,7 +185,7 @@ class _TypeChecker {
         return inferMatch(exp as Match, ctxt);
         break;
       case ExpTag.TUPLE:
-        return inferTuple((exp as Tuple).components, ctxt);
+        return inferTuple((exp as Tuple), ctxt);
         break;
       case ExpTag.VAR:
         Variable v = exp as Variable;
@@ -272,59 +275,46 @@ class _TypeChecker {
   }
 
   Datatype inferMatch(Match match, OrderedContext ctxt) {
-    // // Infer a type for the scrutinee.
-    // Pair<OrderedContext, Datatype> result =
-    //     inferExpression(match.scrutinee, ctxt);
-    // Datatype scrutineeType = result.snd;
-    // // Check the patterns (left hand sides) against the inferd type for the
-    // // scrutinee. Check the clause bodies (right hand sides) against the type of
-    // // their left hand sides.
-    // if (match.cases.length == 0) {
-    //   return lift(skolem());
-    // } else {
-    //   OrderedContext ctxt0 = OrderedContext.empty();
-    //   Datatype branchType;
-    //   for (int i = 0; i < match.cases.length; i++) {
-    //     Case case0 = match.cases[i];
-    //     checkPattern(case0.pattern, scrutineeType, ctxt);
-    //     if (branchType == null) {
-    //       // First case.
-    //       Pair<OrderedContext, Datatype> result =
-    //           inferExpression(case0.expression, ctxt);
-    //       ctxt0 = ctxt0.combine(result.fst);
-    //       branchType = result.snd;
-    //     } else {
-    //       // Any subsequent case.
-    //       OrderedContext ctxt1 =
-    //           checkExpression(case0.expression, branchType, ctxt);
-    //       ctxt0 = ctxt0.combine(ctxt1);
-    //     }
-    //   }
-    //   return Pair<OrderedContext, Datatype>(ctxt0, branchType);
-    // }
-    unhandled("match", "");
+    // Infer a type for the scrutinee.
+    Datatype scrutineeType = inferExpression(match.scrutinee, ctxt);
+    // Check the patterns (left hand sides) against the inferd type for the
+    // scrutinee. Check the clause bodies (right hand sides) against the type of
+    // their left hand sides.
+    if (match.cases.length == 0) {
+      Skolem skolem = Skolem();
+      Existential ex = Existential(skolem);
+      ctxt.insertLast(ex);
+      return skolem;
+    } else {
+      Datatype branchType;
+      for (int i = 0; i < match.cases.length; i++) {
+        Case case0 = match.cases[i];
+        ScopedEntry entry = checkPattern(case0.pattern, scrutineeType, ctxt);
+        if (branchType == null) {
+          // First case.
+          Datatype branchType = inferExpression(case0.expression, ctxt);
+        } else {
+          // Any subsequent case.
+          ctxt = checkExpression(case0.expression, branchType, ctxt);
+        }
+        // Drop the scope.
+        ctxt.drop(entry);
+      }
+      return branchType;
+    }
   }
 
   Datatype inferLet(Let let, OrderedContext ctxt) {
-    // // Infer a type for each of the value bindings.
-    // OrderedContext ctxt0 = ctxt;
-    // OrderedContext ctxt1 = OrderedContext.empty();
-    // for (int i = 0; i < let.valueBindings.length; i++) {
-    //   Binding binding = let.valueBindings[i];
-    //   // Infer a type for the expression (right hand side)
-    //   Pair<OrderedContext, Datatype> result =
-    //       inferExpression(binding.expression, ctxt0);
-    //   OrderedContext ctxt2 = result.fst;
-    //   Datatype expType = result.snd;
-    //   // Check the pattern (left hand side) against the inferd type.
-    //   OrderedContext ctxt3 = checkPattern(binding.pattern, expType, ctxt2);
-    //   ctxt1 = ctxt1.combine(ctxt3);
-    //   // TODO: Check whether there are any free type/skolem variables in
-    //   // [expType] as the type theory does not admit let generalisation.
-    // }
-    // // Infer a type for the continuation (body).
-    // return inferExpression(let.body, ctxt1);
-    unhandled("let", "");
+    // Infer a type for each of the value bindings.
+    for (int i = 0; i < let.valueBindings.length; i++) {
+      Binding binding = let.valueBindings[i];
+      // Infer a type for the expression (right hand side)
+      Datatype expType = inferExpression(binding.expression, ctxt);
+      // Check the pattern (left hand side) against the inferd type.
+      checkPattern(binding.pattern, expType, ctxt);
+    }
+    // Infer a type for the continuation (body).
+    return inferExpression(let.body, ctxt);
   }
 
   Datatype inferLambda(Lambda lambda, OrderedContext ctxt) {
@@ -353,42 +343,31 @@ class _TypeChecker {
   }
 
   Datatype inferIf(If ifthenelse, OrderedContext ctxt) {
-    // // Check that the condition has type bool.
-    // OrderedContext ctxt1 =
-    //     checkExpression(ifthenelse.condition, typeUtils.boolType, ctxt);
-    // // Infer a type for each branch.
-    // Pair<OrderedContext, Datatype> resultTrueBranch =
-    //     inferExpression(ifthenelse.thenBranch, ctxt);
-    // OrderedContext ctxt2 = resultTrueBranch.fst;
-    // Datatype tt = ctxt2.apply(resultTrueBranch.snd);
-    // Pair<OrderedContext, Datatype> resultFalseBranch =
-    //     inferExpression(ifthenelse.elseBranch, null);
-    // ctxt2 = resultFalseBranch.fst;
-    // Datatype ff = ctxt2.apply(resultFalseBranch.snd);
-    // // Check that types agree.
-    // OrderedContext ctxt3 = subsumes(tt, ff, ctxt2);
+    // Check that the condition has type bool.
+    ctxt = checkExpression(ifthenelse.condition, typeUtils.boolType, ctxt);
+    // Infer a type for each branch.
+    Datatype tt = inferExpression(ifthenelse.thenBranch, ctxt);
+    Datatype ff = inferExpression(ifthenelse.elseBranch, ctxt);
+    // Check that types agree.
+    ctxt = subsumes(ctxt.apply(tt), ctxt.apply(ff), ctxt);
 
-    // return Pair<OrderedContext, Datatype>(ctxt3, tt);
-    return null;
+    return tt;
   }
 
-  Datatype inferTuple<T>(List<T> components, OrderedContext ctxt) {
-    // // If there are no subexpression, then return the canonical unit type.
-    // if (components.length == 0) {
-    //   return Pair<OrderedContext, Datatype>(
-    //       OrderedContext.empty(), typeUtils.unitType);
-    // }
-    // // Infer a type for each subexpression.
-    // List<Datatype> componentTypes = new List<Datatype>(components.length);
-    // OrderedContext ctxt0 = OrderedContext.empty();
-    // for (int i = 0; i < components.length; i++) {
-    //   Pair<OrderedContext, Datatype> result = infer(components[i], ctxt);
-    //   ctxt0 = ctxt0.combine(result.fst);
-    //   componentTypes[i] = result.snd;
-    // }
-    // return Pair<OrderedContext, Datatype>(ctxt0, TupleType(componentTypes));
-
-    return null;
+  Datatype inferTuple(Tuple tuple, OrderedContext ctxt) {
+    List<Expression> components = tuple.components;
+    // If there are no subexpression, then return the canonical unit type.
+    if (components.length == 0) {
+      return typeUtils.unitType;
+    }
+    // Infer a type for each subexpression.
+    List<Datatype> componentTypes = new List<Datatype>(components.length);
+    OrderedContext ctxt0 = OrderedContext.empty();
+    for (int i = 0; i < components.length; i++) {
+      Datatype component = inferExpression(components[i], ctxt);
+      componentTypes[i] = component;
+    }
+    return TupleType(componentTypes);
   }
 
   OrderedContext checkMany<T>(
@@ -580,7 +559,9 @@ class _TypeChecker {
     return Pair<ScopedEntry, List<Datatype>>(scopeMarker, types);
   }
 
-  Pair<ScopedEntry, Datatype> inferTuplePattern(TuplePattern tuplePattern, OrderedContext ctxt) {
+  Pair<ScopedEntry, Datatype> inferTuplePattern(
+      TuplePattern tuplePattern, OrderedContext ctxt) {
+    // TODO.
     return null;
   }
 
