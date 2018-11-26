@@ -1,0 +1,5 @@
+;; Compound condition expression.
+
+(: test Int)
+(define test
+  (if (eq? 0 (+ 20 (- 20 40))) 0 1))

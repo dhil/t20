@@ -1,0 +1,5 @@
+;; Conditions have type Bool.
+
+(: test Int)
+(define test
+  (if (+ 40 2) 0 1))

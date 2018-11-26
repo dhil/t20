@@ -1,0 +1,5 @@
+;; Branch types must agree.
+
+(: test Int)
+(define test
+  (if #t 42 #f))
