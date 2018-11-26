@@ -228,14 +228,15 @@ class OrderedContext extends TransformDatatype {
 
   // Drops [entry] and everything succeeding it from the context.
   void drop(ScopedEntry entry) {
-    assert(_table[entry.ident] != null);
+    ScopedEntry parent = entry;
+    assert(_table[parent.ident] != null);
     _last = entry.predecessor;
     entry.detach();
     while (entry != null) {
       _table.remove(entry.ident);
       entry = entry.successor;
     }
-    assert(_table[entry.ident] == null);
+    assert(_table[parent.ident] == null);
   }
 
   // Verifies whether the context is well-founded.

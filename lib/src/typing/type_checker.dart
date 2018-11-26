@@ -138,10 +138,12 @@ class _TypeChecker {
     // Check the body type against the declared type.
     ctxt = checkExpression(funDef.body, typeUtils.codomain(sig), ctxt);
     // Drop [scope].
-    ctxt.drop(scope);
+    if (scope != null) {
+      ctxt.drop(scope);
+    }
 
-    Ascription ascription = Ascription(funDef, sig);
-    ctxt.insertLast(ascription);
+    // Ascription ascription = Ascription(funDef, sig);
+    // ctxt.insertLast(ascription);
     return sig;
   }
 
@@ -150,8 +152,8 @@ class _TypeChecker {
     // Check the body against the declared type.
     ctxt = checkExpression(valDef.body, sig, ctxt);
 
-    Ascription ascription = Ascription(valDef, sig);
-    ctxt.insertLast(ascription);
+    // Ascription ascription = Ascription(valDef, sig);
+    // ctxt.insertLast(ascription);
     return sig;
   }
 
@@ -188,15 +190,16 @@ class _TypeChecker {
         return inferTuple((exp as Tuple), ctxt);
         break;
       case ExpTag.VAR:
-        Variable v = exp as Variable;
-        ScopedEntry entry = ctxt.lookup(v.ident);
-        if (entry is Ascription) {
-          return entry.type;
-        } else {
-          // ERROR.
-          print("$ctxt");
-          throw "Variable $v is not in scope!";
-        }
+        return (exp as Variable).declarator.type;
+        // Variable v = exp as Variable;
+        // ScopedEntry entry = ctxt.lookup(v.ident);
+        // if (entry is Ascription) {
+        //   return entry.type;
+        // } else {
+        //   // ERROR.
+        //   print("$ctxt");
+        //   throw "Variable $v is not in scope!";
+        // }
         break;
       case ExpTag.TYPE_ASCRIPTION:
         throw "Not yet impleemented.";
@@ -292,13 +295,17 @@ class _TypeChecker {
         ScopedEntry entry = checkPattern(case0.pattern, scrutineeType, ctxt);
         if (branchType == null) {
           // First case.
-          Datatype branchType = inferExpression(case0.expression, ctxt);
+          branchType = inferExpression(case0.expression, ctxt);
         } else {
           // Any subsequent case.
-          ctxt = checkExpression(case0.expression, branchType, ctxt);
+          Datatype otherBranchType = inferExpression(case0.expression, ctxt);
+          // Check that [otherBranchType] <: [branchType].
+          ctxt = subsumes(otherBranchType, branchType, ctxt);
         }
         // Drop the scope.
-        ctxt.drop(entry);
+        if (entry != null) {
+          ctxt.drop(entry);
+        }
       }
       return branchType;
     }
@@ -335,7 +342,9 @@ class _TypeChecker {
     checkExpression(lambda.body, codomain, ctxt);
 
     // Drop the scope.
-    ctxt.drop(scopeMarker);
+    if (scopeMarker != null) {
+      ctxt.drop(scopeMarker);
+    }
 
     // Construct the arrow type.
     ArrowType ft = ArrowType(domain, codomain);
@@ -465,12 +474,11 @@ class _TypeChecker {
 
     // check x t ctxt = ctxt.
     if (pat is VariablePattern) {
-      print("===> $pat");
       VariablePattern v = pat;
       v.type = type;
-      Ascription ascription = Ascription(pat, type);
-      ctxt.insertLast(ascription);
-      return ascription;
+      // Ascription ascription = Ascription(pat, type);
+      // ctxt.insertLast(ascription);
+      return null;
     }
 
     // check (, ps*) (, ts*) ctxt = check* ps* ts* ctxt
@@ -527,13 +535,12 @@ class _TypeChecker {
         return inferTuplePattern((pat as TuplePattern), ctxt);
         break;
       case PatternTag.VAR:
-        print("$pat");
         VariablePattern varPattern = pat as VariablePattern;
         Datatype type = Skolem();
         varPattern.type = type;
-        Ascription ascription = Ascription(varPattern, type);
-        ctxt.insertLast(ascription);
-        return Pair<ScopedEntry, Datatype>(ascription, type);
+        // Ascription ascription = Ascription(varPattern, type);
+        // ctxt.insertLast(ascription);
+        return Pair<ScopedEntry, Datatype>(null, type);
         break;
       case PatternTag.WILDCARD:
         Skolem skolem = Skolem();
@@ -561,8 +568,16 @@ class _TypeChecker {
 
   Pair<ScopedEntry, Datatype> inferTuplePattern(
       TuplePattern tuplePattern, OrderedContext ctxt) {
-    // TODO.
-    return null;
+    List<TuplePattern> components = tuplePattern.components;
+    // Infer a type for each subpattern.
+    ScopedEntry entry;
+    List<Datatype> types = new List<Datatype>();
+    for (int i = 0; i < components.length; i++) {
+      Pair<ScopedEntry, Datatype> result = inferPattern(components[i], ctxt);
+      entry ??= result.fst;
+      types.add(result.snd);
+    }
+    return Pair<ScopedEntry, Datatype>(entry, TupleType(types));
   }
 
   Pair<ScopedEntry, Datatype> inferConstructorPattern(
@@ -692,7 +707,9 @@ class _TypeChecker {
       ctxt = subsumes(type, b, ctxt);
 
       // Drop [marker].
-      ctxt.drop(marker);
+      if (marker != null) {
+        ctxt.drop(marker);
+      }
       return ctxt;
     }
 
@@ -710,7 +727,9 @@ class _TypeChecker {
       ctxt = subsumes(a, b.body, ctxt);
 
       // Drop [scopeMarker].
-      ctxt.drop(scopeMarker);
+      if (scopeMarker != null) {
+        ctxt.drop(scopeMarker);
+      }
       return ctxt;
     }
 
@@ -782,7 +801,7 @@ class _TypeChecker {
 
     // %a <:= %b, if level(%a) <= level(%b).
     if (b is Skolem) {
-      Existential exB = ctxt.lookup(b.ident) as Existential;
+      Existential exB = ctxt.lookupAfter(b.ident, exA) as Existential;
       if (exB == null) {
         throw SkolemEscapeError(b.syntheticName);
       }
@@ -832,7 +851,9 @@ class _TypeChecker {
       }
       ctxt = instantiateLeft(a, b.body, ctxt);
       // Exit the scope.
-      ctxt.drop(scopeMarker);
+      if (scopeMarker != null) {
+        ctxt.drop(scopeMarker);
+      }
       return ctxt;
     }
 
@@ -896,7 +917,7 @@ class _TypeChecker {
 
     // %a <=: %b, if level(%b) <= level(%a)
     if (a is Skolem) {
-      Existential exA = ctxt.lookup(a.ident) as Existential;
+      Existential exA = ctxt.lookupAfter(a.ident, exB) as Existential;
       if (exA == null) {
         throw SkolemEscapeError(a.syntheticName);
       }
@@ -921,7 +942,9 @@ class _TypeChecker {
       ctxt = instantiateRight(type, b, ctxt);
 
       // Drop the scope.
-      ctxt.drop(marker);
+      if (marker != null) {
+        ctxt.drop(marker);
+      }
 
       return ctxt;
     }
