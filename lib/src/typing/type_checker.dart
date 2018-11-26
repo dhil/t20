@@ -6,6 +6,7 @@ import '../ast/ast_expressions.dart';
 import '../ast/ast_module.dart';
 import '../ast/ast_patterns.dart';
 import '../ast/datatype.dart';
+import '../ast/monoids.dart';
 
 import '../errors/errors.dart';
 import '../fp.dart' show Pair, Triple;
@@ -30,9 +31,17 @@ class TypeChecker {
       result = Result<ModuleMember, TypeError>.success(module);
     }
 
-    return Result<ModuleMember, TypeError>.success(module);
+    return result;
   }
 }
+
+class MonoTypeVerifier extends ReduceDatatype<bool> {
+  Monoid<bool> get m => LAndMonoid();
+
+  bool visitForallType(ForallType forallType) => false;
+}
+
+bool isMonoType(Datatype type) => type.accept<bool>(MonoTypeVerifier());
 
 class _TypeChecker {
   List<TypeError> errors = new List<TypeError>();
@@ -226,14 +235,16 @@ class _TypeChecker {
     // Infer a type for the abstractor.
     Pair<OrderedContext, Datatype> result =
         inferExpression(appl.abstractor, ctxt);
+    ctxt = result.fst;
     // Eliminate foralls.
-    return apply(appl.arguments, result.snd, result.fst, appl.location);
+    return apply(appl.arguments, ctxt.apply(result.snd), ctxt, appl.location);
   }
 
   Pair<OrderedContext, Datatype> apply(List<Expression> arguments,
       Datatype type, OrderedContext ctxt, Location location) {
     if (trace) {
       print("apply: $arguments, $type");
+      print("$ctxt");
     }
     // apply xs* (\/qs+.t) ctxt = apply xs* (t[qs+ -> as+]) ctxt
     if (type is ForallType) {
@@ -247,9 +258,9 @@ class _TypeChecker {
     // apply xs* (ts* -> t) ctxt = (ctxt', t ctxt'), where ctxt' = check* xs* ts* ctxt
     if (type is ArrowType) {
       ArrowType fnType = type;
-      if (type.arity != arguments.length) {
+      if (fnType.arity != arguments.length) {
         TypeError err =
-            ArityMismatchError(type.arity, arguments.length, location);
+            ArityMismatchError(fnType.arity, arguments.length, location);
         errors.add(err);
         return Pair<OrderedContext, Datatype>(ctxt, type.codomain);
       }
@@ -662,6 +673,7 @@ class _TypeChecker {
   OrderedContext subsumes(Datatype lhs, Datatype rhs, OrderedContext ctxt) {
     if (trace) {
       print("subsumes: $lhs <: $rhs");
+      print("$ctxt");
     }
 
     if (lhs is Skolem) {
@@ -761,7 +773,7 @@ class _TypeChecker {
       Datatype type = result.thd;
 
       Marker marker = Marker(first.skolem);
-      ctxt.insertBefore(marker, first);
+      ctxt = ctxt.insertBefore(marker, first);
 
       ctxt = subsumes(type, b, ctxt);
 
@@ -859,6 +871,12 @@ class _TypeChecker {
 
     // TODO refactor.
 
+    // %a <:= b, if b is a monotype.
+    if (isMonoType(b)) {
+      ctxt = ctxt.update(exA.solve(b));
+      return ctxt;
+    }
+
     // %a <:= %b, if level(%a) <= level(%b).
     if (b is Skolem) {
       Existential exB = ctxt.lookupAfter(b.ident, exA) as Existential;
@@ -871,7 +889,7 @@ class _TypeChecker {
         throw "$b has already been solved [$exB]!";
       }
 
-      exB.solve(a);
+      ctxt = ctxt.update(exB.solve(a));
       return ctxt;
     }
 
@@ -891,10 +909,10 @@ class _TypeChecker {
         ctxt = ctxt.insertBefore(ex, exA);
       }
 
-      exA.solve(ArrowType(domain, codomain));
+      ctxt = ctxt.update(exA.solve(ArrowType(domain, codomain)));
 
       for (int i = 0; i < domain.length; i++) {
-        ctxt = subsumes(b.domain[i], domain[i], ctxt);
+        ctxt = instantiateRight(b.domain[i], domain[i], ctxt);
       }
 
       ctxt = instantiateLeft(codomain, ctxt.apply(b.codomain), ctxt);
@@ -928,7 +946,7 @@ class _TypeChecker {
         Existential ex = Existential(skolem);
         ctxt = ctxt.insertBefore(ex, exA);
       }
-      exA.solve(TupleType(components));
+      ctxt = ctxt.update(exA.solve(TupleType(components)));
 
       for (int i = 0; i < components.length; i++) {
         ctxt = instantiateLeft(components[i], b.components[i], ctxt);
@@ -946,7 +964,8 @@ class _TypeChecker {
         Existential ex = Existential(skolem);
         ctxt = ctxt.insertBefore(ex, exA);
       }
-      exA.solve(TypeConstructor.from(b.declarator, arguments));
+      ctxt =
+          ctxt.update(exA.solve(TypeConstructor.from(b.declarator, arguments)));
 
       for (int i = 0; i < arguments.length; i++) {
         ctxt = instantiateLeft(arguments[i], b.arguments[i], ctxt);
@@ -954,11 +973,7 @@ class _TypeChecker {
       return ctxt;
     }
 
-    // %a <:= b, if b is a monotype.
-    exA.solve(b);
-    return ctxt;
-
-    //throw "InstantiateLeft error!";
+    throw "InstantiateLeft error!";
   }
 
   OrderedContext instantiateRight(Datatype a, Skolem b, OrderedContext ctxt) {
@@ -976,6 +991,12 @@ class _TypeChecker {
       throw "$b has already been solved!";
     }
 
+    // a <=: %b, if a is a monotype.
+    if (isMonoType(a)) {
+      ctxt = ctxt.update(exB.solve(a));
+      return ctxt;
+    }
+
     // %a <=: %b, if level(%b) <= level(%a)
     if (a is Skolem) {
       Existential exA = ctxt.lookupAfter(a.ident, exB) as Existential;
@@ -986,7 +1007,7 @@ class _TypeChecker {
         throw "$a has already been solved!";
       }
 
-      exA.solve(b);
+      ctxt = ctxt.update(exA.solve(b));
       return ctxt;
     }
 
@@ -1029,10 +1050,10 @@ class _TypeChecker {
         ctxt = ctxt.insertBefore(ex, exB);
       }
 
-      exB.solve(ArrowType(domain, codomain));
+      ctxt = ctxt.update(exB.solve(ArrowType(domain, codomain)));
 
       for (int i = 0; i < domain.length; i++) {
-        ctxt = subsumes(domain[i], a.domain[i], ctxt);
+        ctxt = instantiateLeft(domain[i], a.domain[i], ctxt);
       }
 
       return instantiateRight(ctxt.apply(a.codomain), codomain, ctxt);
@@ -1048,7 +1069,7 @@ class _TypeChecker {
         Existential ex = Existential(skolem);
         ctxt = ctxt.insertBefore(ex, exB);
       }
-      b.solve(TupleType(components));
+      ctxt = ctxt.update(exB.solve(TupleType(components)));
 
       for (int i = 0; i < components.length; i++) {
         ctxt = instantiateRight(a.components[i], components[i], ctxt);
@@ -1066,7 +1087,8 @@ class _TypeChecker {
         Existential ex = Existential(skolem);
         ctxt = ctxt.insertBefore(ex, exB);
       }
-      exB.solve(TypeConstructor.from(a.declarator, arguments));
+      ctxt =
+          ctxt.update(exB.solve(TypeConstructor.from(a.declarator, arguments)));
 
       for (int i = 0; i < arguments.length; i++) {
         ctxt = instantiateRight(a.arguments[i], arguments[i], ctxt);
@@ -1074,10 +1096,6 @@ class _TypeChecker {
       return ctxt;
     }
 
-    // a <=: %b, if a is a monotype.
-    exB.solve(a);
-    return ctxt;
-
-    //throw "InstantiateRight error!";
+    throw "InstantiateRight error!";
   }
 }

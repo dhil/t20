@@ -201,34 +201,31 @@ class ListOrderedContext extends OrderedContext {
   ListOrderedContext._(this._entries) : super._();
 
   OrderedContext insertLast(ScopedEntry entry) {
-    ImmutableList<ScopedEntry> entries = _entries.reverse();
-    entries = entries.cons(entry).reverse();
+    ImmutableList<ScopedEntry> entries;
+    entries = _entries.reverse().cons(entry).reverse();
     return ListOrderedContext._(entries);
   }
 
   OrderedContext insertBefore(ScopedEntry entry, ScopedEntry successor) {
-    ImmutableList<ScopedEntry> aux(ImmutableList<ScopedEntry> entries,
-        ScopedEntry entry, ScopedEntry successor) {
-      if (!entries.isEmpty) {
-        ScopedEntry next = entries.head;
-        if (next.ident == successor.ident) {
-          return entries.cons(entry);
-        } else {
-          ImmutableList<ScopedEntry> result =
-              aux(entries.tail, entry, successor);
-          return result.cons(entries.head);
-        }
+    ImmutableList<ScopedEntry> entries0 = ImmutableList<ScopedEntry>.empty();
+    ImmutableList<ScopedEntry> entries = _entries;
+    while (!entries.isEmpty) {
+      if (entries.head.ident == successor.ident) {
+        entries = entries.cons(entry);
+        entries = entries0.reverse().concat(entries);
+        break;
       } else {
-        throw "$successor is not in the context!";
+        entries0 = entries0.cons(entries.head);
+        entries = entries.tail;
       }
     }
-    return ListOrderedContext._(aux(_entries, entry, successor));
+    return ListOrderedContext._(entries);
   }
 
   ScopedEntry lookup(int identifier) {
     ImmutableList<ScopedEntry> entries = _entries;
     ScopedEntry entry;
-    while (entries != null) {
+    while (!entries.isEmpty) {
       ScopedEntry entry0 = entries.head;
       if (entry0.ident == identifier) {
         entry = entry0;
@@ -264,7 +261,19 @@ class ListOrderedContext extends OrderedContext {
   }
 
   OrderedContext update(ScopedEntry entry) {
-    return null;
+    ImmutableList<ScopedEntry> entries0 = ImmutableList<ScopedEntry>.empty();
+    ImmutableList<ScopedEntry> entries = _entries;
+    while (!entries.isEmpty) {
+      if (entries.head.ident == entry.ident) {
+        entries = entries.tail.cons(entry);
+        entries = entries0.reverse().concat(entries);
+        break;
+      } else {
+        entries0 = entries0.cons(entries.head);
+        entries = entries.tail;
+      }
+    }
+    return ListOrderedContext._(entries);
   }
 
   OrderedContext drop(ScopedEntry entry) {
