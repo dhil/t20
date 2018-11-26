@@ -1,29 +1,29 @@
 ;; Typing functions.
 
-;; (: id (-> 'a 'a))
-;; (define (id x) x)
+(: id (-> 'a 'a))
+(define (id x) x)
 
-;; (: id-eta' (-> 'a 'a))
-;; (define id-eta'
-;;   (lambda ([x : 'a])
-;;     (id x)))
+(: id-eta' (-> 'a 'a))
+(define id-eta'
+  (lambda ([x : 'a])
+    (id x)))
 
-;; (: id' (-> 'a 'a))
-;; (define id' (id-eta' id))
+(: id' (-> 'a 'a))
+(define id' (id-eta' id))
 
-;; (define-datatype (List 'a)
-;;   [cons 'a (List 'a)]
-;;   [nil]
-;;   (derive! Foldable Mappable))
+(define-datatype (List 'a)
+  [cons 'a (List 'a)]
+  [nil]
+  (derive! Foldable Mappable))
 
-;; (: flip (-> [-> 'a 'b 'c] [-> 'b 'a 'c]))
-;; (define (flip f)
-;;   (lambda (y x)
-;;     (f x y)))
+(: flip (-> [-> 'a 'b 'c] [-> 'b 'a 'c]))
+(define (flip f)
+  (lambda (y x)
+    (f x y)))
 
-;; (: list-reverse (-> [List 'a] [List 'a]))
-;; (define (list-reverse xs)
-;;   (fold-left (flip cons) xs nil))
+(: list-reverse (-> [List 'a] [List 'a]))
+(define (list-reverse xs)
+  (fold-right cons xs nil))
 
 ;; (: three-to-one (List Int))
 ;; (define three-to-one
@@ -33,21 +33,14 @@
 ;; (define (list-append xs ys)
 ;;   (fold-right cons xs ys))
 
-;; (: wrong (List 'a))
-;; (define wrong
-;;   (list-append (cons 1 nil) (cons "1" nil)))
+;; (: compose (-> (-> 'a 'b) (-> 'b 'c) (-> 'a 'c)))
+;; (define (compose f g)
+;;   (lambda (x)
+;;     (g (f x))))
 
-;; (: wrong 'a)
-;; (define wrong 1)
+;; (: id (-> 'a 'a))
+;; (define (id x) x)
 
-(: compose (-> (-> 'a 'b) (-> 'b 'c) (-> 'a 'c)))
-(define (compose f g)
-  (lambda (x)
-    (g (f x))))
-
-(: id (-> 'a 'a))
-(define (id x) x)
-
-(: id-2 (-> 'a 'a))
-(define (id-2 x)
-  ((compose id id) x))
+;; (: id-2 (-> 'a 'a))
+;; (define (id-2 x)
+;;   ((compose id id) x))
