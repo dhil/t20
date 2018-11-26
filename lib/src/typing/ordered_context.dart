@@ -8,6 +8,7 @@ import '../ast/datatype.dart';
 import '../ast/ast_declaration.dart';
 import '../ast/ast_patterns.dart' show VariablePattern;
 import '../ast/monoids.dart' show Monoid, LAndMonoid;
+import '../immutable_collections.dart' show ImmutableList;
 import '../utils.dart' show Gensym;
 
 class DatatypeVerifier extends ReduceDatatype<bool> {
@@ -121,15 +122,18 @@ class Ascription extends ScopedEntry {
   }
 
   bool verify(Set<int> scope) {
-    return !scope.contains(ident) &&
-        DatatypeVerifier(scope).verify(type);
+    return !scope.contains(ident) && DatatypeVerifier(scope).verify(type);
   }
 }
 
 class QuantifiedVariable extends ScopedEntry {
   Quantifier quantifier;
   int get ident => quantifier.ident;
-  QuantifiedVariable(Quantifier quantifier);
+  QuantifiedVariable(this.quantifier);
+
+  String toString() {
+    return quantifier.toString();
+  }
 }
 
 class Existential extends ScopedEntry {
@@ -146,7 +150,7 @@ class Existential extends ScopedEntry {
   int get ident => skolem.ident;
   bool get isSolved => solution != null;
   // void solve(Datatype solution) => skolem.solve(solution);
-  void solve(Datatype solution) => this.solution = solution;
+  Existential solve(Datatype solution) => Existential(skolem, solution);
   // void equate(Existential ex) => skolem.equate(ex.skolem);
 
   String toString() {
@@ -168,7 +172,171 @@ class Existential extends ScopedEntry {
   }
 }
 
-class OrderedContext extends TransformDatatype {
+abstract class OrderedContext extends TransformDatatype {
+  int get size;
+  ScopedEntry get first;
+
+  OrderedContext._();
+  factory OrderedContext.empty() = ListOrderedContext.empty;
+
+  OrderedContext insertLast(ScopedEntry entry);
+  OrderedContext insertBefore(ScopedEntry entry, ScopedEntry successor);
+  OrderedContext update(ScopedEntry entry);
+  ScopedEntry lookup(int identifier);
+  ScopedEntry lookupAfter(int identifier, ScopedEntry entry);
+  OrderedContext drop(ScopedEntry entry);
+  bool verify();
+
+  Datatype apply(Datatype type);
+}
+
+class ListOrderedContext extends OrderedContext {
+  final ImmutableList<ScopedEntry> _entries;
+  int get size => _entries.length;
+  ScopedEntry get first => _entries.head;
+
+  ListOrderedContext.empty()
+      : this._entries = ImmutableList<ScopedEntry>.empty(),
+        super._();
+  ListOrderedContext._(this._entries) : super._();
+
+  OrderedContext insertLast(ScopedEntry entry) {
+    ImmutableList<ScopedEntry> entries = _entries.reverse();
+    entries = entries.cons(entry).reverse();
+    return ListOrderedContext._(entries);
+  }
+
+  OrderedContext insertBefore(ScopedEntry entry, ScopedEntry successor) {
+    ImmutableList<ScopedEntry> aux(ImmutableList<ScopedEntry> entries,
+        ScopedEntry entry, ScopedEntry successor) {
+      if (!entries.isEmpty) {
+        ScopedEntry next = entries.head;
+        if (next.ident == successor.ident) {
+          return entries.cons(entry);
+        } else {
+          ImmutableList<ScopedEntry> result =
+              aux(entries.tail, entry, successor);
+          return result.cons(entries.head);
+        }
+      } else {
+        throw "$successor is not in the context!";
+      }
+    }
+    return ListOrderedContext._(aux(_entries, entry, successor));
+  }
+
+  ScopedEntry lookup(int identifier) {
+    ImmutableList<ScopedEntry> entries = _entries;
+    ScopedEntry entry;
+    while (entries != null) {
+      ScopedEntry entry0 = entries.head;
+      if (entry0.ident == identifier) {
+        entry = entry0;
+        break;
+      }
+      entries = entries.tail;
+    }
+
+    return entry;
+  }
+
+  ScopedEntry lookupAfter(int identifier, ScopedEntry entry) {
+    ImmutableList<ScopedEntry> entries = _entries;
+    while (!entries.isEmpty) {
+      ScopedEntry entry0 = entries.head;
+      entries = entries.tail;
+      if (entry0.ident == entry.ident) {
+        break;
+      }
+    }
+
+    ScopedEntry x;
+    while (!entries.isEmpty) {
+      ScopedEntry entry0 = entries.head;
+      if (entry0.ident == identifier) {
+        x = entry0;
+        break;
+      }
+      entries = entries.tail;
+    }
+
+    return x;
+  }
+
+  OrderedContext update(ScopedEntry entry) {
+    return null;
+  }
+
+  OrderedContext drop(ScopedEntry entry) {
+    ImmutableList<ScopedEntry> entries = _entries;
+    ImmutableList<ScopedEntry> entries0 = ImmutableList<ScopedEntry>.empty();
+    while (!entries.isEmpty) {
+      ScopedEntry entry0 = entries.head;
+      entries = entries.tail;
+      if (entry0.ident == entry.ident) {
+        break;
+      }
+      entries0 = entries0.cons(entry0);
+    }
+
+    return ListOrderedContext._(entries0.reverse());
+  }
+
+  bool verify() => false;
+
+  Datatype apply(Datatype type) {
+    return type.accept<Datatype>(this);
+  }
+
+  Datatype visitSkolem(Skolem skolem) {
+    if (skolem.painted) return skolem;
+
+    ScopedEntry entry = lookup(skolem.ident);
+    if (entry == null) {
+      return skolem;
+    }
+
+    skolem.paint();
+    if (entry is Existential) {
+      Existential ex = entry;
+      Datatype result;
+      if (ex.isSolved) {
+        result = ex.solution.accept<Datatype>(this);
+      } else {
+        result = skolem;
+      }
+      skolem.reset();
+      return result;
+    } else {
+      throw "Logical error: ScopedEntry instance for Skolem $skolem is not an instance of Existential.";
+    }
+  }
+
+  String toString() {
+    if (_entries.isEmpty) {
+      return "{}";
+    }
+
+    // Roll back to the first entry.
+    ImmutableList<ScopedEntry> entries = _entries;
+
+    // Build the string
+    StringBuffer buf = new StringBuffer();
+    buf.write("{");
+    while (!entries.isEmpty) {
+      ScopedEntry entry = entries.head;
+      buf.write(entry.toString());
+      entries = entries.tail;
+      if (!entries.isEmpty) {
+        buf.write(", ");
+      }
+    }
+    buf.write("}");
+    return buf.toString();
+  }
+}
+
+class MutableOrderedContext extends OrderedContext {
   ScopedEntry _last;
   Map<int, ScopedEntry> _table;
 
@@ -185,11 +353,12 @@ class OrderedContext extends TransformDatatype {
     return entry;
   }
 
-  OrderedContext.empty()
+  MutableOrderedContext.empty()
       : _last = null,
-        _table = new Map<int, ScopedEntry>();
+        _table = new Map<int, ScopedEntry>(),
+        super._();
 
-  void insertLast(ScopedEntry entry) {
+  OrderedContext insertLast(ScopedEntry entry) {
     if (_last == null) {
       _last = entry;
     } else {
@@ -198,9 +367,10 @@ class OrderedContext extends TransformDatatype {
     }
 
     _table[entry.ident] = entry;
+    return this;
   }
 
-  void insertBefore(ScopedEntry entry, ScopedEntry successor) {
+  OrderedContext insertBefore(ScopedEntry entry, ScopedEntry successor) {
     assert(entry != _last);
     if (entry == _last) {
       // I think moving the [_last] entry should be an error.
@@ -208,6 +378,11 @@ class OrderedContext extends TransformDatatype {
     }
     entry.insertBefore(successor);
     _table[entry.ident] = entry;
+    return this;
+  }
+
+  OrderedContext update(ScopedEntry entry) {
+    return null;
   }
 
   ScopedEntry lookup(int identifier) {
@@ -227,7 +402,7 @@ class OrderedContext extends TransformDatatype {
   }
 
   // Drops [entry] and everything succeeding it from the context.
-  void drop(ScopedEntry entry) {
+  OrderedContext drop(ScopedEntry entry) {
     ScopedEntry parent = entry;
     assert(_table[parent.ident] != null);
     _last = entry.predecessor;
@@ -237,6 +412,7 @@ class OrderedContext extends TransformDatatype {
       entry = entry.successor;
     }
     assert(_table[parent.ident] == null);
+    return this;
   }
 
   // Verifies whether the context is well-founded.
