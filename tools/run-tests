@@ -151,8 +151,8 @@ fi
 
 echo -e "\033[1m== Summary ==\033[0m"
 echo -e "# \033[1;32m$TICK\033[0m successes: $SUCCESSES"
-echo -e "# \033[1;31m$CROSS\033[0m failures: $FAILURES\033[0m"
-echo -e "# \033[1;33m$MINUS\033[0m  skipped: $SKIPPED\033[0m"
+echo -e "# \033[1;31m$CROSS\033[0m  failures: $FAILURES\033[0m"
+echo -e "# \033[1;33m$MINUS\033[0m   skipped: $SKIPPED\033[0m"
 if [[ $MEASURE -eq 1 ]]; then
   ENDTIME=`date +%s.%N`
   ELAPSED=`echo "$ENDTIME - $STARTTIME" | bc`
