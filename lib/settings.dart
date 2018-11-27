@@ -24,6 +24,7 @@ class NamedOptions {
   static String get dump_ast => "dump-ast";
   static String get dump_dast => "dump-dast";
   static String get help => "help";
+  static String get optimisation_level => "optimisation-level";
   static String get output => "output";
   static String get vm_platform => "vm-platform";
   static String get trace => "trace";
@@ -51,12 +52,17 @@ ArgParser _setupArgParser() {
   parser.addOption(NamedOptions.exit_after,
       defaultsTo: null,
       help: "Exit after running a particular component.",
-      valueHelp: "elaborator,parser,typechecker");
+      valueHelp: "codegen,elaborator,parser,typechecker");
   parser.addFlag(NamedOptions.help,
       abbr: 'h',
       negatable: false,
       defaultsTo: false,
       help: "Display this list of options.");
+  parser.addOption(NamedOptions.optimisation_level,
+      abbr: 'O',
+      defaultsTo: "3",
+      valueHelp: "number",
+      help: "Set optimisation level to <number>");
   parser.addOption(NamedOptions.output,
       abbr: 'o',
       help: "Place the output into <file>.",
@@ -64,7 +70,7 @@ ArgParser _setupArgParser() {
       defaultsTo: "stdout");
   parser.addMultiOption(NamedOptions.trace,
       help: "Trace the operational behaviour of a component.",
-      valueHelp: "elaborator,parser,typechecker");
+      valueHelp: "codegen,elaborator,parser,typechecker");
   parser.addFlag(NamedOptions.type_check,
       negatable: true, defaultsTo: true, help: "Toggle type checking.");
   parser.addFlag(NamedOptions.verbose,
@@ -76,6 +82,8 @@ ArgParser _setupArgParser() {
       negatable: false, defaultsTo: false, help: "Display the version.");
   parser.addOption(NamedOptions.vm_platform,
       help: "Specify where to locate the Dart VM Platform dill file.",
+      defaultsTo: Platform.environment['T20_DART_VM_PLATFORM_DILL'] ??
+          "/usr/lib/dart/lib/_internal/vm_platform_strong.dill",
       valueHelp: "file");
 
   return _parser = parser;
@@ -92,6 +100,7 @@ ArgResults _parse(args) {
 
 bool _validateExitAfter(String value, [bool allowNull = true]) {
   switch (value) {
+    case "codegen":
     case "elaborator":
     case "parser":
     case "typechecker":
@@ -132,12 +141,6 @@ class Settings {
       throw UnrecognisedOptionValue(NamedOptions.exit_after, exitAfter);
     }
 
-    if (platformDill == null) {
-      Map<String, String> env = Platform.environment;
-      platformDill = env['T20_DART_VM_PLATFORM_DILL'] ??
-          "/usr/lib/dart/lib/_internal/vm_platform_strong.dill";
-    }
-
     var sourceFile;
     if (results.rest.length == 1) {
       sourceFile = results.rest[0];
@@ -163,7 +166,7 @@ class Settings {
   static String usage() {
     ArgParser parser = _setupArgParser();
 
-    String header = "usage: t20 [OPTION]... <file.t20>";
+    String header = "usage: t20 [OPTION]... FILE...";
     return "$header\n\nOptions are:\n${parser.usage}";
   }
 }
