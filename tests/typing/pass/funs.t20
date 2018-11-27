@@ -44,8 +44,8 @@
   (lambda (x)
     (g (f x))))
 
-;; (: id (-> 'a 'a))
-;; (define (id x) x)
+(: id (-> 'a 'a))
+(define (id x) x)
 
 ;; (: error3 (-> String String))
 ;; (define error3 error)
@@ -58,6 +58,6 @@
 (define (error3 x)
   ([compose error error] x))
 
-;; (: plus-2 (-> String a))
-;; (define (plus-2 x)
-;;   ([id error] (id x)))
+(: plus-2 (-> String a))
+(define (plus-2 x)
+  ([id error] x))
