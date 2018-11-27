@@ -36,12 +36,19 @@ class TypeChecker {
 }
 
 class MonoTypeVerifier extends ReduceDatatype<bool> {
+  OrderedContext prefix;
   Monoid<bool> get m => LAndMonoid();
 
+  MonoTypeVerifier(this.prefix);
+
   bool visitForallType(ForallType forallType) => false;
+  bool visitSkolem(Skolem skolem) {
+    return prefix.lookup(skolem.ident) != null;
+  }
 }
 
-bool isMonoType(Datatype type) => type.accept<bool>(MonoTypeVerifier());
+bool isMonoType(Datatype type, OrderedContext prefix) =>
+    type.accept<bool>(MonoTypeVerifier(prefix));
 
 class _TypeChecker {
   List<TypeError> errors = new List<TypeError>();
@@ -244,7 +251,6 @@ class _TypeChecker {
       Datatype type, OrderedContext ctxt, Location location) {
     if (trace) {
       print("apply: $arguments, $type");
-      print("$ctxt");
     }
     // apply xs* (\/qs+.t) ctxt = apply xs* (t[qs+ -> as+]) ctxt
     if (type is ForallType) {
@@ -407,7 +413,7 @@ class _TypeChecker {
 
     Pair<OrderedContext, Datatype> falseBranchResult =
         inferExpression(ifthenelse.elseBranch, ctxt);
-    Datatype ff = trueBranchResult.fst.apply(falseBranchResult.snd);
+    Datatype ff = falseBranchResult.fst.apply(falseBranchResult.snd);
 
     // Check that types agree.
     ctxt = subsumes(tt, ff, ctxt);
@@ -651,29 +657,28 @@ class _TypeChecker {
 
   Triple<ScopedEntry, OrderedContext, Datatype> inferConstructorPattern(
       ConstructorPattern constr, OrderedContext ctxt) {
-    // // Get the induced type.
-    // Datatype type = constr
-    //     .type; // guaranteed to be compatible with `type_utils' function type api.
-    // // Arity check.
-    // List<Datatype> domain = typeUtils.domain(type);
-    // if (domain.length != constr.components.length) {
-    //   TypeError err = ArityMismatchError(
-    //       domain.length, constr.components.length, constr.location);
-    //   return Pair<ScopedEntryt Datatype>(null, error(err, constr.location));
-    // }
-    // // Check each subpattern.
-    // ScopedEntry scopeMarker = checkManyPatterns(constr.components, domain);
+    // Get the induced type.
+    Datatype type = constr
+        .type; // guaranteed to be compatible with `type_utils' function type api.
+    // Arity check.
+    List<Datatype> domain = typeUtils.domain(type);
+    if (domain.length != constr.components.length) {
+      TypeError err = ArityMismatchError(
+          domain.length, constr.components.length, constr.location);
+      return Triple<ScopedEntry, OrderedContext, Datatype>(
+          null, ctxt, error(err, constr.location));
+    }
+    // Check the pattern against the induced type.
+    Pair<ScopedEntry, OrderedContext> result = checkPattern(constr, type, ctxt);
 
-    // return Pair<ScopedEntry, Datatype>(
-    //     scopeMarker, TypeConstructor.from(constr.declarator.declarator, components));
-    return null;
+    return Triple<ScopedEntry, OrderedContext, Datatype>(
+        result.fst, result.snd, type);
   }
 
   // Implements the subsumption/subtyping relation <:.
   OrderedContext subsumes(Datatype lhs, Datatype rhs, OrderedContext ctxt) {
     if (trace) {
       print("subsumes: $lhs <: $rhs");
-      print("$ctxt");
     }
 
     if (lhs is Skolem) {
@@ -872,7 +877,8 @@ class _TypeChecker {
     // TODO refactor.
 
     // %a <:= b, if b is a monotype.
-    if (isMonoType(b)) {
+    OrderedContext ctxt0 = ctxt.drop(exA);
+    if (isMonoType(b, ctxt0)) {
       ctxt = ctxt.update(exA.solve(b));
       return ctxt;
     }
@@ -992,7 +998,8 @@ class _TypeChecker {
     }
 
     // a <=: %b, if a is a monotype.
-    if (isMonoType(a)) {
+    OrderedContext ctxt0 = ctxt.drop(exB);
+    if (isMonoType(a, ctxt0)) {
       ctxt = ctxt.update(exB.solve(a));
       return ctxt;
     }
@@ -1038,9 +1045,7 @@ class _TypeChecker {
     if (a is ArrowType) {
       Skolem codomain = Skolem();
       Existential codomainEx = Existential(codomain);
-      print("$ctxt");
       ctxt = ctxt.insertBefore(codomainEx, exB);
-      print("$ctxt");
 
       List<Datatype> domain = List<Datatype>();
       for (int i = 0; i < a.arity; i++) {
