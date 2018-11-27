@@ -5,6 +5,8 @@
 import '../ast/datatype.dart';
 import '../ast/monoids.dart';
 
+import 'ordered_context.dart' show OrderedContext;
+
 // A collection of convenient utility functions for inspecting / destructing
 // types.
 List<Datatype> domain(Datatype ft) {
@@ -105,4 +107,33 @@ class _FreeTypeVariables extends ReduceDatatype<Set<int>> {
 Set<int> freeTypeVariables(Datatype type) {
   _FreeTypeVariables ftv = _FreeTypeVariables();
   return type.accept(ftv);
+}
+
+
+class _MonoTypeVerifier extends ReduceDatatype<bool> {
+  static _MonoTypeVerifier _instance;
+
+  OrderedContext prefix;
+  Monoid<bool> get m => LAndMonoid();
+
+  _MonoTypeVerifier._();
+  factory _MonoTypeVerifier() {
+    if (_instance == null) {
+      _instance = _MonoTypeVerifier._();
+    }
+    return _instance;
+  }
+
+  bool visitForallType(ForallType forallType) => false;
+  bool visitSkolem(Skolem skolem) {
+    return prefix.lookup(skolem.ident) != null;
+  }
+}
+
+bool isMonoType(Datatype type, OrderedContext prefix) {
+  _MonoTypeVerifier verifier = _MonoTypeVerifier();
+  verifier.prefix = prefix;
+  bool result = type.accept<bool>(verifier);
+  verifier.prefix = null; // Allow [prefix] to be garbage collected.
+  return result;
 }

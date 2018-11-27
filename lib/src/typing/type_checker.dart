@@ -35,21 +35,6 @@ class TypeChecker {
   }
 }
 
-class MonoTypeVerifier extends ReduceDatatype<bool> {
-  OrderedContext prefix;
-  Monoid<bool> get m => LAndMonoid();
-
-  MonoTypeVerifier(this.prefix);
-
-  bool visitForallType(ForallType forallType) => false;
-  bool visitSkolem(Skolem skolem) {
-    return prefix.lookup(skolem.ident) != null;
-  }
-}
-
-bool isMonoType(Datatype type, OrderedContext prefix) =>
-    type.accept<bool>(MonoTypeVerifier(prefix));
-
 class _TypeChecker {
   List<TypeError> errors = new List<TypeError>();
   final bool trace;
@@ -878,7 +863,7 @@ class _TypeChecker {
 
     // %a <:= b, if b is a monotype.
     OrderedContext ctxt0 = ctxt.drop(exA);
-    if (isMonoType(b, ctxt0)) {
+    if (typeUtils.isMonoType(b, ctxt0)) {
       ctxt = ctxt.update(exA.solve(b));
       return ctxt;
     }
@@ -999,7 +984,7 @@ class _TypeChecker {
 
     // a <=: %b, if a is a monotype.
     OrderedContext ctxt0 = ctxt.drop(exB);
-    if (isMonoType(a, ctxt0)) {
+    if (typeUtils.isMonoType(a, ctxt0)) {
       ctxt = ctxt.update(exB.solve(a));
       return ctxt;
     }
