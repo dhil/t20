@@ -74,8 +74,10 @@ class ValueDeclaration extends ModuleMember implements Declaration {
   Binder binder;
   Signature signature;
   Expression body;
+
   bool get isVirtual => false;
   Datatype get type => signature.type;
+  int get ident => binder.id;
 
   ValueDeclaration(this.signature, this.binder, this.body, Location location)
       : super(ModuleTag.VALUE_DEF, location);
@@ -93,8 +95,10 @@ class FunctionDeclaration extends ModuleMember implements Declaration {
   Signature signature;
   List<Pattern> parameters;
   Expression body;
+
   bool get isVirtual => false;
   Datatype get type => signature.type;
+  int get ident => binder.id;
 
   FunctionDeclaration(this.signature, this.binder, this.parameters, this.body,
       Location location)
@@ -130,7 +134,9 @@ class DataConstructor extends ModuleMember implements Declaration {
   DatatypeDescriptor declarator;
   Binder binder;
   List<Datatype> parameters;
+
   bool get isVirtual => false;
+  int get ident => binder.id;
 
   Datatype _type;
   Datatype get type {
@@ -180,6 +186,8 @@ class ClassDescriptor {
   final Binder binder;
   final List<VirtualFunctionDeclaration> members;
 
+  int get ident => binder.id;
+
   ClassDescriptor(this.binder, this.members);
 }
 
@@ -194,7 +202,9 @@ class DatatypeDescriptor extends ModuleMember
   List<Quantifier> parameters;
   List<DataConstructor> constructors;
   List<Derive> deriving;
+
   bool get isVirtual => false;
+  int get ident => binder.id;
 
   TypeConstructor _type;
   TypeConstructor get type {
@@ -277,7 +287,9 @@ class TypeAliasDescriptor extends ModuleMember
   Binder binder;
   List<Quantifier> parameters;
   Datatype rhs;
+
   bool get isVirtual => false;
+  int get ident => binder.id;
 
   TypeConstructor _type;
   TypeConstructor get type {

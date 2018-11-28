@@ -13,9 +13,11 @@ class Binder {
   Location get location => _location ?? Location.dummy();
   String get sourceName => _sourceName ?? "<synthetic>";
 
-  Binder.fromSource(this._sourceName, this._location) : id = Gensym.freshInt();
+  Binder.fromSource(String sourceName, Location location)
+      : this.raw(Gensym.freshInt(), sourceName, location);
   Binder.fresh() : this.fromSource(null, null);
   Binder.primitive(String name) : this.fromSource(name, null);
+  Binder.raw(this.id, this._sourceName, this._location);
 
   String toString() {
     if (_sourceName == null) {
@@ -23,5 +25,13 @@ class Binder {
     } else {
       return "$_sourceName$id";
     }
+  }
+
+  int get hashCode {
+    int hash = 1;
+    hash = hash * 13 + (_location == null ? 0 : _location.hashCode);
+    hash = hash * 17 + id;
+    hash = hash * 31 + (_sourceName == null ? 0 : _sourceName.hashCode);
+    return hash;
   }
 }

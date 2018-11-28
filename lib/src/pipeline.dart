@@ -16,6 +16,9 @@ import 'result.dart';
 import 'syntax/parse_sexp.dart';
 
 import 'typing/type_checker.dart';
+
+import 'codegen/desugar.dart';
+import 'codegen/ir.dart' as ir;
 import 'codegen/kernel_emitter.dart';
 
 Future<bool> compile(List<String> filePaths, Settings settings) async {
@@ -78,6 +81,13 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
       }
 
       // Code generate.
+      Result<ir.IRNode, T20Error> codeResult =
+          new Desugarer().desugar(typeResult.result);
+
+      if (!codeResult.wasSuccessful) {
+        report(codeResult.errors);
+        return false;
+      }
 
       // Exit now, if requested.
       if (settings.exitAfter == "codegen") {

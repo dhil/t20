@@ -70,11 +70,11 @@ class BuildContext {
     Map<int, Declaration> declarations = builtins.declarations.map(patchEntry);
     Map<int, ClassDescriptor> classes =
         builtins.classes.map((int _, ClassDescriptor desc) {
-      // Populate [declarations] with the members of [desc].
-      for (int i = 0; i < desc.members.length; i++) {
-        Declaration member = desc.members[i];
-        declarations[Name.computeIntern(member.binder.sourceName)] = member;
-      }
+      // // Populate [declarations] with the members of [desc].
+      // for (int i = 0; i < desc.members.length; i++) {
+      //   Declaration member = desc.members[i];
+      //   declarations[Name.computeIntern(member.binder.sourceName)] = member;
+      // }
       return MapEntry<int, ClassDescriptor>(
           Name.computeIntern(desc.binder.sourceName), desc);
     });

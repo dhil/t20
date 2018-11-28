@@ -12,6 +12,7 @@ abstract class Declaration {
   Datatype get type;
   Binder get binder;
   bool get isVirtual;
+  int get ident;
 }
 
 // abstract class TermDeclaration extends Declaration {

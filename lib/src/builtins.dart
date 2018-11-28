@@ -43,51 +43,20 @@ VirtualFunctionDeclaration makeVirtualFunctionDeclaration(
   return decl;
 }
 
-// ident -> declaration
-Map<int, Declaration> makeBuiltinDeclarations() {
-  final Map<String, String> rawFunDeclarations = <String, String>{
-    // Arithmetics.
-    "+": "(-> Int Int Int)",
-    "-": "(-> Int Int Int)",
-    "*": "(-> Int Int Int)",
-    "/": "(-> Int Int Int)",
-    "mod": "(-> Int Int Int)",
-    // Logical.
-    "=": "(forall 'a (-> 'a 'a Bool))",
-    "!=": "(forall 'a (-> 'a 'a Bool))",
-    "<": "(forall 'a (-> 'a 'a Bool))",
-    ">": "(forall 'a (-> 'a 'a Bool))",
-    "<=": "(forall 'a (-> 'a 'a Bool))",
-    ">=": "(forall 'a (-> 'a 'a Bool))",
-    // Boolean.
-    "&&": "(-> Bool Bool Bool)",
-    "||": "(-> Bool Bool Bool)",
-    // Auxiliary.
-    "error": "(forall 'a (-> String 'a))"
-  };
-
-  final Map<int, Declaration> funDeclarations =
-      rawFunDeclarations.map((String key, String val) {
-    Declaration decl = makeVirtualFunctionDeclaration(key, val);
-    return MapEntry<int, Declaration>(decl.binder.id, decl);
-  });
-
-  return funDeclarations;
-}
-
-final Map<int, Declaration> declarations = makeBuiltinDeclarations();
-
 // ident -> class
 Map<int, ClassDescriptor> makeBuiltinClasses() {
   final Map<String, Map<String, String>> rawClasses =
       <String, Map<String, String>>{
     // TODO patch up types when support for constraints has been implemented.
     "Mappable": <String, String>{
-      "map": "(forall ('a 'b 'f 'temp2) (=> ([Mappable 'f]) (-> (-> 'a 'b) 'f 'temp2)))"
+      "map":
+          "(forall ('a 'b 'f 'temp2) (=> ([Mappable 'f]) (-> (-> 'a 'b) 'f 'temp2)))"
     },
     "Foldable": <String, String>{
-      "fold-right": "(forall ('a 'b 'f) (=> ([Foldable 'f]) [-> (-> 'a 'b 'b) 'f 'b 'b]))",
-      "fold-left": "(forall ('a 'b 'temp) (=> ([Foldable 'f]) [-> (-> 'a 'b 'a) 'a 'temp 'a]))"
+      "fold-right":
+          "(forall ('a 'b 'f) (=> ([Foldable 'f]) [-> (-> 'a 'b 'b) 'f 'b 'b]))",
+      "fold-left":
+          "(forall ('a 'b 'temp) (=> ([Foldable 'f]) [-> (-> 'a 'b 'a) 'a 'temp 'a]))"
     },
     "Equatable": <String, String>{
       "eq?": "(forall 'a (=> ([Equatable 'a]) [-> 'a 'a Bool]))"
@@ -116,3 +85,62 @@ Map<int, ClassDescriptor> makeBuiltinClasses() {
 }
 
 final Map<int, ClassDescriptor> classes = makeBuiltinClasses();
+
+// ident -> declaration
+Map<int, Declaration> makeBuiltinDeclarations() {
+  final Map<String, String> rawFunDeclarations = <String, String>{
+    // Arithmetics.
+    "+": "(-> Int Int Int)",
+    "-": "(-> Int Int Int)",
+    "*": "(-> Int Int Int)",
+    "/": "(-> Int Int Int)",
+    "mod": "(-> Int Int Int)",
+    // Relational. TODO replace by classes.
+    "=": "(forall 'a (-> 'a 'a Bool))",
+    "!=": "(forall 'a (-> 'a 'a Bool))",
+    "<": "(forall 'a (-> 'a 'a Bool))",
+    ">": "(forall 'a (-> 'a 'a Bool))",
+    "<=": "(forall 'a (-> 'a 'a Bool))",
+    ">=": "(forall 'a (-> 'a 'a Bool))",
+    // Type specific relational operations.
+    "boolEq?": "(-> Bool Bool Bool)",
+    "intEq?": "(-> Int Int Bool)",
+    "intLess?": "(-> Int Int Bool)",
+    "intGreater?": "(-> Int Int Bool)",
+    "stringEq?": "(-> String String Bool)",
+    "stringLess": "(-> String String Bool)",
+    "stringGreater": "(-> String String Bool)",
+    // Boolean.
+    "&&": "(-> Bool Bool Bool)",
+    "||": "(-> Bool Bool Bool)",
+    // Auxiliary.
+    "error": "(forall 'a (-> String 'a))"
+  };
+
+  final Map<int, Declaration> funDeclarations =
+      rawFunDeclarations.map((String key, String val) {
+    Declaration decl = makeVirtualFunctionDeclaration(key, val);
+    return MapEntry<int, Declaration>(decl.binder.id, decl);
+  });
+
+  // Insert class members.
+  final List<ClassDescriptor> defaultClasses = classes.values.toList();
+  for (int i = 0; i < defaultClasses.length; i++) {
+    ClassDescriptor cl = defaultClasses[i];
+    for (int j = 0; j < cl.members.length; j++) {
+      VirtualFunctionDeclaration member = cl.members[j];
+      funDeclarations[member.ident] = member;
+    }
+  }
+
+  return funDeclarations;
+}
+
+final Map<int, Declaration> declarations = makeBuiltinDeclarations();
+
+bool isPrimitive(int ident) =>
+    declarations.containsKey(ident) || classes.containsKey(ident);
+
+Declaration find(int ident) {
+  return declarations[ident];
+}

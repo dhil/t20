@@ -44,23 +44,21 @@ enum PatternTag {
   WILDCARD
 }
 
-abstract class BaseValuePattern<T> extends Pattern {
-  T value;
-
-  BaseValuePattern(this.value, PatternTag tag, Location location)
-      : super(tag, location);
-
-  String toString() {
-    return "$value";
-  }
+abstract class BaseValuePattern extends Pattern {
+  BaseValuePattern(PatternTag tag, Location location) : super(tag, location);
 }
 
-class BoolPattern extends BaseValuePattern<bool> {
-  BoolPattern(bool value, Location location)
-      : super(value, PatternTag.BOOL, location);
+class BoolPattern extends BaseValuePattern {
+  final bool value;
+
+  BoolPattern(this.value, Location location) : super(PatternTag.BOOL, location);
 
   T accept<T>(PatternVisitor<T> v) {
     return v.visitBool(this);
+  }
+
+  String toString() {
+    return "$value";
   }
 }
 
@@ -109,21 +107,32 @@ class HasTypePattern extends Pattern {
   }
 }
 
-class IntPattern extends BaseValuePattern<int> {
-  IntPattern(int value, Location location)
-      : super(value, PatternTag.INT, location);
+class IntPattern extends BaseValuePattern {
+  final int value;
+
+  IntPattern(this.value, Location location) : super(PatternTag.INT, location);
 
   T accept<T>(PatternVisitor<T> v) {
     return v.visitInt(this);
   }
+
+  String toString() {
+    return "$value";
+  }
 }
 
-class StringPattern extends BaseValuePattern<String> {
-  StringPattern(String value, Location location)
-      : super(value, PatternTag.STRING, location);
+class StringPattern extends BaseValuePattern {
+  final String value;
+
+  StringPattern(this.value, Location location)
+      : super(PatternTag.STRING, location);
 
   T accept<T>(PatternVisitor<T> v) {
     return v.visitString(this);
+  }
+
+  String toString() {
+    return "$value";
   }
 }
 
