@@ -2,10 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import '../ast/ast_expressions.dart';
-import '../ast/ast_module.dart';
-import '../ast/ast_patterns.dart';
-import '../ast/datatype.dart';
+import '../ast/ast.dart';
 import '../ast/monoids.dart';
 
 import '../errors/errors.dart';

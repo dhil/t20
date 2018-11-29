@@ -51,15 +51,771 @@ library t20.ast;
 //    | K T*                 (* type application *)
 //    | ∗ T*                 (* n-ary tuple types *)
 
-import 'ast_declaration.dart';
-import 'ast_expressions.dart';
-import 'ast_module.dart';
-import 'ast_patterns.dart';
-import 'datatype.dart';
+import '../location.dart';
+import '../errors/errors.dart' show LocatedError;
+import '../utils.dart' show ListUtils;
 
-export 'ast_declaration.dart';
-export 'ast_expressions.dart';
-export 'ast_module.dart';
-export 'ast_patterns.dart';
+import 'binder.dart';
+export 'binder.dart';
+
+import 'datatype.dart';
 export 'datatype.dart';
 
+//===== Declaration.
+abstract class Declaration {
+  Datatype get type;
+  Binder get binder;
+  bool get isVirtual;
+  int get ident;
+}
+
+//===== Module / top-level language.
+abstract class ModuleVisitor<T> {
+  T visitDataConstructor(DataConstructor constr);
+  T visitDatatype(DatatypeDescriptor decl);
+  T visitDatatypes(DatatypeDeclarations decls);
+  T visitError(ErrorModule err);
+  T visitFunction(FunctionDeclaration decl);
+  T visitInclude(Include include);
+  T visitSignature(Signature sig);
+  T visitTopModule(TopModule mod);
+  T visitTypename(TypeAliasDescriptor decl);
+  T visitValue(ValueDeclaration decl);
+}
+
+enum ModuleTag {
+  CONSTR,
+  DATATYPE_DEF,
+  DATATYPE_DEFS,
+  ERROR,
+  FUNC_DEF,
+  OPEN,
+  SIGNATURE,
+  TOP,
+  TYPENAME,
+  VALUE_DEF
+}
+
+abstract class ModuleMember {
+  final ModuleTag tag;
+  Location location;
+
+  ModuleMember(this.tag, this.location);
+
+  T accept<T>(ModuleVisitor<T> v);
+}
+
+class Signature extends ModuleMember {
+  Binder binder;
+  Datatype type;
+  List<Declaration> definitions;
+
+  Signature(this.binder, this.type, Location location)
+      : definitions = new List<Declaration>(),
+        super(ModuleTag.SIGNATURE, location);
+
+  void addDefinition(Declaration decl) {
+    definitions.add(decl);
+  }
+
+  T accept<T>(ModuleVisitor<T> v) {
+    return v.visitSignature(this);
+  }
+}
+
+class ValueDeclaration extends ModuleMember implements Declaration {
+  Binder binder;
+  Signature signature;
+  Expression body;
+
+  bool get isVirtual => false;
+  Datatype get type => signature.type;
+  int get ident => binder.id;
+
+  ValueDeclaration(this.signature, this.binder, this.body, Location location)
+      : super(ModuleTag.VALUE_DEF, location);
+  T accept<T>(ModuleVisitor<T> v) {
+    return v.visitValue(this);
+  }
+
+  String toString() {
+    return "(define $binder (...)))";
+  }
+}
+
+class FunctionDeclaration extends ModuleMember implements Declaration {
+  Binder binder;
+  Signature signature;
+  List<Pattern> parameters;
+  Expression body;
+
+  bool get isVirtual => false;
+  Datatype get type => signature.type;
+  int get ident => binder.id;
+
+  FunctionDeclaration(this.signature, this.binder, this.parameters, this.body,
+      Location location)
+      : super(ModuleTag.FUNC_DEF, location);
+
+  T accept<T>(ModuleVisitor<T> v) {
+    return v.visitFunction(this);
+  }
+
+  String toString() {
+    String parameters0 = ListUtils.stringify(" ", parameters);
+    return "(define ($binder $parameters0) (...))";
+  }
+}
+
+class VirtualFunctionDeclaration extends FunctionDeclaration {
+  bool get isVirtual => true;
+
+  VirtualFunctionDeclaration._(Signature signature, Binder binder)
+      : super(signature, binder, null, null, signature.location);
+  factory VirtualFunctionDeclaration(String name, Datatype type) {
+    Location location = Location.dummy();
+    Binder binder = Binder.primitive(name);
+    Signature signature = new Signature(binder, type, location);
+    VirtualFunctionDeclaration funDecl =
+        new VirtualFunctionDeclaration._(signature, binder);
+    signature.addDefinition(funDecl);
+    return funDecl;
+  }
+}
+
+class DataConstructor extends ModuleMember implements Declaration {
+  DatatypeDescriptor declarator;
+  Binder binder;
+  List<Datatype> parameters;
+
+  bool get isVirtual => false;
+  int get ident => binder.id;
+
+  Datatype _type;
+  Datatype get type {
+    if (_type == null) {
+      List<Quantifier> quantifiers;
+      if (declarator.parameters.length > 0) {
+        // It's necessary to copy the quantifiers as the [ForallType] enforces
+        // the invariant that the list is sorted.
+        quantifiers = new List<Quantifier>(declarator.parameters.length);
+        List.copyRange<Quantifier>(quantifiers, 0, declarator.parameters);
+      }
+      if (parameters.length > 0) {
+        // Construct the induced function type.
+        List<Datatype> domain = parameters;
+        Datatype codomain = declarator.type;
+        Datatype ft = ArrowType(domain, codomain);
+        if (quantifiers != null) {
+          ForallType forallType = new ForallType();
+          forallType.quantifiers = quantifiers;
+          forallType.body = ft;
+          ft = forallType;
+        }
+        _type = ft;
+      } else {
+        if (quantifiers != null) {
+          ForallType forallType = new ForallType();
+          forallType.quantifiers = quantifiers;
+          forallType.body = declarator.type;
+          _type = forallType;
+        } else {
+          _type = declarator.type;
+        }
+      }
+    }
+    return _type;
+  }
+
+  DataConstructor(this.binder, this.parameters, Location location)
+      : super(ModuleTag.CONSTR, location);
+
+  T accept<T>(ModuleVisitor<T> v) {
+    return v.visitDataConstructor(this);
+  }
+}
+
+class ClassDescriptor {
+  final Binder binder;
+  final List<VirtualFunctionDeclaration> members;
+
+  int get ident => binder.id;
+
+  ClassDescriptor(this.binder, this.members);
+}
+
+class Derive {
+  final ClassDescriptor classDescriptor;
+  Derive(this.classDescriptor);
+}
+
+class DatatypeDescriptor extends ModuleMember
+    implements Declaration, TypeDescriptor {
+  Binder binder;
+  List<Quantifier> parameters;
+  List<DataConstructor> constructors;
+  List<Derive> deriving;
+
+  bool get isVirtual => false;
+  int get ident => binder.id;
+
+  TypeConstructor _type;
+  TypeConstructor get type {
+    if (_type == null) {
+      List<Datatype> arguments = new List<Datatype>(parameters.length);
+      for (int i = 0; i < parameters.length; i++) {
+        arguments[i] = TypeVariable.bound(parameters[i]);
+      }
+      _type = TypeConstructor.from(this, arguments);
+    }
+    return _type;
+  }
+
+  int get arity => parameters.length;
+
+  DatatypeDescriptor(this.binder, this.parameters, this.constructors,
+      this.deriving, Location location)
+      : super(ModuleTag.DATATYPE_DEF, location);
+  DatatypeDescriptor.partial(
+      Binder binder, List<Quantifier> parameters, Location location)
+      : this(binder, parameters, null, null, location);
+  T accept<T>(ModuleVisitor<T> v) {
+    return v.visitDatatype(this);
+  }
+
+  String toString() {
+    String parameterisedName;
+    if (parameters.length == 0) {
+      parameterisedName = binder.sourceName;
+    } else {
+      String parameters0 = ListUtils.stringify(" ", parameters);
+      parameterisedName = "(${binder.sourceName} $parameters0)";
+    }
+    return "(define-datatype $parameterisedName ...)";
+  }
+}
+
+class DatatypeDeclarations extends ModuleMember {
+  List<DatatypeDescriptor> declarations;
+
+  DatatypeDeclarations(this.declarations, Location location)
+      : super(ModuleTag.DATATYPE_DEFS, location);
+
+  T accept<T>(ModuleVisitor<T> v) {
+    return v.visitDatatypes(this);
+  }
+
+  String toString() {
+    return "(define-datatypes $declarations)";
+  }
+}
+
+class Include extends ModuleMember {
+  String module;
+
+  Include(this.module, Location location) : super(ModuleTag.OPEN, location);
+
+  T accept<T>(ModuleVisitor<T> v) {
+    return v.visitInclude(this);
+  }
+}
+
+class TopModule extends ModuleMember {
+  List<ModuleMember> members;
+
+  TopModule(this.members, Location location) : super(ModuleTag.TOP, location);
+
+  T accept<T>(ModuleVisitor<T> v) {
+    return v.visitTopModule(this);
+  }
+
+  String toString() {
+    String members0 = ListUtils.stringify(" ", members);
+    return "(module ...)";
+  }
+}
+
+class TypeAliasDescriptor extends ModuleMember
+    implements Declaration, TypeDescriptor {
+  Binder binder;
+  List<Quantifier> parameters;
+  Datatype rhs;
+
+  bool get isVirtual => false;
+  int get ident => binder.id;
+
+  TypeConstructor _type;
+  TypeConstructor get type {
+    if (_type == null) {
+      List<Datatype> arguments = new List<Datatype>(parameters.length);
+      for (int i = 0; i < parameters.length; i++) {
+        arguments[i] = TypeVariable.bound(parameters[i]);
+      }
+      _type = TypeConstructor.from(this, arguments);
+    }
+    return _type;
+  }
+
+  int get arity => parameters.length;
+
+  TypeAliasDescriptor(this.binder, this.parameters, this.rhs, Location location)
+      : super(ModuleTag.TYPENAME, location);
+
+  T accept<T>(ModuleVisitor<T> v) {
+    return v.visitTypename(this);
+  }
+}
+
+class ErrorModule extends ModuleMember {
+  final LocatedError error;
+
+  ErrorModule(this.error, [Location location = null])
+      : super(ModuleTag.ERROR, location == null ? Location.dummy() : location);
+
+  T accept<T>(ModuleVisitor<T> v) {
+    return v.visitError(this);
+  }
+}
+
+
+//===== Expression language.
+abstract class ExpressionVisitor<T> {
+  // Literals.
+  T visitBool(BoolLit boolean);
+  T visitInt(IntLit integer);
+  T visitString(StringLit string);
+
+  // Expressions.
+  T visitApply(Apply apply);
+  T visitIf(If ifthenelse);
+  T visitLambda(Lambda lambda);
+  T visitLet(Let binding);
+  T visitMatch(Match match);
+  // T visitProjection(Projection p);
+  T visitTuple(Tuple tuple);
+  T visitVariable(Variable v);
+  T visitTypeAscription(TypeAscription ascription);
+
+  T visitError(ErrorExpression e);
+}
+
+abstract class Expression {
+  final ExpTag tag;
+  Datatype type;
+  Location location;
+
+  Expression(this.tag, this.location);
+
+  T accept<T>(ExpressionVisitor<T> v);
+}
+
+enum ExpTag {
+  BOOL,
+  ERROR,
+  INT,
+  STRING,
+  APPLY,
+  IF,
+  LAMBDA,
+  LET,
+  MATCH,
+  TUPLE,
+  VAR,
+  TYPE_ASCRIPTION
+}
+
+/** Constants. **/
+abstract class Constant<T> extends Expression {
+  T value;
+  Constant(this.value, ExpTag tag, Location location) : super(tag, location);
+
+  String toString() {
+    return "$value";
+  }
+}
+
+class BoolLit extends Constant<bool> {
+  BoolLit(bool value, Location location) : super(value, ExpTag.BOOL, location);
+
+  T accept<T>(ExpressionVisitor<T> v) {
+    return v.visitBool(this);
+  }
+
+  static const String T_LITERAL = "#t";
+  static const String F_LITERAL = "#f";
+
+  String toString() {
+    if (value) return T_LITERAL;
+    else return F_LITERAL;
+  }
+}
+
+class IntLit extends Constant<int> {
+  IntLit(int value, Location location) : super(value, ExpTag.INT, location);
+
+  T accept<T>(ExpressionVisitor<T> v) {
+    return v.visitInt(this);
+  }
+}
+
+class StringLit extends Constant<String> {
+  StringLit(String value, Location location)
+      : super(value, ExpTag.STRING, location);
+
+  T accept<T>(ExpressionVisitor<T> v) {
+    return v.visitString(this);
+  }
+
+  String toString() {
+    return "\"$value\"";
+  }
+}
+
+class Apply extends Expression {
+  Expression abstractor;
+  List<Expression> arguments;
+
+  Apply(this.abstractor, this.arguments, Location location)
+      : super(ExpTag.APPLY, location);
+
+  T accept<T>(ExpressionVisitor<T> v) {
+    return v.visitApply(this);
+  }
+
+  String toString() {
+    if (arguments.length == 0) {
+      return "($abstractor)";
+    } else {
+      String arguments0 = ListUtils.stringify(" ", arguments);
+      return "($abstractor $arguments0)";
+    }
+  }
+}
+
+class Variable extends Expression {
+  Declaration declarator;
+
+  int get ident => declarator.binder.id;
+
+  Variable(this.declarator, Location location) : super(ExpTag.VAR, location);
+
+  T accept<T>(ExpressionVisitor<T> v) {
+    return v.visitVariable(this);
+  }
+
+  String toString() {
+    return "${declarator.binder}";
+  }
+}
+
+class If extends Expression {
+  Expression condition;
+  Expression thenBranch;
+  Expression elseBranch;
+
+  If(this.condition, this.thenBranch, this.elseBranch, Location location)
+      : super(ExpTag.IF, location);
+
+  T accept<T>(ExpressionVisitor<T> v) {
+    return v.visitIf(this);
+  }
+}
+
+class Binding {
+  Pattern pattern;
+  Expression expression;
+
+  Binding(this.pattern, this.expression);
+
+  String toString() {
+    return "($pattern ...)";
+  }
+}
+
+class Let extends Expression {
+  List<Binding> valueBindings;
+  Expression body;
+
+  Let(this.valueBindings, this.body, Location location)
+      : super(ExpTag.LET, location);
+
+  T accept<T>(ExpressionVisitor<T> v) {
+    return v.visitLet(this);
+  }
+
+  String toString() {
+    String valueBindings0 = ListUtils.stringify(" ", valueBindings);
+    return "(let ($valueBindings0) $body)";
+  }
+}
+
+class Lambda extends Expression {
+  List<Pattern> parameters;
+  Expression body;
+
+  int get arity => parameters.length;
+
+  Lambda(this.parameters, this.body, Location location)
+      : super(ExpTag.LAMBDA, location);
+
+  T accept<T>(ExpressionVisitor<T> v) {
+    return v.visitLambda(this);
+  }
+
+  String toString() {
+    String parameters0 = ListUtils.stringify(" ", parameters);
+    return "(lambda ($parameters0) (...))";
+  }
+}
+
+class Case {
+  Pattern pattern;
+  Expression expression;
+
+  Case(this.pattern, this.expression);
+
+  String toString() {
+    return "[$pattern $expression]";
+  }
+}
+
+class Match extends Expression {
+  Expression scrutinee;
+  List<Case> cases;
+
+  Match(this.scrutinee, this.cases, Location location)
+      : super(ExpTag.MATCH, location);
+
+  T accept<T>(ExpressionVisitor<T> v) {
+    return v.visitMatch(this);
+  }
+
+  String toString() {
+    String cases0 = ListUtils.stringify(" ", cases);
+    return "(match $scrutinee cases0)";
+  }
+}
+
+class Tuple extends Expression {
+  List<Expression> components;
+
+  Tuple(this.components, Location location) : super(ExpTag.TUPLE, location);
+
+  T accept<T>(ExpressionVisitor<T> v) {
+    return v.visitTuple(this);
+  }
+
+  bool get isUnit => components.length == 0;
+
+  String toString() {
+    if (isUnit) {
+      return "(,)";
+    } else {
+      String components0 = ListUtils.stringify(" ", components);
+      return "(, $components0)";
+    }
+  }
+}
+
+class TypeAscription extends Expression {
+  Expression exp;
+
+  TypeAscription._(this.exp, Location location)
+      : super(ExpTag.TYPE_ASCRIPTION, location);
+
+  factory TypeAscription(Expression exp, Datatype type, Location location) {
+    TypeAscription typeAs = new TypeAscription._(exp, location);
+    typeAs.type = type;
+    return typeAs;
+  }
+
+  T accept<T>(ExpressionVisitor<T> v) {
+    return v.visitTypeAscription(this);
+  }
+}
+
+class ErrorExpression extends Expression {
+  final LocatedError error;
+
+  ErrorExpression(this.error, Location location)
+      : super(ExpTag.ERROR, location);
+
+  T accept<T>(ExpressionVisitor<T> v) {
+    return v.visitError(this);
+  }
+}
+
+//===== Pattern language.
+abstract class PatternVisitor<T> {
+  T visitBool(BoolPattern b);
+  T visitConstructor(ConstructorPattern constr);
+  T visitError(ErrorPattern e);
+  T visitHasType(HasTypePattern t);
+  T visitInt(IntPattern i);
+  T visitString(StringPattern s);
+  T visitTuple(TuplePattern t);
+  T visitVariable(VariablePattern v);
+  T visitWildcard(WildcardPattern w);
+}
+
+abstract class Pattern {
+  Datatype type;
+  Location location;
+  final PatternTag tag;
+  Pattern(this.tag, this.location);
+
+  T accept<T>(PatternVisitor<T> v);
+}
+
+enum PatternTag {
+  BOOL,
+  CONSTR,
+  ERROR,
+  HAS_TYPE,
+  INT,
+  STRING,
+  TUPLE,
+  VAR,
+  WILDCARD
+}
+
+abstract class BaseValuePattern extends Pattern {
+  BaseValuePattern(PatternTag tag, Location location) : super(tag, location);
+}
+
+class BoolPattern extends BaseValuePattern {
+  final bool value;
+
+  BoolPattern(this.value, Location location) : super(PatternTag.BOOL, location);
+
+  T accept<T>(PatternVisitor<T> v) {
+    return v.visitBool(this);
+  }
+
+  String toString() {
+    return "$value";
+  }
+}
+
+class ConstructorPattern extends Pattern {
+  DataConstructor declarator;
+  List<VariablePattern> components;
+  Datatype get type => declarator.type;
+
+  ConstructorPattern(this.declarator, this.components, Location location)
+      : super(PatternTag.CONSTR, location);
+  ConstructorPattern.nullary(DataConstructor declarator, Location location)
+      : this(declarator, const <VariablePattern>[], location);
+
+  T accept<T>(PatternVisitor<T> v) {
+    return v.visitConstructor(this);
+  }
+
+  String toString() {
+    return "[${declarator.binder.sourceName} $components]";
+  }
+}
+
+class ErrorPattern extends Pattern {
+  final LocatedError error;
+  ErrorPattern(this.error, Location location)
+      : super(PatternTag.ERROR, location);
+
+  T accept<T>(PatternVisitor<T> v) {
+    return v.visitError(this);
+  }
+}
+
+class HasTypePattern extends Pattern {
+  Pattern pattern;
+  Datatype type;
+
+  HasTypePattern(this.pattern, this.type, Location location)
+      : super(PatternTag.HAS_TYPE, location);
+
+  T accept<T>(PatternVisitor<T> v) {
+    return v.visitHasType(this);
+  }
+
+  String toString() {
+    return "[$pattern : $type]";
+  }
+}
+
+class IntPattern extends BaseValuePattern {
+  final int value;
+
+  IntPattern(this.value, Location location) : super(PatternTag.INT, location);
+
+  T accept<T>(PatternVisitor<T> v) {
+    return v.visitInt(this);
+  }
+
+  String toString() {
+    return "$value";
+  }
+}
+
+class StringPattern extends BaseValuePattern {
+  final String value;
+
+  StringPattern(this.value, Location location)
+      : super(PatternTag.STRING, location);
+
+  T accept<T>(PatternVisitor<T> v) {
+    return v.visitString(this);
+  }
+
+  String toString() {
+    return "$value";
+  }
+}
+
+class TuplePattern extends Pattern {
+  List<Pattern> components;
+
+  TuplePattern(this.components, Location location)
+      : super(PatternTag.TUPLE, location);
+
+  T accept<T>(PatternVisitor<T> v) {
+    return v.visitTuple(this);
+  }
+
+  String toString() {
+    if (components.length == 0) {
+      return "(*)";
+    } else {
+      return "(* $components)";
+    }
+  }
+}
+
+class VariablePattern extends Pattern implements Declaration {
+  Binder binder;
+  bool get isVirtual => false;
+
+  int get ident => binder.id;
+
+  VariablePattern(this.binder, Location location)
+      : super(PatternTag.VAR, location);
+
+  T accept<T>(PatternVisitor<T> v) {
+    return v.visitVariable(this);
+  }
+
+  String toString() {
+    return "${binder}";
+  }
+}
+
+class WildcardPattern extends Pattern {
+  WildcardPattern(Location location) : super(PatternTag.WILDCARD, location);
+
+  T accept<T>(PatternVisitor<T> v) {
+    return v.visitWildcard(this);
+  }
+
+  String toString() {
+    return "_";
+  }
+}

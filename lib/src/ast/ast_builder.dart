@@ -15,12 +15,7 @@ import '../typing/type_utils.dart' as typeUtils
     show boolType, intType, stringType, extractQuantifiers;
 
 import 'algebra.dart';
-import 'ast_module.dart';
-import 'ast_expressions.dart';
-import 'ast_declaration.dart';
-import 'ast_patterns.dart';
-import 'binder.dart';
-import 'datatype.dart';
+import 'ast.dart';
 
 class Name {
   final Location location;

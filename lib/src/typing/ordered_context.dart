@@ -4,12 +4,17 @@
 
 import 'dart:collection' show Map, LinkedList, LinkedListEntry;
 
-import '../ast/datatype.dart';
-import '../ast/ast_declaration.dart';
-import '../ast/ast_patterns.dart' show VariablePattern;
+import '../ast/ast.dart'
+    show
+        Declaration,
+        Datatype,
+        Skolem,
+        TypeVariable,
+  Quantifier,
+        ReduceDatatype,
+        TransformDatatype;
 import '../ast/monoids.dart' show Monoid, LAndMonoid;
 import '../immutable_collections.dart' show ImmutableList;
-import '../utils.dart' show Gensym;
 
 class DatatypeVerifier extends ReduceDatatype<bool> {
   Monoid<bool> get m => LAndMonoid();

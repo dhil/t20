@@ -7,7 +7,7 @@ library t20.pipeline;
 import 'dart:io';
 
 import '../settings.dart';
-import 'ast/ast_module.dart';
+import 'ast/ast.dart';
 import 'ast/ast_builder.dart';
 import 'compilation_unit.dart';
 import 'errors/error_reporting.dart';

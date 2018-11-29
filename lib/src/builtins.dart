@@ -2,11 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'ast/ast_builder.dart';
-import 'ast/ast_declaration.dart';
-import 'ast/ast_module.dart';
-import 'ast/binder.dart';
-import 'ast/datatype.dart';
+import 'ast/ast.dart'; // TODO remove.
+import 'ast/ast_builder.dart'; // TODO remove.
 import 'compilation_unit.dart';
 import 'errors/errors.dart'; // TODO remove.
 import 'errors/error_reporting.dart'; // TODO remove.
@@ -16,6 +13,7 @@ import 'result.dart';
 import 'syntax/sexp.dart';
 import 'syntax/parse_sexp.dart';
 
+// TODO remove the machinery for parsing data types out of this module.
 Datatype parseDatatype(String sexp) {
   // Parse source.
   Result<Sexp, SyntaxError> parseResult =
