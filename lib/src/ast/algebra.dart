@@ -3,7 +3,7 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import '../errors/errors.dart' show LocatedError;
-import '../fp.dart' show Option, Pair, Triple;
+import '../fp.dart' show Pair, Triple;
 import '../location.dart' show Location;
 
 abstract class ModuleAlgebra<Name, Mod, Exp, Pat, Typ> {

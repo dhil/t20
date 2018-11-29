@@ -3,8 +3,6 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import '../ast/ast.dart';
-import '../ast/monoids.dart';
-
 import '../errors/errors.dart';
 import '../fp.dart' show Pair, Triple;
 import '../location.dart';
@@ -83,6 +81,8 @@ class _TypeChecker {
   ModuleMember typeCheck(ModuleMember member) {
     Pair<OrderedContext, Datatype> result =
         inferModule(member, OrderedContext.empty());
+    // TODO use result.
+    result;
     return member;
   }
 
@@ -115,6 +115,8 @@ class _TypeChecker {
       default:
         unhandled("inferModule", member.tag);
     }
+
+    return null; // Impossible!
   }
 
   Pair<OrderedContext, Datatype> inferFunctionDefinition(
@@ -218,6 +220,8 @@ class _TypeChecker {
       default:
         unhandled("inferExpression", exp.tag);
     }
+
+    return null; // Impossible!
   }
 
   Pair<OrderedContext, Datatype> inferApply(Apply appl, OrderedContext ctxt) {
@@ -290,6 +294,7 @@ class _TypeChecker {
 
     // ERROR.
     unhandled("apply", "$arguments, $type");
+    return null;
   }
 
   Pair<OrderedContext, Datatype> inferMatch(Match match, OrderedContext ctxt) {
@@ -609,6 +614,8 @@ class _TypeChecker {
       default:
         unhandled("inferPattern", pat.tag);
     }
+
+    return null; // Impossible!
   }
 
   Triple<ScopedEntry, OrderedContext, List<Datatype>> inferManyPatterns(
@@ -810,6 +817,7 @@ class _TypeChecker {
     }
 
     unhandled("subsumes", "$a <: $b");
+    return null;
   }
 
   // OrderedContext subsumesMany(
@@ -961,7 +969,8 @@ class _TypeChecker {
       return ctxt;
     }
 
-    throw "InstantiateLeft error!";
+    unhandled("instantiateLeft", "$a <:= $b");
+    return null;
   }
 
   OrderedContext instantiateRight(Datatype a, Skolem b, OrderedContext ctxt) {
@@ -1083,6 +1092,7 @@ class _TypeChecker {
       return ctxt;
     }
 
-    throw "InstantiateRight error!";
+    unhandled("instantiateRight", "$a <=: $b");
+    return null;
   }
 }

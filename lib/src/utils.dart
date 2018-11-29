@@ -22,13 +22,13 @@ class Gensym {
   }
 
   static String freshString([String prefix = null]) {
-    if (prefix != null) {
-      StringBuffer buffer = new StringBuffer(prefix);
-      int suffix = Gensym.freshInt();
-      buffer.write("_");
-      buffer.write(suffix.toString());
-      return buffer.toString();
-    }
+    if (prefix == null) prefix = "_";
+
+    StringBuffer buffer = new StringBuffer(prefix);
+    int suffix = Gensym.freshInt();
+    buffer.write("_");
+    buffer.write(suffix.toString());
+    return buffer.toString();
   }
 }
 

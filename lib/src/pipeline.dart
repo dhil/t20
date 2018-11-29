@@ -98,7 +98,7 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
       KernelEmitter emitter = new KernelEmitter(settings.platformDill);
       await emitter.emit(emitter.helloWorld(), "hello.dill");
     }
-  } catch (err, stack) {
+  } catch (err) {
     if (currentFile != null) currentFile.closeSync();
     rethrow;
     // stderr.writeln("Fatal error: $err");

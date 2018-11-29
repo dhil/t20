@@ -59,7 +59,7 @@ class SList extends Sexp {
   final ListBrackets brackets;
 
   const SList(List<Sexp> sexps, this.brackets, SpanLocation location)
-      : this.sexps = sexps == null ? <Sexp>[] : sexps,
+      : this.sexps = sexps == null ? const [] : sexps,
         super(location);
 
   SpanLocation get location => super.location as SpanLocation;
@@ -69,7 +69,10 @@ class SList extends Sexp {
       case ListBrackets.BRACES: return "}";
       case ListBrackets.BRACKETS: return "]";
       case ListBrackets.PARENS: return ")";
+      default:
+        unhandled("closingBracket", brackets);
     }
+    return null; // Impossible!
   }
 
   int get length => sexps.length;

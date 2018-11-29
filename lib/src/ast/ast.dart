@@ -330,7 +330,7 @@ class TopModule extends ModuleMember {
   }
 
   String toString() {
-    String members0 = ListUtils.stringify(" ", members);
+    //String members0 = ListUtils.stringify(" ", members);
     return "(module ...)";
   }
 }
@@ -592,7 +592,7 @@ class Match extends Expression {
 
   String toString() {
     String cases0 = ListUtils.stringify(" ", cases);
-    return "(match $scrutinee cases0)";
+    return "(match $scrutinee $cases0)";
   }
 }
 

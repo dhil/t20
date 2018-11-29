@@ -25,7 +25,7 @@ class KernelEmitter {
       File platformFile = new File(platformFilePath);
       new BinaryBuilder(platformFile.readAsBytesSync())
           .readSingleFileComponent(component);
-    } catch (err, stacktrace) {
+    } catch (err) {
       throw err;
     }
     _platform = component;

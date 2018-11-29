@@ -552,7 +552,7 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
   Mod inclusion(Atom head, SList list) {
     assert(head.value == "open");
     throw "module inclusion is not yet implemented.";
-    return null;
+    // return null;
   }
 
   Mod signature(Atom colon, SList list) {

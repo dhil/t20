@@ -4,7 +4,7 @@
 
 // Immutable map.
 abstract class ImmutableMap<K, V> {
-  factory ImmutableMap.empty() = _NaiveImmutableMap.empty<K, V>;
+  factory ImmutableMap.empty() = _NaiveImmutableMap<K, V>.empty;
   factory ImmutableMap.of(Map<K, V> mutableMap) {
     ImmutableMap<K, V> map = ImmutableMap<K, V>.empty();
     for (MapEntry<K, V> entry in mutableMap.entries) {
