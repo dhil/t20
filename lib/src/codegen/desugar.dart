@@ -149,15 +149,18 @@ class DecisionTreeCompiler {
       }
 
       // Potential match.
-      ir.Value value;
+      ir.Value w;
+      ir.Value eq;
       if (pat is IntPattern) {
-        value = ir.IntLit(pat.value);
+        w = ir.IntLit(pat.value);
+        eq = null; // TODO lookup.
       } else if (pat is StringPattern) {
-        value = ir.StringLit(pat.value);
+        w = ir.StringLit(pat.value);
+        eq = null;
       } else {
         unhandled("DecisionTreeCompiler.compile", pat);
       }
-      ir.Value condition = equals(scrutinee, value);
+      ir.Value condition = applyPure(eq, <ir.Value>[scrutinee, w]);
 
       ir.If testExp = ir.If(
           condition, desugarer.expression(cases[mid].expression), continuation);
