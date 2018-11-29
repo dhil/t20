@@ -11,9 +11,14 @@ import '../typing/type_utils.dart' as typeUtils;
 
 import 'ir.dart' as ir;
 
+ir.Value applyPure(ir.Value f, List<ir.Value> args) {
+  ir.Apply apply = ir.Apply(f, args);
+  return ir.ApplyPure(apply);
+}
+
 ir.Value equals(ir.Value a, ir.Value b) {
-  ir.Value eq = null; // TODO lookup built-in equals.
-  return ir.ApplyPure(ir.Apply(eq, <ir.Value>[a, b]));
+  ir.Value eq = null; // TODO lookup built-in equals;
+  return applyPure(eq, <ir.Value>[a, b]);
 }
 
 ir.TailComputation matchFailure = ir.Apply(
@@ -27,16 +32,16 @@ class Desugarer {
     return Result<ir.IRNode, T20Error>.success(null);
   }
 
-  ir.Binding translateModuleMember(ModuleMember mod) {
+  ir.Binding module(ModuleMember mod) {
     return null;
   }
 
-  ir.Computation translateExpression(Expression expr) {
+  ir.Computation expression(Expression expr) {
     return null;
   }
 }
 
-class ParameterDesugarer {
+class SingleBindingDesugarer {
   Pair<ir.TypedBinder, List<ir.Binding>> desugar(Pattern pattern) {
     switch (pattern.tag) {
       case PatternTag.BOOL:
@@ -109,6 +114,8 @@ class ParameterDesugarer {
     } else {
       unhandled("literal", value);
     }
+
+    return null; // Impossible!
   }
 }
 
@@ -116,17 +123,32 @@ class DecisionTreeCompiler {
   Desugarer desugarer;
   // Compiles a sorted list of base patterns into a well-balanced binary search
   // tree.
-  ir.TailComputation compile(ir.Variable scrutinee, List<Case> cases, int start,
-      int end, ir.TailComputation continuation) {
+  ir.Computation compile(ir.Variable scrutinee, List<Case> cases, int start,
+      int end, ir.Computation continuation) {
     final int length = end - start + 1;
     // Two base cases:
     // 1) compile _ [] continuation = continuation.
     if (length == 0) return continuation;
-    // 2) compile scrutinee [case] continuation = if (eq? scrutinee [|case.pattern.value|]) desugar case.body else continuation.
+    // 2) compile scrutinee [case] continuation = if (eq? scrutinee w) desugar case.body else continuation.
+    //                                          where w = [|case.pattern.value|].
     if (length == 1) {
       final int mid = length ~/ 2;
-      final Pattern pat = cases[mid].pattern;
+      final Case c = cases[mid];
+      final Pattern pat = c.pattern;
 
+      // Immediate match.
+      if (pat is VariablePattern) {
+        // Bind the scrutinee.
+        ir.TypedBinder binder = ir.TypedBinder.of(pat.binder, pat.type);
+        ir.Let let = ir.Let(binder, ir.Return(scrutinee));
+        binder.bindingSite = let;
+        ir.Computation comp = desugarer.expression(c.expression);
+        return ir.withBindings(<ir.Binding>[let], comp);
+      } else if (pat is WildcardPattern) {
+        return desugarer.expression(c.expression);
+      }
+
+      // Potential match.
       ir.Value value;
       if (pat is IntPattern) {
         value = ir.IntLit(pat.value);
@@ -138,10 +160,8 @@ class DecisionTreeCompiler {
       ir.Value condition = equals(scrutinee, value);
 
       ir.If testExp = ir.If(
-          condition,
-          desugarer.translateExpression(cases[mid].expression),
-          lift(continuation));
-      return testExp;
+          condition, desugarer.expression(cases[mid].expression), continuation);
+      return lift(testExp);
     }
 
     // Inductive case:
@@ -154,24 +174,37 @@ class DecisionTreeCompiler {
     final Case c = cases[mid];
     final Pattern pat = c.pattern;
 
-    ir.Value value;
+    // Immediate match.
+    if (pat is VariablePattern || pat is WildcardPattern) {
+      return compile(scrutinee, cases, mid, mid, continuation);
+    }
+
+    // Potential match.
+    ir.Value w;
     ir.Value less;
     ir.Value greater;
 
     if (pat is IntPattern) {
-      value = ir.IntLit(pat.value);
+      w = ir.IntLit(pat.value);
       less = null; // TODO lookup.
       greater = null;
     } else if (pat is StringPattern) {
-      value = ir.StringLit(pat.value);
+      w = ir.StringLit(pat.value);
       less = null;
       greater = null;
     } else {
       unhandled("DecisionTreeCompiler.compile", pat);
     }
 
-    // final ir.If testExp = If(
+    List<ir.Value> arguments = <ir.Value>[scrutinee, w];
+    final ir.If testExp = ir.If(
+        applyPure(less, arguments),
+        desugarer.expression(c.expression),
+        lift(ir.If(
+            applyPure(greater, arguments),
+            compile(scrutinee, cases, mid + 1, end, continuation),
+            compile(scrutinee, cases, mid, mid, continuation))));
 
-    return null;
+    return lift(testExp);
   }
 }

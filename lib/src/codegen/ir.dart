@@ -299,3 +299,10 @@ class Primitive extends Value {
 
   T accept<T>(IRVisitor<T> v) => v.visitPrimitive(this);
 }
+
+//===== Utils.
+Computation withBindings(List<Binding> bindings, Computation comp) {
+  bindings.addAll(comp.bindings);
+  comp.bindings = bindings;
+  return comp;
+}
