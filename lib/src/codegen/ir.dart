@@ -6,7 +6,7 @@ import '../ast/binder.dart';
 import '../ast/datatype.dart';
 
 /*
- * The intermediate representation (IR) is an ANF representation of the
+ * The intermediate representation (IR) is an ANF-ish representation of the
  * front-end AST. The IR distinguishes between computations and values (or
  * serious and trivial terms).
  */

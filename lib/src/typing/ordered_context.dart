@@ -10,7 +10,7 @@ import '../ast/ast.dart'
         Datatype,
         Skolem,
         TypeVariable,
-  Quantifier,
+        Quantifier,
         ReduceDatatype,
         TransformDatatype;
 import '../ast/monoids.dart' show Monoid, LAndMonoid;
