@@ -20,8 +20,11 @@ Computation comp(TailComputation tc) => Computation(null, tc);
 
 class Desugarer {
   final IRAlgebra alg;
+  final PatternCompiler patternCompiler;
 
-  Desugarer(this.alg);
+  Desugarer(IRAlgebra alg)
+      : patternCompiler = new PatternCompiler(alg),
+        this.alg = alg;
 
   Result<IRNode, T20Error> desugar(ast.TopModule mod) {
     return Result<IRNode, T20Error>.success(null);
@@ -69,8 +72,10 @@ class Desugarer {
         return translateIf(expr as ast.If);
         break;
       case ast.ExpTag.LAMBDA:
+        return translateLambda(expr as ast.Lambda);
         break;
       case ast.ExpTag.LET:
+        return translateLet(expr as ast.Let);
         break;
       case ast.ExpTag.MATCH:
         break;
@@ -86,6 +91,47 @@ class Desugarer {
         unhandled("Desugarer.expression", expr.tag);
     }
     return null; // Impossible.
+  }
+
+  Computation translateLambda(ast.Lambda lambda) {
+    // Translate each parameter.
+    List<TypedBinder> parameters = new List<TypedBinder>();
+    List<Datatype> domain = typeUtils.domain(lambda.type);
+    List<Binding> bindings;
+    for (int i = 0; i < lambda.parameters.length; i++) {
+      // Create a fresh binder.
+      TypedBinder binder = TypedBinder.fresh(domain[i]);
+      bindings = append(
+          patternCompiler.desugar(binder, lambda.parameters[i]), bindings);
+      parameters.add(binder);
+    }
+    // Translate the body.
+    Computation body = expression(lambda.body);
+
+    return alg.computation(bindings, alg.return$(alg.lambda(parameters, body)));
+  }
+
+  Computation translateLet(ast.Let let) {
+    // Translate value binding.
+    List<Binding> bindings = new List<Binding>();
+    for (int i = 0; i < let.valueBindings.length; i++) {
+      ast.Binding b = let.valueBindings[i];
+      // Translate the expression.
+      Computation comp = expression(b.expression);
+      // Append any new bindings.
+      bindings = append(comp.bindings, bindings);
+      // Generate a fresh binder.
+      TypedBinder binder = TypedBinder.fresh(null /* TODO */);
+      // Bind the tail computation.
+      bindings = augment(alg.letValue(binder, comp.tailComputation), bindings);
+      // Translate the pattern.
+      bindings = append(patternCompiler.desugar(binder, b.pattern), bindings);
+    }
+
+    // Translate the continuation.
+    Computation comp = expression(let.body);
+    comp.bindings = append(comp.bindings, bindings);
+    return comp;
   }
 
   String tupleLabel(int i) => "\$${i + 1}";
@@ -174,31 +220,31 @@ class Desugarer {
   }
 }
 
-class SingleBindingDesugarer {
+class PatternCompiler {
   IRAlgebra alg;
+  PatternCompiler(this.alg);
 
-  Pair<TypedBinder, List<Binding>> desugar(ast.Pattern pattern) {
+  List<Binding> desugar(TypedBinder binder, ast.Pattern pattern) {
     switch (pattern.tag) {
       case ast.PatternTag.BOOL:
       case ast.PatternTag.INT:
       case ast.PatternTag.STRING:
-        return basePattern(pattern);
+        return basePattern(binder, pattern);
         break;
       case ast.PatternTag.TUPLE:
         break;
       case ast.PatternTag.CONSTR:
         break;
       case ast.PatternTag.HAS_TYPE:
-        return desugar((pattern as ast.HasTypePattern).pattern);
+        return desugar(binder, (pattern as ast.HasTypePattern).pattern);
         break;
       case ast.PatternTag.VAR:
         ast.VariablePattern v = pattern as ast.VariablePattern;
-        return Pair<TypedBinder, List<Binding>>(
-            TypedBinder.of(v.binder, v.type), const <Binding>[]);
+        TypedBinder vb = TypedBinder.of(v.binder, v.type);
+        return <Binding>[alg.letValue(vb, alg.return$(alg.variable(binder)))];
         break;
       case ast.PatternTag.WILDCARD:
-        return Pair<TypedBinder, List<Binding>>(
-            TypedBinder.fresh(pattern.type), const <Binding>[]);
+        return const <Binding>[];
         break;
       default:
         unhandled("desugarPattern", pattern.tag);
@@ -206,7 +252,7 @@ class SingleBindingDesugarer {
     return null;
   }
 
-  Pair<TypedBinder, List<Binding>> basePattern(ast.Pattern pattern) {
+  List<Binding> basePattern(TypedBinder binder, ast.Pattern pattern) {
     Value w;
     Value eq;
     Datatype type;
@@ -226,8 +272,6 @@ class SingleBindingDesugarer {
       unhandled("SingleBindingDesugarer.basePattern", pattern);
     }
 
-    // Fresh name for the parameter.
-    TypedBinder binder = TypedBinder.fresh(type);
     // Fresh dummy name for the let binding.
     TypedBinder dummy = TypedBinder.fresh(type);
 
@@ -237,7 +281,7 @@ class SingleBindingDesugarer {
         alg.ifthenelse(alg.applyPure(eq, <Value>[alg.variable(binder), w]),
             comp(alg.return$(w)), comp(matchFailure)));
 
-    return Pair<TypedBinder, List<Binding>>(binder, <Binding>[testExp]);
+    return <Binding>[testExp];
   }
 }
 
