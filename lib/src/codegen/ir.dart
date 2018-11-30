@@ -4,6 +4,7 @@
 
 import '../ast/binder.dart';
 import '../ast/datatype.dart';
+import '../location.dart' show Location;
 
 /*
  * The intermediate representation (IR) is an ANF-ish representation of the
@@ -25,14 +26,15 @@ abstract class IRVisitor<T> {
   T visitLambda(Lambda lambda);
   T visitRecord(Record record);
   T visitPrimitive(Primitive primitive);
+  T visitProjection(Projection proj);
   T visitStringLit(StringLit lit);
   T visitVariable(Variable v);
 
   // Bindings.
   T visitDataConstructor(DataConstructor constr);
   T visitDatatype(DatatypeDescriptor desc);
-  T visitFun(Fun f);
-  T visitLet(Let let);
+  T visitLetFun(LetFun f);
+  T visitLetVal(LetVal let);
 
   // Tail computations.
   T visitIf(If ifthenelse);
@@ -41,6 +43,98 @@ abstract class IRVisitor<T> {
 
   // Specials.
   /* Empty (for now) */
+}
+
+//===== Algebras.
+class IRAlgebra {
+  // Values.
+  ApplyPure applyPure(Value fn, List<Value> arguments, {Location location}) {
+    return ApplyPure(apply(fn, arguments));
+  }
+
+  BoolLit boollit(bool lit, {Location location}) => BoolLit(lit);
+  IntLit intlit(int lit, {Location location}) => IntLit(lit);
+
+  Lambda lambda(List<TypedBinder> parameters, Computation body,
+      {Location location}) {
+    return Lambda(parameters, body);
+  }
+
+  Record record(Map<String, Value> members, {Location location}) {
+    return Record(members);
+  }
+
+  Projection project(Value v, String label, {Location location}) {
+    return Projection(v, label);
+  }
+
+  StringLit stringlit(String lit, {Location location}) => StringLit(lit);
+
+  Variable variable(TypedBinder binder, {Location location}) {
+    Variable v = Variable(binder);
+    binder.addOccurrence(v);
+    return v;
+  }
+
+  // Bindings.
+  DataConstructor dataConstructor(
+      TypedBinder binder, List<Datatype> memberTypes,
+      {Location location}) {
+    return null;
+  }
+
+  DatatypeDescriptor datatypeDescriptor(
+      TypedBinder binder, List<DataConstructor> constructors,
+      {Location location}) {
+    return null;
+  }
+
+  LetFun letFunction(
+      TypedBinder binder, List<TypedBinder> parameters, Computation body,
+      {Location location}) {
+    LetFun fun = LetFun(binder, parameters, body);
+    binder.bindingSite = fun;
+    for (int i = 0; i < parameters.length; i++) {
+      parameters[i].bindingSite = fun;
+    }
+    return fun;
+  }
+
+  LetVal letValue(TypedBinder binder, TailComputation expr,
+      {Location location}) {
+    LetVal let = LetVal(binder, expr);
+    binder.bindingSite = let;
+    return let;
+  }
+
+  // Tail computations.
+  Apply apply(Value fn, List<Value> arguments, {Location location}) {
+    return Apply(fn, arguments);
+  }
+
+  If ifthenelse(Value condition, Computation thenBranch, Computation elseBranch,
+      {Location location}) {
+    return If(condition, thenBranch, elseBranch);
+  }
+
+  Return return$(Value v, {Location location}) => Return(v);
+
+  // Computations.
+  Computation computation(List<Binding> bindings, TailComputation tc,
+          {Location location}) =>
+      Computation(bindings, tc);
+
+  // Utils.
+  Computation withBindings(List<Binding> bindings, Computation comp) {
+    if (bindings == null) return comp;
+
+    if (comp.bindings != null) {
+      bindings.addAll(comp.bindings);
+    }
+
+    comp.bindings = bindings;
+    return comp;
+  }
 }
 
 abstract class IRNode {
@@ -79,20 +173,10 @@ class TypedBinder extends Binder {
     occurrences.add(v);
   }
 
-  bool get isParameter => false;
-
   int get hashCode {
     int hash = super.hashCode * 13 + type.hashCode;
     return hash;
   }
-}
-
-class TypedParameterBinder extends TypedBinder {
-  bool get isParameter => true;
-
-  TypedParameterBinder.of(Binder b, Datatype type) : super.of(b, type);
-
-  TypedParameterBinder.fresh(Datatype type) : super.fresh(type);
 }
 
 //===== Bindings.
@@ -108,26 +192,26 @@ abstract class Binding implements IRNode {
   void addOccurrence(Variable v) => binder.addOccurrence(v);
 }
 
-class Let extends Binding {
+class LetVal extends Binding {
   TailComputation tailComputation;
 
-  Let(TypedBinder binder, this.tailComputation) : super(binder);
+  LetVal(TypedBinder binder, this.tailComputation) : super(binder);
 
   T accept<T>(IRVisitor<T> v) {
-    return v.visitLet(this);
+    return v.visitLetVal(this);
   }
 }
 
-class Fun extends Binding {
+class LetFun extends Binding {
   List<TypedBinder> parameters;
   Computation body;
 
   int get arity => parameters == null ? 0 : parameters.length;
 
-  Fun(TypedBinder binder, this.parameters, this.body) : super(binder);
+  LetFun(TypedBinder binder, this.parameters, this.body) : super(binder);
 
   T accept<T>(IRVisitor<T> v) {
-    return v.visitFun(this);
+    return v.visitLetFun(this);
   }
 }
 
@@ -274,6 +358,15 @@ class Record extends Value {
   }
 }
 
+class Projection extends Value {
+  String label;
+  Value receiver;
+
+  Projection(this.receiver, this.label);
+
+  T accept<T>(IRVisitor<T> v) => v.visitProjection(this);
+}
+
 class Variable extends Value {
   TypedBinder declarator;
   int get ident => declarator.id;
@@ -298,11 +391,4 @@ class Primitive extends Value {
   Primitive(this.tag);
 
   T accept<T>(IRVisitor<T> v) => v.visitPrimitive(this);
-}
-
-//===== Utils.
-Computation withBindings(List<Binding> bindings, Computation comp) {
-  bindings.addAll(comp.bindings);
-  comp.bindings = bindings;
-  return comp;
 }

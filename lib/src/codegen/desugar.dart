@@ -2,65 +2,203 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import '../ast/ast.dart';
+import '../ast/ast.dart' as ast;
+import '../ast/datatype.dart';
 import '../errors/errors.dart' show T20Error, unhandled;
 import '../fp.dart' show Pair;
 import '../result.dart';
 
 import '../typing/type_utils.dart' as typeUtils;
 
-import 'ir.dart' as ir;
+import 'ir.dart';
 
-ir.Value applyPure(ir.Value f, List<ir.Value> args) {
-  ir.Apply apply = ir.Apply(f, args);
-  return ir.ApplyPure(apply);
-}
-
-ir.Value equals(ir.Value a, ir.Value b) {
-  ir.Value eq = null; // TODO lookup built-in equals;
-  return applyPure(eq, <ir.Value>[a, b]);
-}
-
-ir.TailComputation matchFailure = ir.Apply(
+TailComputation matchFailure = Apply(
     null /* TODO look up name for fail/error */,
-    <ir.Value>[ir.StringLit("Pattern match failure.")]);
+    <Value>[StringLit("Pattern match failure.")]);
 
-ir.Computation lift(ir.TailComputation tc) => ir.Computation(null, tc);
+Computation comp(TailComputation tc) => Computation(null, tc);
 
 class Desugarer {
-  Result<ir.IRNode, T20Error> desugar(ModuleMember mod) {
-    return Result<ir.IRNode, T20Error>.success(null);
+  final IRAlgebra alg;
+
+  Desugarer(this.alg);
+
+  Result<IRNode, T20Error> desugar(ast.TopModule mod) {
+    return Result<IRNode, T20Error>.success(null);
   }
 
-  ir.Binding module(ModuleMember mod) {
-    return null;
+  Binding module(ast.ModuleMember mod) {
+    switch (mod.tag) {
+      case ast.ModuleTag.FUNC_DEF:
+        break;
+      case ast.ModuleTag.VALUE_DEF:
+        break;
+      case ast.ModuleTag.CONSTR:
+        break;
+      case ast.ModuleTag.DATATYPE_DEFS:
+        break;
+      case ast.ModuleTag.TYPENAME:
+        return null;
+        break;
+
+      default:
+        unhandled("Desugarer.module", mod.tag);
+    }
+
+    return null; // Impossible!
   }
 
-  ir.Computation expression(Expression expr) {
-    return null;
+  Computation expression(ast.Expression expr) {
+    switch (expr.tag) {
+      case ast.ExpTag.BOOL:
+        return alg.computation(
+            null, alg.return$(alg.boollit((expr as ast.BoolLit).value)));
+        break;
+      case ast.ExpTag.INT:
+        return alg.computation(
+            null, alg.return$(alg.intlit((expr as ast.IntLit).value)));
+        break;
+      case ast.ExpTag.STRING:
+        return alg.computation(
+            null, alg.return$(alg.stringlit((expr as ast.StringLit).value)));
+        break;
+      case ast.ExpTag.APPLY:
+        return translateApply(expr as ast.Apply);
+        break;
+      case ast.ExpTag.IF:
+        return translateIf(expr as ast.If);
+        break;
+      case ast.ExpTag.LAMBDA:
+        break;
+      case ast.ExpTag.LET:
+        break;
+      case ast.ExpTag.MATCH:
+        break;
+      case ast.ExpTag.TUPLE:
+        return translateTuple(expr as ast.Tuple);
+        break;
+      case ast.ExpTag.VAR:
+        // TODO pass in a context which binds idents to their TypedBinder object.
+        break;
+      case ast.ExpTag.TYPE_ASCRIPTION:
+        break;
+      default:
+        unhandled("Desugarer.expression", expr.tag);
+    }
+    return null; // Impossible.
+  }
+
+  String tupleLabel(int i) => "\$${i + 1}";
+
+  Computation translateTuple(ast.Tuple tuple) {
+    // Translate each component.
+    List<Binding> bindings;
+    Map<String, Value> members = new Map<String, Value>();
+    for (int i = 0; i < tuple.components.length; i++) {
+      Computation comp = expression(tuple.components[i]);
+      bindings = append(comp.bindings, bindings) ?? new List<Binding>();
+      members ??= new Map<String, Value>();
+      members[tupleLabel(i)] =
+          extractValue(bindings, comp.tailComputation, null /* TODO */);
+    }
+    return alg.computation(bindings, alg.return$(alg.record(members)));
+  }
+
+  Computation translateApply(ast.Apply apply) {
+    // First translate the abstractor.
+    Computation comp = expression(apply.abstractor);
+    // Grab the translated abstractor.
+    List<Binding> bindings = comp.bindings ?? new List<Binding>();
+    Value abstractor =
+        extractValue(bindings, comp.tailComputation, null /* TODO */);
+
+    // Translate each argument.
+    List<Value> arguments = new List<Value>();
+    for (int i = 0; i < apply.arguments.length; i++) {
+      comp = expression(apply.arguments[i]);
+      bindings = append(comp.bindings, bindings);
+      Value argument =
+          extractValue(bindings, comp.tailComputation, null /* TODO */);
+      arguments.add(argument);
+    }
+
+    // Construct the apply node. Reuse the [comp] object.
+    comp.bindings = bindings;
+    comp.tailComputation = alg.apply(abstractor, arguments);
+    return comp;
+  }
+
+  Value extractValue(
+      List<Binding> bindings, TailComputation tailComputation, Datatype type) {
+    Value v;
+    // Micro-optimisation: If the translated condition has the form `Return w'
+    // for some value w, then use w directly rather than introducing a new
+    // binding.
+    if (tailComputation is Return) {
+      Return ret = tailComputation;
+      v = ret.value;
+    } else {
+      TypedBinder binder = TypedBinder.fresh(type);
+      augment(alg.letValue(binder, tailComputation), bindings);
+      v = alg.variable(binder);
+    }
+    return v;
+  }
+
+  Computation translateIf(ast.If ifthenelse) {
+    // Translate the condition.
+    Computation comp = expression(ifthenelse.condition);
+    // Subsequently we need to normalise the translated condition, i.e. extract
+    // a value from the tail computation by let binding it.
+    Value condition;
+    condition =
+        extractValue(comp.bindings, comp.tailComputation, typeUtils.boolType);
+    // Reuse the computation object.
+    comp.tailComputation = alg.ifthenelse(condition,
+        expression(ifthenelse.thenBranch), expression(ifthenelse.elseBranch));
+    return comp;
+  }
+
+  List<Binding> augment(Binding binding, List<Binding> bindings) {
+    bindings ??= new List<Binding>();
+    bindings.add(binding);
+    return bindings;
+  }
+
+  List<Binding> append(List<Binding> source, List<Binding> destination) {
+    if (source == null) return destination;
+    if (destination == null) return source;
+
+    destination.addAll(source);
+    return destination;
   }
 }
 
 class SingleBindingDesugarer {
-  Pair<ir.TypedBinder, List<ir.Binding>> desugar(Pattern pattern) {
+  IRAlgebra alg;
+
+  Pair<TypedBinder, List<Binding>> desugar(ast.Pattern pattern) {
     switch (pattern.tag) {
-      case PatternTag.BOOL:
-      case PatternTag.INT:
-      case PatternTag.STRING:
+      case ast.PatternTag.BOOL:
+      case ast.PatternTag.INT:
+      case ast.PatternTag.STRING:
         return basePattern(pattern);
         break;
-      case PatternTag.TUPLE:
+      case ast.PatternTag.TUPLE:
         break;
-      case PatternTag.CONSTR:
+      case ast.PatternTag.CONSTR:
         break;
-      case PatternTag.HAS_TYPE:
-        return desugar((pattern as HasTypePattern).pattern);
+      case ast.PatternTag.HAS_TYPE:
+        return desugar((pattern as ast.HasTypePattern).pattern);
         break;
-      case PatternTag.VAR:
-        VariablePattern v = pattern as VariablePattern;
+      case ast.PatternTag.VAR:
+        ast.VariablePattern v = pattern as ast.VariablePattern;
+        return Pair<TypedBinder, List<Binding>>(
+            TypedBinder.of(v.binder, v.type), const <Binding>[]);
         break;
-      case PatternTag.WILDCARD:
-        return null;
+      case ast.PatternTag.WILDCARD:
+        return Pair<TypedBinder, List<Binding>>(
+            TypedBinder.fresh(pattern.type), const <Binding>[]);
         break;
       default:
         unhandled("desugarPattern", pattern.tag);
@@ -68,63 +206,49 @@ class SingleBindingDesugarer {
     return null;
   }
 
-  Pair<ir.TypedBinder, List<ir.Binding>> basePattern(Pattern pattern) {
-    ir.Value value;
+  Pair<TypedBinder, List<Binding>> basePattern(ast.Pattern pattern) {
+    Value w;
+    Value eq;
     Datatype type;
-    if (pattern is BoolPattern) {
-      value = ir.BoolLit(pattern.value);
+    if (pattern is ast.BoolPattern) {
+      w = alg.boollit(pattern.value);
       type = typeUtils.boolType;
-    } else if (pattern is IntPattern) {
-      value = ir.IntLit(pattern.value);
+      eq = null; // TODO lookup.
+    } else if (pattern is ast.IntPattern) {
+      w = alg.intlit(pattern.value);
       type = typeUtils.intType;
-    } else if (pattern is StringPattern) {
-      value = ir.StringLit(pattern.value);
+      eq = null;
+    } else if (pattern is ast.StringPattern) {
+      w = alg.stringlit(pattern.value);
       type = typeUtils.stringType;
+      eq = null;
     } else {
-      unhandled("ParameterDesugarer.basePattern", pattern);
+      unhandled("SingleBindingDesugarer.basePattern", pattern);
     }
 
     // Fresh name for the parameter.
-    ir.TypedBinder binder = ir.TypedBinder.fresh(type);
+    TypedBinder binder = TypedBinder.fresh(type);
     // Fresh dummy name for the let binding.
-    ir.TypedBinder dummy = ir.TypedBinder.fresh(type);
-
-    // Occurrence of [binder].
-    ir.Variable y = ir.Variable(binder);
-    binder.addOccurrence(y);
+    TypedBinder dummy = TypedBinder.fresh(type);
 
     // [|pat|] = let x = if (eq? y [|pat.value|]) y else error "pattern match failure.".
-    ir.If ifexp =
-        ir.If(equals(y, value), lift(ir.Return(value)), lift(matchFailure));
+    LetVal testExp = alg.letValue(
+        dummy,
+        alg.ifthenelse(alg.applyPure(eq, <Value>[alg.variable(binder), w]),
+            comp(alg.return$(w)), comp(matchFailure)));
 
-    ir.Let testExp = ir.Let(dummy, ifexp);
-    dummy.bindingSite = testExp;
-
-    return Pair<ir.TypedBinder, List<ir.Binding>>(
-        binder, <ir.Binding>[testExp]);
-  }
-
-  ir.Literal literal(Object value) {
-    if (value is bool) {
-      return ir.BoolLit(value);
-    } else if (value is int) {
-      return ir.IntLit(value);
-    } else if (value is String) {
-      return ir.StringLit(value);
-    } else {
-      unhandled("literal", value);
-    }
-
-    return null; // Impossible!
+    return Pair<TypedBinder, List<Binding>>(binder, <Binding>[testExp]);
   }
 }
 
 class DecisionTreeCompiler {
   Desugarer desugarer;
+  IRAlgebra get alg => desugarer.alg;
+
   // Compiles a sorted list of base patterns into a well-balanced binary search
   // tree.
-  ir.Computation compile(ir.Variable scrutinee, List<Case> cases, int start,
-      int end, ir.Computation continuation) {
+  Computation compile(Variable scrutinee, List<ast.Case> cases, int start,
+      int end, Computation continuation) {
     final int length = end - start + 1;
     // Two base cases:
     // 1) compile _ [] continuation = continuation.
@@ -133,38 +257,37 @@ class DecisionTreeCompiler {
     //                                          where w = [|case.pattern.value|].
     if (length == 1) {
       final int mid = length ~/ 2;
-      final Case c = cases[mid];
-      final Pattern pat = c.pattern;
+      final ast.Case c = cases[mid];
+      final ast.Pattern pat = c.pattern;
 
       // Immediate match.
-      if (pat is VariablePattern) {
+      if (pat is ast.VariablePattern) {
         // Bind the scrutinee.
-        ir.TypedBinder binder = ir.TypedBinder.of(pat.binder, pat.type);
-        ir.Let let = ir.Let(binder, ir.Return(scrutinee));
-        binder.bindingSite = let;
-        ir.Computation comp = desugarer.expression(c.expression);
-        return ir.withBindings(<ir.Binding>[let], comp);
-      } else if (pat is WildcardPattern) {
+        TypedBinder binder = TypedBinder.of(pat.binder, pat.type);
+        return alg.withBindings(
+            <Binding>[alg.letValue(binder, alg.return$(scrutinee))],
+            desugarer.expression(c.expression));
+      } else if (pat is ast.WildcardPattern) {
         return desugarer.expression(c.expression);
       }
 
       // Potential match.
-      ir.Value w;
-      ir.Value eq;
-      if (pat is IntPattern) {
-        w = ir.IntLit(pat.value);
+      Value w;
+      Value eq;
+      if (pat is ast.IntPattern) {
+        w = alg.intlit(pat.value);
         eq = null; // TODO lookup.
-      } else if (pat is StringPattern) {
-        w = ir.StringLit(pat.value);
+      } else if (pat is ast.StringPattern) {
+        w = alg.stringlit(pat.value);
         eq = null;
       } else {
         unhandled("DecisionTreeCompiler.compile", pat);
       }
-      ir.Value condition = applyPure(eq, <ir.Value>[scrutinee, w]);
+      Value condition = alg.applyPure(eq, <Value>[scrutinee, w]);
 
-      ir.If testExp = ir.If(
-          condition, desugarer.expression(cases[mid].expression), continuation);
-      return lift(testExp);
+      If testExp = alg.ifthenelse(
+          condition, desugarer.expression(c.expression), continuation);
+      return comp(testExp);
     }
 
     // Inductive case:
@@ -174,40 +297,41 @@ class DecisionTreeCompiler {
     //                         left cases = [ c | c <- cases, c.pattern.value < cmid.pattern.value ]
     //                        right cases = [ c | c <- cases, c.pattern.value > cmid.pattern.value ]
     final int mid = length ~/ 2;
-    final Case c = cases[mid];
-    final Pattern pat = c.pattern;
+    final ast.Case c = cases[mid];
+    final ast.Pattern pat = c.pattern;
 
     // Immediate match.
-    if (pat is VariablePattern || pat is WildcardPattern) {
+    if (pat is ast.VariablePattern || pat is ast.WildcardPattern) {
+      // Delegate to the base case.
       return compile(scrutinee, cases, mid, mid, continuation);
     }
 
     // Potential match.
-    ir.Value w;
-    ir.Value less;
-    ir.Value greater;
+    Value w;
+    Value less;
+    Value greater;
 
-    if (pat is IntPattern) {
-      w = ir.IntLit(pat.value);
+    if (pat is ast.IntPattern) {
+      w = alg.intlit(pat.value);
       less = null; // TODO lookup.
       greater = null;
-    } else if (pat is StringPattern) {
-      w = ir.StringLit(pat.value);
+    } else if (pat is ast.StringPattern) {
+      w = alg.stringlit(pat.value);
       less = null;
       greater = null;
     } else {
       unhandled("DecisionTreeCompiler.compile", pat);
     }
 
-    List<ir.Value> arguments = <ir.Value>[scrutinee, w];
-    final ir.If testExp = ir.If(
-        applyPure(less, arguments),
+    List<Value> arguments = <Value>[scrutinee, w];
+    final If testExp = alg.ifthenelse(
+        alg.applyPure(less, arguments),
         desugarer.expression(c.expression),
-        lift(ir.If(
-            applyPure(greater, arguments),
+        comp(alg.ifthenelse(
+            alg.applyPure(greater, arguments),
             compile(scrutinee, cases, mid + 1, end, continuation),
             compile(scrutinee, cases, mid, mid, continuation))));
 
-    return lift(testExp);
+    return comp(testExp);
   }
 }

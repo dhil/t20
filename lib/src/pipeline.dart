@@ -82,7 +82,7 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
 
       // Code generate.
       Result<ir.IRNode, T20Error> codeResult =
-          new Desugarer().desugar(typeResult.result);
+          new Desugarer(null).desugar(typeResult.result);
 
       if (!codeResult.wasSuccessful) {
         report(codeResult.errors);
