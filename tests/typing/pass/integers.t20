@@ -1,0 +1,34 @@
+;; Basic integer operations.
+
+(: plus-2 [-> Int Int])
+(define (plus-2 x) (+ x 2))
+
+(: minus-2 [-> Int Int])
+(define (minus-2 x) (- x 2))
+
+(: times-2 [-> Int Int])
+(define (times-2 x) (* x 2))
+
+(: divide-2 [-> Int Int])
+(define (divide-2 x) (/ x 2))
+
+(: even? [-> Int Bool])
+(define (even? x)
+  (int-eq? (mod x 2) 0))
+
+(: not [-> Bool Bool])
+(define (not x)
+  (match x
+    [#t #f]
+    [#f #t]))
+
+(: odd? [-> Int Bool])
+(define (odd? x)
+  (not (even? x)))
+
+;; An alternative way of defining odd.
+(: odd'? [-> Int Bool])
+(define (odd'? x)
+  (match (even? x)
+    [#f #t]
+    [_ #f]))
