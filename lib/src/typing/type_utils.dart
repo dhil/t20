@@ -95,7 +95,7 @@ class _FreeTypeVariables extends ReduceDatatype<Set<int>> {
     Set<int> ftv = forallType.body.accept(this);
     Set<int> btv =
         forallType.quantifiers.fold(m.empty, (Set<int> acc, Quantifier q) {
-      acc.add(q.binder.id);
+          acc.add(q.ident);
       return acc;
     });
     return ftv.difference(btv);

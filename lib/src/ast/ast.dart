@@ -61,12 +61,15 @@ export 'binder.dart';
 import 'datatype.dart';
 export 'datatype.dart';
 
+import 'identifiable.dart';
+export 'identifiable.dart';
+
 //===== Declaration.
-abstract class Declaration {
+abstract class Declaration implements Identifiable {
   Datatype get type;
   Binder get binder;
   bool get isVirtual;
-  int get ident;
+  int get ident => binder.ident;
 }
 
 //===== Module / top-level language.
@@ -105,10 +108,12 @@ abstract class ModuleMember {
   T accept<T>(ModuleVisitor<T> v);
 }
 
-class Signature extends ModuleMember {
+class Signature extends ModuleMember implements Declaration {
   Binder binder;
   Datatype type;
   List<Declaration> definitions;
+  bool get isVirtual => false;
+  int get ident => binder.ident;
 
   Signature(this.binder, this.type, Location location)
       : definitions = new List<Declaration>(),
@@ -130,7 +135,7 @@ class ValueDeclaration extends ModuleMember implements Declaration {
 
   bool get isVirtual => false;
   Datatype get type => signature.type;
-  int get ident => binder.id;
+  int get ident => binder.ident;
 
   ValueDeclaration(this.signature, this.binder, this.body, Location location)
       : super(ModuleTag.VALUE_DEF, location);
@@ -151,7 +156,7 @@ class FunctionDeclaration extends ModuleMember implements Declaration {
 
   bool get isVirtual => false;
   Datatype get type => signature.type;
-  int get ident => binder.id;
+  int get ident => binder.ident;
 
   FunctionDeclaration(this.signature, this.binder, this.parameters, this.body,
       Location location)
@@ -189,7 +194,7 @@ class DataConstructor extends ModuleMember implements Declaration {
   List<Datatype> parameters;
 
   bool get isVirtual => false;
-  int get ident => binder.id;
+  int get ident => binder.ident;
 
   Datatype _type;
   Datatype get type {
@@ -239,7 +244,7 @@ class ClassDescriptor {
   final Binder binder;
   final List<VirtualFunctionDeclaration> members;
 
-  int get ident => binder.id;
+  int get ident => binder.ident;
 
   ClassDescriptor(this.binder, this.members);
 }
@@ -257,7 +262,7 @@ class DatatypeDescriptor extends ModuleMember
   List<Derive> deriving;
 
   bool get isVirtual => false;
-  int get ident => binder.id;
+  int get ident => binder.ident;
 
   TypeConstructor _type;
   TypeConstructor get type {
@@ -342,7 +347,7 @@ class TypeAliasDescriptor extends ModuleMember
   Datatype rhs;
 
   bool get isVirtual => false;
-  int get ident => binder.id;
+  int get ident => binder.ident;
 
   TypeConstructor _type;
   TypeConstructor get type {
@@ -495,7 +500,7 @@ class Apply extends Expression {
 class Variable extends Expression {
   Declaration declarator;
 
-  int get ident => declarator.binder.id;
+  int get ident => declarator.binder.ident;
 
   Variable(this.declarator, Location location) : super(ExpTag.VAR, location);
 
@@ -794,7 +799,7 @@ class VariablePattern extends Pattern implements Declaration {
   Binder binder;
   bool get isVirtual => false;
 
-  int get ident => binder.id;
+  int get ident => binder.ident;
 
   VariablePattern(this.binder, Location location)
       : super(PatternTag.VAR, location);

@@ -161,7 +161,7 @@ class TypedBinder extends Binder {
 
   TypedBinder.of(Binder b, Datatype type)
       : this.type = type,
-        super.raw(b.id, b.sourceName, b.location);
+        super.raw(b.ident, b.sourceName, b.location);
 
   TypedBinder.fresh(Datatype type)
       : this.type = type,
@@ -184,7 +184,7 @@ abstract class Binding implements IRNode {
   TypedBinder binder;
 
   Datatype get type => binder.type;
-  int get ident => binder.id;
+  int get ident => binder.ident;
 
   Binding(this.binder);
 
@@ -369,7 +369,7 @@ class Projection extends Value {
 
 class Variable extends Value {
   TypedBinder declarator;
-  int get ident => declarator.id;
+  int get ident => declarator.ident;
 
   Variable(this.declarator);
 

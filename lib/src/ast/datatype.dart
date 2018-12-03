@@ -9,13 +9,15 @@ import '../unionfind.dart' show Point;
 import '../utils.dart' show Gensym;
 
 import 'binder.dart';
+import 'identifiable.dart';
 import 'monoids.dart' show Monoid, StringMonoid;
 // import 'name.dart';
 
-abstract class TypeDescriptor {
+abstract class TypeDescriptor implements Identifiable {
   Binder binder;
   List<Quantifier> parameters;
   int get arity;
+  int get ident => binder.ident;
 }
 
 enum TypeTag {
@@ -264,10 +266,10 @@ class TupleType extends Datatype {
   }
 }
 
-class Quantifier {
+class Quantifier implements Identifiable {
   final Kind kind = Kind.TYPE;
   final Binder binder;
-  int get ident => binder.id;
+  int get ident => binder.ident;
   // final Set<Object> constraints;
 
   Quantifier.fresh()
@@ -275,9 +277,9 @@ class Quantifier {
   Quantifier.of(Binder binder) : this.binder = binder;
 
   static int compare(Quantifier a, Quantifier b) {
-    if (a.binder.id < b.binder.id)
+    if (a.ident < b.ident)
       return -1;
-    else if (a.binder.id == b.binder.id)
+    else if (a.ident == b.ident)
       return 0;
     else
       return 1;
@@ -288,7 +290,7 @@ class Quantifier {
   }
 }
 
-class TypeVariable extends Datatype {
+class TypeVariable extends Datatype implements Identifiable {
   // May be null during construction. Otherwise it is intended to point to its
   // binder.
   Quantifier declarator;
@@ -303,10 +305,10 @@ class TypeVariable extends Datatype {
     return v.visitTypeVariable(this);
   }
 
-  int get ident => declarator.binder.id;
+  int get ident => declarator.binder.ident;
 }
 
-class Skolem extends Datatype {
+class Skolem extends Datatype implements Identifiable {
   Point<Datatype> _point;
   final int _ident;
   int get ident => _ident;
@@ -364,11 +366,11 @@ class ForallType extends Datatype {
   }
 }
 
-class TypeConstructor extends Datatype {
+class TypeConstructor extends Datatype implements Identifiable {
   TypeDescriptor declarator;
   List<Datatype> arguments;
 
-  int get ident => declarator.binder.id;
+  int get ident => declarator.binder.ident;
 
   TypeConstructor() : super(TypeTag.CONSTR);
   TypeConstructor.from(this.declarator, this.arguments) : super(TypeTag.CONSTR);

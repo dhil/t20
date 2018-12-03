@@ -5,10 +5,13 @@
 import '../location.dart';
 import '../utils.dart' show Gensym;
 
-class Binder {
+import 'identifiable.dart';
+
+class Binder implements Identifiable {
   final String _sourceName;
   final Location _location;
-  final int id;
+  final int _ident;
+  int get ident => _ident;
 
   Location get location => _location ?? Location.dummy();
   String get sourceName => _sourceName ?? "<synthetic>";
@@ -17,20 +20,20 @@ class Binder {
       : this.raw(Gensym.freshInt(), sourceName, location);
   Binder.fresh() : this.fromSource(null, null);
   Binder.primitive(String name) : this.fromSource(name, null);
-  Binder.raw(this.id, this._sourceName, this._location);
+  Binder.raw(this._ident, this._sourceName, this._location);
 
   String toString() {
     if (_sourceName == null) {
-      return "syn$id";
+      return "syn$ident";
     } else {
-      return "$_sourceName$id";
+      return "$_sourceName$ident";
     }
   }
 
   int get hashCode {
     int hash = 1;
     hash = hash * 13 + (_location == null ? 0 : _location.hashCode);
-    hash = hash * 17 + id;
+    hash = hash * 17 + ident;
     hash = hash * 31 + (_sourceName == null ? 0 : _sourceName.hashCode);
     return hash;
   }

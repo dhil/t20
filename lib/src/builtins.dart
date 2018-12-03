@@ -76,7 +76,7 @@ Map<int, ClassDescriptor> makeBuiltinClasses() {
     }
     // Create the class.
     ClassDescriptor classDesc = ClassDescriptor(binder, decls);
-    return MapEntry<int, ClassDescriptor>(binder.id, classDesc);
+    return MapEntry<int, ClassDescriptor>(binder.ident, classDesc);
   });
 
   return classes;
@@ -101,13 +101,13 @@ Map<int, Declaration> makeBuiltinDeclarations() {
     "<=": "(forall 'a (-> 'a 'a Bool))",
     ">=": "(forall 'a (-> 'a 'a Bool))",
     // Type specific relational operations.
-    "boolEq?": "(-> Bool Bool Bool)",
-    "intEq?": "(-> Int Int Bool)",
-    "intLess?": "(-> Int Int Bool)",
-    "intGreater?": "(-> Int Int Bool)",
-    "stringEq?": "(-> String String Bool)",
-    "stringLess": "(-> String String Bool)",
-    "stringGreater": "(-> String String Bool)",
+    "bool-eq?": "(-> Bool Bool Bool)",
+    "int-eq?": "(-> Int Int Bool)",
+    "int-less?": "(-> Int Int Bool)",
+    "int-greater?": "(-> Int Int Bool)",
+    "string-eq?": "(-> String String Bool)",
+    "string-less?": "(-> String String Bool)",
+    "string-greater?": "(-> String String Bool)",
     // Boolean.
     "&&": "(-> Bool Bool Bool)",
     "||": "(-> Bool Bool Bool)",
@@ -118,7 +118,7 @@ Map<int, Declaration> makeBuiltinDeclarations() {
   final Map<int, Declaration> funDeclarations =
       rawFunDeclarations.map((String key, String val) {
     Declaration decl = makeVirtualFunctionDeclaration(key, val);
-    return MapEntry<int, Declaration>(decl.binder.id, decl);
+    return MapEntry<int, Declaration>(decl.ident, decl);
   });
 
   // Insert class members.

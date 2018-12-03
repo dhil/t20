@@ -523,7 +523,7 @@ class _TypeChecker {
     if (pat is BoolPattern && type is BoolType ||
         pat is IntPattern && type is IntType ||
         pat is StringPattern && type is StringType) {
-      return null;
+      return Pair<ScopedEntry, OrderedContext>(null, ctxt);
     }
 
     // check x t ctxt = ctxt.
@@ -608,7 +608,7 @@ class _TypeChecker {
       case PatternTag.WILDCARD:
         Skolem skolem = Skolem();
         Existential ex = Existential(skolem);
-        ctxt.insertLast(ex);
+        ctxt = ctxt.insertLast(ex);
         return Triple<ScopedEntry, OrderedContext, Datatype>(ex, ctxt, skolem);
         break;
       default:
@@ -668,6 +668,7 @@ class _TypeChecker {
   OrderedContext subsumes(Datatype lhs, Datatype rhs, OrderedContext ctxt) {
     if (trace) {
       print("subsumes: $lhs <: $rhs");
+      print("$ctxt");
     }
 
     if (lhs is Skolem) {

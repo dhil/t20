@@ -12,6 +12,7 @@ import '../ast/ast.dart'
         ReduceDatatype,
         TransformDatatype;
 import '../ast/monoids.dart' show Monoid, LAndMonoid;
+import '../fp.dart' show Pair;
 import '../immutable_collections.dart' show ImmutableList;
 
 class DatatypeVerifier extends ReduceDatatype<bool> {
@@ -117,7 +118,7 @@ class Marker extends ScopedEntry {
 class Ascription extends ScopedEntry {
   Declaration decl;
   Datatype type;
-  int get ident => decl.binder.id;
+  int get ident => decl.ident;
   Ascription(this.decl, this.type);
 
   String toString() {
@@ -506,6 +507,31 @@ class MutableOrderedContext extends OrderedContext {
     return buf.toString();
   }
 }
+
+// class Marker2 {
+//   final int ident;
+//   Marker2._(this.ident);
+// }
+
+// abstract class OrderedContext2 {
+//   factory OrderedContext2.empty() = _MapBasedContext.empty;
+
+//   OrderedContext2 add(Skolem skolem);
+//   OrderedContext2 drop(Skolem skolem);
+
+//   Pair<Marker2, OrderedContext2> mark({Skolem successor});
+//   OrderedContext2 unmark(Marker2 marker);
+
+//   OrderedContext2 solve(Skolem skolem, Datatype solution);
+// }
+
+// abstract class _MapBasedContext implements OrderedContext2 {
+//   final ImmutableMap<int, ScopedEntry> _entries;
+//   final ImmutableMap<int, List<int>> _orderings;
+//   _MapBasedContext.empty()
+//       : _entries = ImmutableMap<int, ScopedEntry>.empty(),
+//         _orderings = ImmutableMap<int, List<int>>.empty();
+// }
 
 // void main() {
 //   // OrderedContext ctxt = OrderedContext.empty();

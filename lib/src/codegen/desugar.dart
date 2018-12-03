@@ -30,11 +30,12 @@ class Desugarer {
     return Result<IRNode, T20Error>.success(null);
   }
 
-  Binding module(ast.ModuleMember mod) {
+  List<Binding> module(List<Binding> bindings, ast.ModuleMember mod) {
     switch (mod.tag) {
       case ast.ModuleTag.FUNC_DEF:
         break;
       case ast.ModuleTag.VALUE_DEF:
+        return translateLetValue(bindings, mod as ast.ValueDeclaration);
         break;
       case ast.ModuleTag.CONSTR:
         break;
@@ -49,6 +50,18 @@ class Desugarer {
     }
 
     return null; // Impossible!
+  }
+
+  List<Binding> translateLetValue(
+      List<Binding> bindings, ast.ValueDeclaration val) {
+    // Translate the binder.
+    TypedBinder binder = TypedBinder.of(val.binder, val.type);
+    // Translate the body.
+    Computation comp = expression(val.body);
+    // Add new bindings to [bindings].
+    bindings = append(comp.bindings, bindings);
+    bindings = augment(alg.letValue(binder, comp.tailComputation), bindings);
+    return bindings;
   }
 
   Computation expression(ast.Expression expr) {
@@ -269,7 +282,7 @@ class PatternCompiler {
       type = typeUtils.stringType;
       eq = null;
     } else {
-      unhandled("SingleBindingDesugarer.basePattern", pattern);
+      unhandled("PatternCompiler.basePattern", pattern);
     }
 
     // Fresh dummy name for the let binding.
