@@ -41,6 +41,13 @@ bool isFunctionType(Datatype ft) {
   return false;
 }
 
+int arity(Datatype ft) {
+  if (ft is ArrowType) return ft.domain.length;
+  if (ft is ForallType) return arity(ft.body);
+
+  throw "$ft is not a function type!";
+}
+
 bool isForallType(Datatype t) {
   if (t is ForallType)
     return true;
@@ -95,7 +102,7 @@ class _FreeTypeVariables extends ReduceDatatype<Set<int>> {
     Set<int> ftv = forallType.body.accept(this);
     Set<int> btv =
         forallType.quantifiers.fold(m.empty, (Set<int> acc, Quantifier q) {
-          acc.add(q.ident);
+      acc.add(q.ident);
       return acc;
     });
     return ftv.difference(btv);
@@ -108,7 +115,6 @@ Set<int> freeTypeVariables(Datatype type) {
   _FreeTypeVariables ftv = _FreeTypeVariables();
   return type.accept(ftv);
 }
-
 
 class _MonoTypeVerifier extends ReduceDatatype<bool> {
   static _MonoTypeVerifier _instance;

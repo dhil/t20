@@ -5,6 +5,7 @@
 import '../ast/binder.dart';
 import '../ast/datatype.dart';
 import '../location.dart' show Location;
+import '../typing/type_utils.dart' as typeUtils show arity;
 
 /*
  * The intermediate representation (IR) is an ANF-ish representation of the
@@ -25,7 +26,7 @@ abstract class IRVisitor<T> {
   T visitIntLit(IntLit lit);
   T visitLambda(Lambda lambda);
   T visitRecord(Record record);
-  T visitPrimitive(Primitive primitive);
+  T visitPrimitiveFunction(PrimitiveFunction primitive);
   T visitProjection(Projection proj);
   T visitStringLit(StringLit lit);
   T visitVariable(Variable v);
@@ -188,8 +189,8 @@ abstract class Binding implements IRNode {
 
   Binding(this.binder);
 
-  bool get hasOccurrences => binder.hasOccurrences;
-  void addOccurrence(Variable v) => binder.addOccurrence(v);
+  // bool get hasOccurrences => binder.hasOccurrences;
+  // void addOccurrence(Variable v) => binder.addOccurrence(v);
 }
 
 class LetVal extends Binding {
@@ -383,12 +384,18 @@ class Variable extends Value {
 }
 
 //===== Primitives.
-enum Prim { MAP, FOLD_LEFT, FOLD_RIGHT, EQUALS }
+abstract class Primitive extends Value implements Binding {
+  TypedBinder binder;
 
-class Primitive extends Value {
-  Prim tag;
+  Datatype get type => binder.type;
+  int get ident => binder.ident;
 
-  Primitive(this.tag);
+  Primitive(this.binder);
+}
 
-  T accept<T>(IRVisitor<T> v) => v.visitPrimitive(this);
+class PrimitiveFunction extends Primitive {
+  int get arity => typeUtils.arity(type);
+  PrimitiveFunction(TypedBinder binder) : super(binder);
+
+  T accept<T>(IRVisitor<T> v) => v.visitPrimitiveFunction(this);
 }

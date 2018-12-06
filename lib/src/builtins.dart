@@ -8,6 +8,8 @@ import 'compilation_unit.dart';
 import 'errors/errors.dart'; // TODO remove.
 import 'errors/error_reporting.dart'; // TODO remove.
 
+import 'codegen/ir.dart' as ir show Primitive, PrimitiveFunction, TypedBinder;
+
 import 'result.dart';
 
 import 'syntax/sexp.dart';
@@ -141,4 +143,49 @@ bool isPrimitive(int ident) =>
 
 Declaration find(int ident) {
   return declarations[ident];
+}
+
+//=== IR.
+Map<int, ir.Primitive> _desugaredDeclarations;
+Map<int, ir.TypedBinder> _typedBinders;
+Map<String, int> _sourceNameIdentMapping;
+
+Map<int, ir.Primitive> getDesugaredDeclarations() {
+  // We only desugar the built in declarations once.
+  if (_desugaredDeclarations != null) return _desugaredDeclarations;
+
+  // Start "desugaring" the front end representation of primitives.
+  // Populate the [_typedBinders] map at the same time.
+  _typedBinders = new Map<int, ir.TypedBinder>();
+  _sourceNameIdentMapping = new Map<String, int>();
+  Map<int, ir.Primitive> result =
+      declarations.map((int ident, Declaration decl) {
+    if (decl is VirtualFunctionDeclaration) {
+      ir.TypedBinder binder = ir.TypedBinder.of(decl.binder, decl.type);
+      ir.Primitive prim = ir.PrimitiveFunction(binder);
+      binder.bindingSite = prim;
+      _typedBinders[binder.ident] = binder;
+      _sourceNameIdentMapping[binder.sourceName] = binder.ident;
+      return MapEntry<int, ir.Primitive>(binder.ident, prim);
+    } else {
+      throw "not yet implemented.";
+    }
+  });
+
+  _desugaredDeclarations = result;
+  return _desugaredDeclarations;
+}
+
+Map<int, ir.TypedBinder> getPrimitiveBinders() {
+  if (_typedBinders == null) getDesugaredDeclarations();
+  return _typedBinders;
+}
+
+ir.Primitive getPrimitive(String name) {
+  final int ident = _sourceNameIdentMapping[name];
+  if (ident == null) {
+    throw "$name is not a primitive!";
+  }
+  Map<int, ir.Primitive> primitives = getDesugaredDeclarations();
+  return primitives[ident];
 }

@@ -4,19 +4,20 @@
 
 import '../ast/ast.dart' as ast;
 import '../ast/datatype.dart';
+import '../builtins.dart' show getPrimitive;
 import '../errors/errors.dart' show T20Error, unhandled;
-import '../fp.dart' show Pair;
 import '../result.dart';
 
 import '../typing/type_utils.dart' as typeUtils;
 
 import 'ir.dart';
 
-TailComputation matchFailure = Apply(
-    null /* TODO look up name for fail/error */,
-    <Value>[StringLit("Pattern match failure.")]);
-
-Computation comp(TailComputation tc) => Computation(null, tc);
+TypedBinder translateBinder(
+    ast.Binder binder, Datatype type, Map<int, TypedBinder> binderContext) {
+  TypedBinder result = TypedBinder.of(binder, type);
+  binderContext[binder.ident] = result;
+  return result;
+}
 
 class Desugarer {
   final IRAlgebra alg;
@@ -26,25 +27,41 @@ class Desugarer {
       : patternCompiler = new PatternCompiler(alg),
         this.alg = alg;
 
-  Result<IRNode, T20Error> desugar(ast.TopModule mod) {
+  Result<IRNode, T20Error> desugar(
+      ast.TopModule mod, Map<int, TypedBinder> binderContext) {
+    List<Binding> bindings = new List<Binding>();
+    for (int i = 0; i < mod.members.length; i++) {
+      bindings = module(bindings, mod.members[i], binderContext);
+    }
     return Result<IRNode, T20Error>.success(null);
   }
 
-  List<Binding> module(List<Binding> bindings, ast.ModuleMember mod) {
+  // TypedBinder freshBinder(Datatype type, Map<int, TypedBinder> binderContext) {
+  //   TypedBinder binder = TypedBinder.fresh(type);
+  //   binderContext[binder.ident] = binder; // Possibly unnecessary.
+  //   return binder;
+  // }
+
+  List<Binding> module(List<Binding> bindings, ast.ModuleMember mod,
+      Map<int, TypedBinder> binderContext) {
     switch (mod.tag) {
       case ast.ModuleTag.FUNC_DEF:
+        return translateFunDecl(
+            bindings, mod as ast.FunctionDeclaration, binderContext);
         break;
       case ast.ModuleTag.VALUE_DEF:
-        return translateLetValue(bindings, mod as ast.ValueDeclaration);
+        return translateValueDecl(
+            bindings, mod as ast.ValueDeclaration, binderContext);
         break;
       case ast.ModuleTag.CONSTR:
+        unhandled("Not yet implemented", mod.tag);
         break;
       case ast.ModuleTag.DATATYPE_DEFS:
+        unhandled("Not yet implemented", mod.tag);
         break;
       case ast.ModuleTag.TYPENAME:
-        return null;
+        unhandled("Not yet implemented", mod.tag);
         break;
-
       default:
         unhandled("Desugarer.module", mod.tag);
     }
@@ -52,19 +69,46 @@ class Desugarer {
     return null; // Impossible!
   }
 
-  List<Binding> translateLetValue(
-      List<Binding> bindings, ast.ValueDeclaration val) {
+  List<Binding> translateFunDecl(List<Binding> bindings,
+      ast.FunctionDeclaration fun, Map<int, TypedBinder> binderContext) {
     // Translate the binder.
-    TypedBinder binder = TypedBinder.of(val.binder, val.type);
+    TypedBinder binder = translateBinder(fun.binder, fun.type, binderContext);
+    // Desugar each parameter.
+    List<TypedBinder> parameters = new List<TypedBinder>();
+    for (int i = 0; i < fun.parameters.length; i++) {
+      ast.Pattern param = fun.parameters[i];
+      // Create a fresh binder.
+      TypedBinder binder = TypedBinder.fresh(param.type);
+      parameters.add(binder);
+      // Desugar the pattern and append any new bindings onto [bindings].
+      bindings = append(
+          patternCompiler.desugar(binder, param, binderContext), bindings);
+    }
+    // Desugar the body.
+    Computation body = expression(fun.body, binderContext);
+
+    // Construct the IR node.
+    LetFun letfun = alg.letFunction(binder, parameters, body);
+
+    // Register [letfun] as a global binding.
+    bindings = augment(letfun, bindings);
+    return bindings;
+  }
+
+  List<Binding> translateValueDecl(List<Binding> bindings,
+      ast.ValueDeclaration val, Map<int, TypedBinder> binderContext) {
+    // Translate the binder.
+    TypedBinder binder = translateBinder(val.binder, val.type, binderContext);
     // Translate the body.
-    Computation comp = expression(val.body);
+    Computation comp = expression(val.body, binderContext);
     // Add new bindings to [bindings].
     bindings = append(comp.bindings, bindings);
     bindings = augment(alg.letValue(binder, comp.tailComputation), bindings);
     return bindings;
   }
 
-  Computation expression(ast.Expression expr) {
+  Computation expression(
+      ast.Expression expr, Map<int, TypedBinder> binderContext) {
     switch (expr.tag) {
       case ast.ExpTag.BOOL:
         return alg.computation(
@@ -79,26 +123,32 @@ class Desugarer {
             null, alg.return$(alg.stringlit((expr as ast.StringLit).value)));
         break;
       case ast.ExpTag.APPLY:
-        return translateApply(expr as ast.Apply);
+        return translateApply(expr as ast.Apply, binderContext);
         break;
       case ast.ExpTag.IF:
-        return translateIf(expr as ast.If);
+        return translateIf(expr as ast.If, binderContext);
         break;
       case ast.ExpTag.LAMBDA:
-        return translateLambda(expr as ast.Lambda);
+        return translateLambda(expr as ast.Lambda, binderContext);
         break;
       case ast.ExpTag.LET:
-        return translateLet(expr as ast.Let);
+        return translateLet(expr as ast.Let, binderContext);
         break;
       case ast.ExpTag.MATCH:
         break;
       case ast.ExpTag.TUPLE:
-        return translateTuple(expr as ast.Tuple);
+        return translateTuple(expr as ast.Tuple, binderContext);
         break;
       case ast.ExpTag.VAR:
-        // TODO pass in a context which binds idents to their TypedBinder object.
+        int ident = (expr as ast.Variable).ident;
+        TypedBinder binder = binderContext[ident];
+        if (ident == null) {
+          throw "unbound $expr";
+        }
+        return alg.computation(null, alg.return$(alg.variable(binder)));
         break;
       case ast.ExpTag.TYPE_ASCRIPTION:
+        unhandled("Not yet implemented", expr.tag);
         break;
       default:
         unhandled("Desugarer.expression", expr.tag);
@@ -106,7 +156,8 @@ class Desugarer {
     return null; // Impossible.
   }
 
-  Computation translateLambda(ast.Lambda lambda) {
+  Computation translateLambda(
+      ast.Lambda lambda, Map<int, TypedBinder> binderContext) {
     // Translate each parameter.
     List<TypedBinder> parameters = new List<TypedBinder>();
     List<Datatype> domain = typeUtils.domain(lambda.type);
@@ -115,22 +166,23 @@ class Desugarer {
       // Create a fresh binder.
       TypedBinder binder = TypedBinder.fresh(domain[i]);
       bindings = append(
-          patternCompiler.desugar(binder, lambda.parameters[i]), bindings);
+          patternCompiler.desugar(binder, lambda.parameters[i], binderContext),
+          bindings);
       parameters.add(binder);
     }
     // Translate the body.
-    Computation body = expression(lambda.body);
+    Computation body = expression(lambda.body, binderContext);
 
     return alg.computation(bindings, alg.return$(alg.lambda(parameters, body)));
   }
 
-  Computation translateLet(ast.Let let) {
+  Computation translateLet(ast.Let let, Map<int, TypedBinder> binderContext) {
     // Translate value binding.
     List<Binding> bindings = new List<Binding>();
     for (int i = 0; i < let.valueBindings.length; i++) {
       ast.Binding b = let.valueBindings[i];
       // Translate the expression.
-      Computation comp = expression(b.expression);
+      Computation comp = expression(b.expression, binderContext);
       // Append any new bindings.
       bindings = append(comp.bindings, bindings);
       // Generate a fresh binder.
@@ -138,23 +190,25 @@ class Desugarer {
       // Bind the tail computation.
       bindings = augment(alg.letValue(binder, comp.tailComputation), bindings);
       // Translate the pattern.
-      bindings = append(patternCompiler.desugar(binder, b.pattern), bindings);
+      bindings = append(
+          patternCompiler.desugar(binder, b.pattern, binderContext), bindings);
     }
 
     // Translate the continuation.
-    Computation comp = expression(let.body);
+    Computation comp = expression(let.body, binderContext);
     comp.bindings = append(comp.bindings, bindings);
     return comp;
   }
 
   String tupleLabel(int i) => "\$${i + 1}";
 
-  Computation translateTuple(ast.Tuple tuple) {
+  Computation translateTuple(
+      ast.Tuple tuple, Map<int, TypedBinder> binderContext) {
     // Translate each component.
     List<Binding> bindings;
     Map<String, Value> members = new Map<String, Value>();
     for (int i = 0; i < tuple.components.length; i++) {
-      Computation comp = expression(tuple.components[i]);
+      Computation comp = expression(tuple.components[i], binderContext);
       bindings = append(comp.bindings, bindings) ?? new List<Binding>();
       members ??= new Map<String, Value>();
       members[tupleLabel(i)] =
@@ -163,9 +217,10 @@ class Desugarer {
     return alg.computation(bindings, alg.return$(alg.record(members)));
   }
 
-  Computation translateApply(ast.Apply apply) {
+  Computation translateApply(
+      ast.Apply apply, Map<int, TypedBinder> binderContext) {
     // First translate the abstractor.
-    Computation comp = expression(apply.abstractor);
+    Computation comp = expression(apply.abstractor, binderContext);
     // Grab the translated abstractor.
     List<Binding> bindings = comp.bindings ?? new List<Binding>();
     Value abstractor =
@@ -174,7 +229,7 @@ class Desugarer {
     // Translate each argument.
     List<Value> arguments = new List<Value>();
     for (int i = 0; i < apply.arguments.length; i++) {
-      comp = expression(apply.arguments[i]);
+      comp = expression(apply.arguments[i], binderContext);
       bindings = append(comp.bindings, bindings);
       Value argument =
           extractValue(bindings, comp.tailComputation, null /* TODO */);
@@ -204,17 +259,20 @@ class Desugarer {
     return v;
   }
 
-  Computation translateIf(ast.If ifthenelse) {
+  Computation translateIf(
+      ast.If ifthenelse, Map<int, TypedBinder> binderContext) {
     // Translate the condition.
-    Computation comp = expression(ifthenelse.condition);
+    Computation comp = expression(ifthenelse.condition, binderContext);
     // Subsequently we need to normalise the translated condition, i.e. extract
     // a value from the tail computation by let binding it.
     Value condition;
     condition =
         extractValue(comp.bindings, comp.tailComputation, typeUtils.boolType);
     // Reuse the computation object.
-    comp.tailComputation = alg.ifthenelse(condition,
-        expression(ifthenelse.thenBranch), expression(ifthenelse.elseBranch));
+    comp.tailComputation = alg.ifthenelse(
+        condition,
+        expression(ifthenelse.thenBranch, binderContext),
+        expression(ifthenelse.elseBranch, binderContext));
     return comp;
   }
 
@@ -234,10 +292,18 @@ class Desugarer {
 }
 
 class PatternCompiler {
+  TailComputation matchFailure;
   IRAlgebra alg;
-  PatternCompiler(this.alg);
 
-  List<Binding> desugar(TypedBinder binder, ast.Pattern pattern) {
+  PatternCompiler._(this.alg, this.matchFailure);
+  factory PatternCompiler(IRAlgebra alg) {
+    TailComputation matchFailure = alg.apply(getPrimitive("error"),
+        <Value>[alg.stringlit("Pattern match failure.")]);
+    return PatternCompiler._(alg, matchFailure);
+  }
+
+  List<Binding> desugar(TypedBinder binder, ast.Pattern pattern,
+      Map<int, TypedBinder> binderContext) {
     switch (pattern.tag) {
       case ast.PatternTag.BOOL:
       case ast.PatternTag.INT:
@@ -249,11 +315,12 @@ class PatternCompiler {
       case ast.PatternTag.CONSTR:
         break;
       case ast.PatternTag.HAS_TYPE:
-        return desugar(binder, (pattern as ast.HasTypePattern).pattern);
+        return desugar(
+            binder, (pattern as ast.HasTypePattern).pattern, binderContext);
         break;
       case ast.PatternTag.VAR:
         ast.VariablePattern v = pattern as ast.VariablePattern;
-        TypedBinder vb = TypedBinder.of(v.binder, v.type);
+        TypedBinder vb = translateBinder(v.binder, v.type, binderContext);
         return <Binding>[alg.letValue(vb, alg.return$(alg.variable(binder)))];
         break;
       case ast.PatternTag.WILDCARD:
@@ -272,15 +339,15 @@ class PatternCompiler {
     if (pattern is ast.BoolPattern) {
       w = alg.boollit(pattern.value);
       type = typeUtils.boolType;
-      eq = null; // TODO lookup.
+      eq = getPrimitive("bool-eq?");
     } else if (pattern is ast.IntPattern) {
       w = alg.intlit(pattern.value);
       type = typeUtils.intType;
-      eq = null;
+      eq = getPrimitive("int-eq?");
     } else if (pattern is ast.StringPattern) {
       w = alg.stringlit(pattern.value);
       type = typeUtils.stringType;
-      eq = null;
+      eq = getPrimitive("string-eq?");
     } else {
       unhandled("PatternCompiler.basePattern", pattern);
     }
@@ -291,8 +358,10 @@ class PatternCompiler {
     // [|pat|] = let x = if (eq? y [|pat.value|]) y else error "pattern match failure.".
     LetVal testExp = alg.letValue(
         dummy,
-        alg.ifthenelse(alg.applyPure(eq, <Value>[alg.variable(binder), w]),
-            comp(alg.return$(w)), comp(matchFailure)));
+        alg.ifthenelse(
+            alg.applyPure(eq, <Value>[alg.variable(binder), w]),
+            alg.computation(null, alg.return$(w)),
+            alg.computation(null, matchFailure)));
 
     return <Binding>[testExp];
   }
@@ -305,7 +374,7 @@ class DecisionTreeCompiler {
   // Compiles a sorted list of base patterns into a well-balanced binary search
   // tree.
   Computation compile(Variable scrutinee, List<ast.Case> cases, int start,
-      int end, Computation continuation) {
+      int end, Computation continuation, Map<int, TypedBinder> binderContext) {
     final int length = end - start + 1;
     // Two base cases:
     // 1) compile _ [] continuation = continuation.
@@ -320,12 +389,13 @@ class DecisionTreeCompiler {
       // Immediate match.
       if (pat is ast.VariablePattern) {
         // Bind the scrutinee.
-        TypedBinder binder = TypedBinder.of(pat.binder, pat.type);
+        TypedBinder binder =
+            translateBinder(pat.binder, pat.type, binderContext);
         return alg.withBindings(
             <Binding>[alg.letValue(binder, alg.return$(scrutinee))],
-            desugarer.expression(c.expression));
+            desugarer.expression(c.expression, binderContext));
       } else if (pat is ast.WildcardPattern) {
-        return desugarer.expression(c.expression);
+        return desugarer.expression(c.expression, binderContext);
       }
 
       // Potential match.
@@ -333,22 +403,22 @@ class DecisionTreeCompiler {
       Value eq;
       if (pat is ast.IntPattern) {
         w = alg.intlit(pat.value);
-        eq = null; // TODO lookup.
+        eq = getPrimitive("int-eq?");
       } else if (pat is ast.StringPattern) {
         w = alg.stringlit(pat.value);
-        eq = null;
+        eq = getPrimitive("string-eq?");
       } else {
         unhandled("DecisionTreeCompiler.compile", pat);
       }
       Value condition = alg.applyPure(eq, <Value>[scrutinee, w]);
 
-      If testExp = alg.ifthenelse(
-          condition, desugarer.expression(c.expression), continuation);
-      return comp(testExp);
+      If testExp = alg.ifthenelse(condition,
+          desugarer.expression(c.expression, binderContext), continuation);
+      return alg.computation(null, testExp);
     }
 
     // Inductive case:
-    // compile scrutinee cases = (if (< scrutinee w) (compile scrutinee left(cases)) else (if (> scrutinee w) (compile scrutinee right(cases)) else (compile scrutinee [cmid]))).
+    // compile scrutinee cases = (if (= scrutinee w) (compile scrutinee [cmid]) else (if (< scrutinee w) (compile scrutinee left(cases)) else (compile scrutinee right(cases)))).
     //                         where  cmid = cases[cases.length / 2]
     //                                  w = [|cmid.pattern.value|];
     //                         left cases = [ c | c <- cases, c.pattern.value < cmid.pattern.value ]
@@ -360,35 +430,39 @@ class DecisionTreeCompiler {
     // Immediate match.
     if (pat is ast.VariablePattern || pat is ast.WildcardPattern) {
       // Delegate to the base case.
-      return compile(scrutinee, cases, mid, mid, continuation);
+      return compile(scrutinee, cases, mid, mid, continuation, binderContext);
     }
 
     // Potential match.
     Value w;
     Value less;
-    Value greater;
+    Value eq;
 
     if (pat is ast.IntPattern) {
       w = alg.intlit(pat.value);
-      less = null; // TODO lookup.
-      greater = null;
+      less = getPrimitive("int-less?");
+      eq = getPrimitive("int-eq?");
     } else if (pat is ast.StringPattern) {
       w = alg.stringlit(pat.value);
-      less = null;
-      greater = null;
+      less = getPrimitive("string-less?");
+      eq = getPrimitive("string-eq?");
     } else {
       unhandled("DecisionTreeCompiler.compile", pat);
     }
 
     List<Value> arguments = <Value>[scrutinee, w];
     final If testExp = alg.ifthenelse(
-        alg.applyPure(less, arguments),
-        desugarer.expression(c.expression),
-        comp(alg.ifthenelse(
-            alg.applyPure(greater, arguments),
-            compile(scrutinee, cases, mid + 1, end, continuation),
-            compile(scrutinee, cases, mid, mid, continuation))));
+        alg.applyPure(eq, arguments),
+        desugarer.expression(c.expression, binderContext),
+        alg.computation(
+            null,
+            alg.ifthenelse(
+                alg.applyPure(less, arguments),
+                compile(scrutinee, cases, start, mid - 1, continuation,
+                    binderContext),
+                compile(scrutinee, cases, mid + 1, end, continuation,
+                    binderContext))));
 
-    return comp(testExp);
+    return alg.computation(null, testExp);
   }
 }

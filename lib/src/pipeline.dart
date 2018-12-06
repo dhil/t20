@@ -9,6 +9,7 @@ import 'dart:io';
 import '../settings.dart';
 import 'ast/ast.dart';
 import 'ast/ast_builder.dart';
+import 'builtins.dart' as builtins;
 import 'compilation_unit.dart';
 import 'errors/error_reporting.dart';
 import 'errors/errors.dart';
@@ -81,8 +82,8 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
       }
 
       // Code generate.
-      Result<ir.IRNode, T20Error> codeResult =
-          new Desugarer(null).desugar(typeResult.result);
+      Result<ir.IRNode, T20Error> codeResult = new Desugarer(null)
+          .desugar(typeResult.result, Map.of(builtins.getPrimitiveBinders()));
 
       if (!codeResult.wasSuccessful) {
         report(codeResult.errors);
