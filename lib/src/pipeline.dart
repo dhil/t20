@@ -81,7 +81,7 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
         return typeResult == null ? true : typeResult.wasSuccessful;
       }
 
-      // Code generate.
+      // Generate code.
       Result<ir.Module, T20Error> codeResult = new Desugarer(ir.IRAlgebra())
           .desugar(typeResult.result, Map.of(builtins.getPrimitiveBinders()));
 
@@ -92,12 +92,12 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
 
       // Exit now, if requested.
       if (settings.exitAfter == "codegen") {
-        return true;
+        return codeResult.wasSuccessful;
       }
 
       // Emit DILL.
       KernelEmitter emitter = new KernelEmitter(settings.platformDill);
-      await emitter.emit(emitter.helloWorld(), "hello.dill");
+      await emitter.emit(emitter.helloWorld(), settings.outputFile);
     }
   } catch (err) {
     if (currentFile != null) currentFile.closeSync();

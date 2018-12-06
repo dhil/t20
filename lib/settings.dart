@@ -67,7 +67,7 @@ ArgParser _setupArgParser() {
       abbr: 'o',
       help: "Place the output into <file>.",
       valueHelp: "file",
-      defaultsTo: "stdout");
+      defaultsTo: "/dev/stdout");
   parser.addMultiOption(NamedOptions.trace,
       help: "Trace the operational behaviour of a component.",
       valueHelp: "codegen,elaborator,parser,typechecker");
@@ -124,12 +124,14 @@ class Settings {
 
   // Other settings.
   final String sourceFile;
+  final String outputFile;
 
   factory Settings.fromCLI(List<String> args) {
     ArgResults results = _parse(args);
     var dumpAst = results[NamedOptions.dump_ast];
     var dumpDast = results[NamedOptions.dump_dast];
     var exitAfter = results[NamedOptions.exit_after];
+    var outputFile = results[NamedOptions.output];
     var showHelp = results[NamedOptions.help];
     var showVersion = results[NamedOptions.version];
     var verbose = results[NamedOptions.verbose];
@@ -147,14 +149,15 @@ class Settings {
     } else if (!showHelp && !showVersion) {
       throw new UsageError();
     }
-    return Settings._(dumpAst, dumpDast, exitAfter, showHelp, showVersion,
-        sourceFile, trace, typeCheck, verbose, platformDill);
+    return Settings._(dumpAst, dumpDast, exitAfter, outputFile, showHelp,
+        showVersion, sourceFile, trace, typeCheck, verbose, platformDill);
   }
 
   const Settings._(
       this.dumpAst,
       this.dumpDast,
       this.exitAfter,
+      this.outputFile,
       this.showHelp,
       this.showVersion,
       this.sourceFile,
