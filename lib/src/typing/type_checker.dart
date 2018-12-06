@@ -467,6 +467,7 @@ class _TypeChecker {
         if (scopeMarker != null) {
           ctxt = ctxt.drop(scopeMarker);
         }
+        lambda.type = ctxt.apply(type);
         return ctxt;
       }
     }
@@ -498,7 +499,10 @@ class _TypeChecker {
     Pair<OrderedContext, Datatype> result = inferExpression(exp, ctxt);
     ctxt = result.fst;
     Datatype left = result.snd;
-    return subsumes(ctxt.apply(left), ctxt.apply(type), ctxt);
+    ctxt = subsumes(ctxt.apply(left), ctxt.apply(type), ctxt);
+
+    exp.type = ctxt.apply(type);
+    return ctxt;
   }
 
   Pair<ScopedEntry, OrderedContext> checkManyPatterns(
@@ -529,7 +533,7 @@ class _TypeChecker {
     // check x t ctxt = ctxt.
     if (pat is VariablePattern) {
       VariablePattern v = pat;
-      v.type = type;
+      v.type = ctxt.apply(type);
       // Ascription ascription = Ascription(pat, type);
       // ctxt.insertLast(ascription);
       return Pair<ScopedEntry, OrderedContext>(null, ctxt);

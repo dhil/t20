@@ -82,7 +82,7 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
       }
 
       // Code generate.
-      Result<ir.IRNode, T20Error> codeResult = new Desugarer(null)
+      Result<ir.Module, T20Error> codeResult = new Desugarer(ir.IRAlgebra())
           .desugar(typeResult.result, Map.of(builtins.getPrimitiveBinders()));
 
       if (!codeResult.wasSuccessful) {

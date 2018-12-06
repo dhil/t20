@@ -182,10 +182,10 @@ Map<int, ir.TypedBinder> getPrimitiveBinders() {
 }
 
 ir.Primitive getPrimitive(String name) {
+  Map<int, ir.Primitive> primitives = getDesugaredDeclarations();
   final int ident = _sourceNameIdentMapping[name];
   if (ident == null) {
     throw "$name is not a primitive!";
   }
-  Map<int, ir.Primitive> primitives = getDesugaredDeclarations();
   return primitives[ident];
 }

@@ -48,7 +48,14 @@ abstract class IRVisitor<T> {
 
 //===== Algebras.
 class IRAlgebra {
-  // Values.
+  static IRAlgebra _instance;
+  IRAlgebra._();
+  factory IRAlgebra() {
+    _instance ??= IRAlgebra._();
+    return _instance;
+  }
+
+      // Values.
   ApplyPure applyPure(Value fn, List<Value> arguments, {Location location}) {
     return ApplyPure(apply(fn, arguments));
   }
@@ -125,6 +132,10 @@ class IRAlgebra {
           {Location location}) =>
       Computation(bindings, tc);
 
+  // Modules.
+  Module module(List<Binding> bindings, {Location location}) =>
+      Module(bindings);
+
   // Utils.
   Computation withBindings(List<Binding> bindings, Computation comp) {
     if (bindings == null) return comp;
@@ -145,9 +156,9 @@ abstract class IRNode {
 //===== Modules.
 class Module implements IRNode {
   Map<int, Object> datatypes;
-  Computation program;
+  List<Binding> bindings;
 
-  Module(this.program);
+  Module(this.bindings);
 
   T accept<T>(IRVisitor<T> v) {
     return v.visitModule(this);

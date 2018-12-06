@@ -27,13 +27,13 @@ class Desugarer {
       : patternCompiler = new PatternCompiler(alg),
         this.alg = alg;
 
-  Result<IRNode, T20Error> desugar(
+  Result<Module, T20Error> desugar(
       ast.TopModule mod, Map<int, TypedBinder> binderContext) {
     List<Binding> bindings = new List<Binding>();
     for (int i = 0; i < mod.members.length; i++) {
       bindings = module(bindings, mod.members[i], binderContext);
     }
-    return Result<IRNode, T20Error>.success(null);
+    return Result<Module, T20Error>.success(alg.module(bindings));
   }
 
   // TypedBinder freshBinder(Datatype type, Map<int, TypedBinder> binderContext) {
