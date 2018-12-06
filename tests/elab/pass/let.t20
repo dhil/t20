@@ -1,0 +1,7 @@
+;; Sequential let binding.
+
+(: test Int)
+(define test
+  (let* ([x 40]
+         [y (+ x 2)])
+    y))

@@ -1,0 +1,8 @@
+;; Sequential let binding.
+
+(: test (*))
+(define test
+  (let* ([x (,)]
+         [y z] ;; `z' is not in scope at this point.
+         [z x])
+    z))
