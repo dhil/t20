@@ -1,0 +1,7 @@
+;; Parallel let binding.
+
+(: test Int)
+(define test
+  (let ([x 40]
+        [y 2])
+    (+ x y)))
