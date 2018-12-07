@@ -2,6 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'package:kernel/ast.dart' hide Location;
+
 import '../ast/binder.dart';
 import '../ast/datatype.dart';
 import '../location.dart' show Location;
@@ -55,7 +57,7 @@ class IRAlgebra {
     return _instance;
   }
 
-      // Values.
+  // Values.
   ApplyPure applyPure(Value fn, List<Value> arguments, {Location location}) {
     return ApplyPure(apply(fn, arguments));
   }
@@ -149,12 +151,42 @@ class IRAlgebra {
   }
 }
 
+//===== Tags.
+// Modules.
+const int MODULE = 0x00001;
+// Computations.
+const int COMPUTATION = 0x00010;
+// Tail computations.
+const int APPLY = 0x00100;
+const int IF = 0x00200;
+const int RETURN = 0x00300;
+// Values.
+const int BOOL = 0x01000;
+const int INT = 0x02000;
+const int STRING = 0x03000;
+const int APPLY_PURE = 0x04000;
+const int LAMBDA = 0x05000;
+const int RECORD = 0x06000;
+const int PROJECT = 0x07000;
+const int PRIMITIVE = 0x08000;
+const int VAR = 0x09000;
+// Bindings.
+const int LET_FUN = 0x10000;
+const int LET_VAL = 0x20000;
+const int CONSTR = 0x30000;
+const int TYPE = 0x40000;
+
 abstract class IRNode {
+  final int tag;
+
+  IRNode(this.tag);
+
   T accept<T>(IRVisitor<T> v);
 }
 
 //===== Modules.
 class Module implements IRNode {
+  final int tag = MODULE;
   Map<int, Object> datatypes;
   List<Binding> bindings;
 
@@ -193,12 +225,13 @@ class TypedBinder extends Binder {
 
 //===== Bindings.
 abstract class Binding implements IRNode {
+  final int tag;
   TypedBinder binder;
 
   Datatype get type => binder.type;
   int get ident => binder.ident;
 
-  Binding(this.binder);
+  Binding(this.binder, this.tag);
 
   // bool get hasOccurrences => binder.hasOccurrences;
   // void addOccurrence(Variable v) => binder.addOccurrence(v);
@@ -206,8 +239,9 @@ abstract class Binding implements IRNode {
 
 class LetVal extends Binding {
   TailComputation tailComputation;
+  TreeNode node;
 
-  LetVal(TypedBinder binder, this.tailComputation) : super(binder);
+  LetVal(TypedBinder binder, this.tailComputation) : super(binder, LET_VAL);
 
   T accept<T>(IRVisitor<T> v) {
     return v.visitLetVal(this);
@@ -217,10 +251,12 @@ class LetVal extends Binding {
 class LetFun extends Binding {
   List<TypedBinder> parameters;
   Computation body;
+  Procedure node;
 
   int get arity => parameters == null ? 0 : parameters.length;
 
-  LetFun(TypedBinder binder, this.parameters, this.body) : super(binder);
+  LetFun(TypedBinder binder, this.parameters, this.body)
+      : super(binder, LET_FUN);
 
   T accept<T>(IRVisitor<T> v) {
     return v.visitLetFun(this);
@@ -230,7 +266,8 @@ class LetFun extends Binding {
 class DatatypeDescriptor extends Binding {
   List<DataConstructor> constructors;
 
-  DatatypeDescriptor(TypedBinder binder, this.constructors) : super(binder);
+  DatatypeDescriptor(TypedBinder binder, this.constructors)
+      : super(binder, TYPE);
 
   T accept<T>(IRVisitor<T> v) {
     return v.visitDatatype(this);
@@ -240,7 +277,7 @@ class DatatypeDescriptor extends Binding {
 class DataConstructor extends Binding {
   List<Datatype> members;
 
-  DataConstructor(TypedBinder binder, this.members) : super(binder);
+  DataConstructor(TypedBinder binder, this.members) : super(binder, CONSTR);
 
   T accept<T>(IRVisitor<T> v) {
     return v.visitDataConstructor(this);
@@ -249,6 +286,7 @@ class DataConstructor extends Binding {
 
 //===== Computations.
 class Computation implements IRNode {
+  final int tag = COMPUTATION;
   List<Binding> bindings;
   TailComputation tailComputation;
 
@@ -264,6 +302,10 @@ class Computation implements IRNode {
 
 //===== Tail computations.
 abstract class TailComputation implements IRNode {
+  final int tag;
+
+  TailComputation(this.tag);
+
   bool get isSimple;
 }
 
@@ -271,7 +313,7 @@ class Apply extends TailComputation {
   Value abstractor;
   List<Value> arguments;
 
-  Apply(this.abstractor, this.arguments);
+  Apply(this.abstractor, this.arguments) : super(APPLY);
 
   bool get isSimple => true;
 
@@ -285,7 +327,7 @@ class If extends TailComputation {
   Computation thenBranch;
   Computation elseBranch;
 
-  If(this.condition, this.thenBranch, this.elseBranch);
+  If(this.condition, this.thenBranch, this.elseBranch) : super(IF);
 
   bool get isSimple => thenBranch.isSimple && elseBranch.isSimple;
 
@@ -297,7 +339,7 @@ class If extends TailComputation {
 class Return extends TailComputation {
   Value value;
 
-  Return(this.value);
+  Return(this.value) : super(RETURN);
 
   bool get isSimple => true;
 
@@ -307,7 +349,10 @@ class Return extends TailComputation {
 }
 
 //===== Values.
-abstract class Value implements IRNode {}
+abstract class Value implements IRNode {
+  final int tag;
+  Value(this.tag);
+}
 
 class ApplyPure extends Value {
   Apply apply;
@@ -315,7 +360,7 @@ class ApplyPure extends Value {
   Value get abstractor => apply.abstractor;
   List<Value> get arguments => apply.arguments;
 
-  ApplyPure(this.apply);
+  ApplyPure(this.apply) : super(APPLY_PURE);
 
   T accept<T>(IRVisitor<T> v) {
     return v.visitApplyPure(this);
@@ -323,13 +368,13 @@ class ApplyPure extends Value {
 }
 
 abstract class Literal extends Value {
-  Literal();
+  Literal(int tag) : super(tag);
 }
 
 class BoolLit extends Literal {
   bool value;
 
-  BoolLit(this.value) : super();
+  BoolLit(this.value) : super(BOOL);
 
   T accept<T>(IRVisitor<T> v) => v.visitBoolLit(this);
 }
@@ -337,14 +382,14 @@ class BoolLit extends Literal {
 class IntLit extends Literal {
   int value;
 
-  IntLit(this.value) : super();
+  IntLit(this.value) : super(INT);
 
   T accept<T>(IRVisitor<T> v) => v.visitIntLit(this);
 }
 
 class StringLit extends Literal {
   String value;
-  StringLit(this.value) : super();
+  StringLit(this.value) : super(STRING);
 
   T accept<T>(IRVisitor<T> v) => v.visitStringLit(this);
 }
@@ -353,7 +398,7 @@ class Lambda extends Value {
   List<TypedBinder> parameters;
   Computation body;
 
-  Lambda(this.parameters, this.body);
+  Lambda(this.parameters, this.body) : super(LAMBDA);
 
   T accept<T>(IRVisitor<T> v) {
     return v.visitLambda(this);
@@ -363,7 +408,7 @@ class Lambda extends Value {
 class Record extends Value {
   Map<String, Value> members;
 
-  Record(this.members);
+  Record(this.members) : super(RECORD);
 
   T accept<T>(IRVisitor<T> v) {
     return v.visitRecord(this);
@@ -374,7 +419,7 @@ class Projection extends Value {
   String label;
   Value receiver;
 
-  Projection(this.receiver, this.label);
+  Projection(this.receiver, this.label) : super(PROJECT);
 
   T accept<T>(IRVisitor<T> v) => v.visitProjection(this);
 }
@@ -383,7 +428,7 @@ class Variable extends Value {
   TypedBinder declarator;
   int get ident => declarator.ident;
 
-  Variable(this.declarator);
+  Variable(this.declarator) : super(VAR);
 
   T accept<T>(IRVisitor<T> v) {
     return v.visitVariable(this);
@@ -401,7 +446,7 @@ abstract class Primitive extends Value implements Binding {
   Datatype get type => binder.type;
   int get ident => binder.ident;
 
-  Primitive(this.binder);
+  Primitive(this.binder) : super(PRIMITIVE);
 }
 
 class PrimitiveFunction extends Primitive {

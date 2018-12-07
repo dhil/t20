@@ -37,4 +37,12 @@ class Binder implements Identifiable {
     hash = hash * 31 + (_sourceName == null ? 0 : _sourceName.hashCode);
     return hash;
   }
+
+  String get uniqueName {
+    if (_sourceName == null) {
+      return "_${_ident}";
+    } else {
+      return "${_sourceName}_${_ident}";
+    }
+  }
 }

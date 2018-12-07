@@ -6,6 +6,8 @@ library t20.pipeline;
 
 import 'dart:io';
 
+import 'package:kernel/ast.dart' as kernel;
+
 import '../settings.dart';
 import 'ast/ast.dart';
 import 'ast/ast_builder.dart';
@@ -21,6 +23,7 @@ import 'typing/type_checker.dart';
 import 'codegen/desugar.dart';
 import 'codegen/ir.dart' as ir;
 import 'codegen/kernel_emitter.dart';
+import 'codegen/kernel_generator.dart';
 
 Future<bool> compile(List<String> filePaths, Settings settings) async {
   RandomAccessFile currentFile;
@@ -89,6 +92,8 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
         report(codeResult.errors);
         return false;
       }
+
+      kernel.Library kernelResult = new KernelGenerator().compile(codeResult.result);
 
       // Exit now, if requested.
       if (settings.exitAfter == "codegen") {

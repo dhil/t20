@@ -98,6 +98,10 @@ abstract class KernelAlgebra {
       AsyncMarker asyncMarker: AsyncMarker.Sync,
       AsyncMarker dartAsyncMarker});
 
+  Arguments arguments(List<Expression> positional,
+                      {List<DartType> types, List<NamedExpression> named});
+
+
   // Expressions.
   VariableGet variableGet(VariableDeclaration variable,
       [DartType promotedType]);
@@ -122,9 +126,6 @@ abstract class KernelAlgebra {
 
   StaticGet staticGet(Member target);
   StaticSet staticSet(Member target, Expression value);
-
-  Arguments arguments(List<Expression> positional,
-      {List<DartType> types, List<NamedExpression> named});
 
   NamedExpression namedExpression(String name, Expression value);
 
