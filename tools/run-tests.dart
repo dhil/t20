@@ -2,171 +2,218 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// MEASURE=0
-// STARTTIME=
-// ACCUMULATOR=0
-// if [[ $1 == "--measure" ]]; then
-//   MEASURE=1
-//   STARTTIME=`date +%s.%N`
-//   shift
-// fi
-// 
-// if [[ -d $1 || -f $1 ]]; then
-//    TESTNAME=$1
-// fi
-// 
-// T20="./t20"
-// TESTS_DIR="tests"
-// FLAGS_FILE=".flags"
-// SUCCESSES=0
-// FAILURES=0
-// SKIPPED=0
-// TICK=$(echo -ne '\x27\x14' | iconv -f utf-16be)
-// CROSS=$(echo -ne '\x27\x18' | iconv -f utf-16be)
-// MINUS=$(echo -ne '\x00\xF7' | iconv -f utf-16be)
-// export T20_COMPILER_ENABLE_ASSERTS=1
-// 
-// function runtests()
-// {
-//   local dir=$1
-//   local subdir=$2
-//   local expectation=$3
-//   local flags=
-//   if [[ -f "$dir/$subdir/$FLAGS_FILE" ]]; then
-//     flags=$(head -n 1 "$dir/$subdir/$FLAGS_FILE")
-//   fi
-//   echo -e "\033[1m== Running tests in $dir/$subdir ==\033[0m"
-//   for file in $(ls "$dir/$subdir" | grep "\.t20$"); do
-//     local test="$dir/$subdir/$file"
-//     if grep -q ";; SKIP" $test; then
-//       echo -e "\033[1;33m$MINUS\033[0m ${elapsed_str}$test"
-//       SKIPPED=$(($SKIPPED + 1))
-//       continue
-//     fi
-//     runtest "$flags" "$test" $expectation
-//   done
-// }
-// 
-// function runtest()
-// {
-//     local flags=$1
-//     local test=$2
-//     local expectation=$3
-// 
-//     local starttime=
-//     local endtime=
-//     local elapsed=
-//     local elapsed_str=
-// 
-//     local stdout_log=$(mktemp)
-//     local stderr_log=$(mktemp)
-// 
-//     local cmd="$T20 $flags $test > $stdout_log 2> $stderr_log"
-//     if [[ $MEASURE -eq 1 ]]; then
-//       starttime=`date +%s.%N`
-//     fi
-//     eval $cmd
-//     actual=$?
-//     if [[ $MEASURE -eq 1 ]]; then
-//       endtime=`date +%s.%N`
-//       elapsed=`echo "$endtime - $starttime" | bc`
-//       local elapsed_fmt=`echo $elapsed | awk -F"." '{print $1"."substr($2,1,3)}'`
-//       elapsed_str="[${elapsed_fmt}s] "
-//       ACCUMULATOR=`echo "$ACCUMULATOR + $elapsed" | bc`
-//     fi
-// 
-// 
-//     if [[ $actual -eq $expectation ]]; then
-//       echo -e "\033[1;32m$TICK\033[0m ${elapsed_str}$test"
-//       SUCCESSES=$(($SUCCESSES + 1))
-//     else
-//       FAILURES=$(($FAILURES + 1))
-//       echo -e "\033[1;31m$CROSS\033[0m ${elapsed_str}$test"
-//       echo "command: $cmd"
-//       echo "exit code: $actual"
-//       echo -n "stdout:"
-//       if [[ -s $stdout_log ]]; then
-//         echo ""
-//         cat $stdout_log | sed 's/^/    /'
-//       else
-//         echo " (empty)"
-//       fi
-//       echo -n "stderr:"
-//       if [[ -s $stderr_log  ]]; then
-//         echo ""
-//         cat $stderr_log | sed 's/^/    /'
-//       else
-//         echo " (empty)"
-//       fi
-//     fi
-// 
-//     rm -f $stdout_log
-//     rm -f $stderr_log
-// }
-// 
-// if [[ -d $TESTNAME ]]; then
-//     if [[ -d "$TESTNAME/pass" ]]; then
-//         runtests $TESTNAME "pass" 0
-//     elif [[ $(basename $TESTNAME) == "pass" ]]; then
-//         runtests $TESTNAME "" 0
-//     fi
-// 
-//     if [[ -d "$TESTNAME/fail" ]]; then
-//         runtests $TESTNAME "fail" 10
-//     elif [[ $(basename $TESTNAME) == "fail" ]]; then
-//         runtests $TESTNAME "" 10
-//     fi
-// elif [[ -f $TESTNAME ]]; then
-//     directory=$(dirname $TESTNAME)
-//     expectation=$(basename $directory)
-//     if [[ $expectation == "pass" ]]; then
-//         if [[ -f "$(dirname $TESTNAME)/$FLAGS_FILE" ]]; then
-//             flags=$(head -n 1 "$(dirname $TESTNAME)/$FLAGS_FILE")
-//             runtest "$flags" $TESTNAME 0
-//         else
-//             runtest "" $TESTNAME 0
-//         fi
-//     elif [[ $expectation == "fail" ]]; then
-//         if [[ -f "$(dirname $TESTNAME)/$FLAGS_FILE" ]]; then
-//             flags=$(head -n 1 "$(dirname $TESTNAME)/$FLAGS_FILE")
-//             runtest "$flags" $TESTNAME 10
-//         else
-//             runtest "" $TESTNAME 10
-//         fi
-//     else
-//         echo "Cannot run test script without an expectation."
-//     fi
-// else
-//     for dir in $(ls -d $TESTS_DIR/*); do
-//         # Run pass and fail tests, if they exists.
-//         if [[ -d "$dir/pass" ]]; then
-//             runtests $dir "pass" 0
-//         fi
-// 
-//         if [[ -d "$dir/fail" ]]; then
-//             runtests $dir "fail" 10
-//         fi
-//     done
-// fi
-// 
-// echo -e "\033[1m== Summary ==\033[0m"
-// echo -e "# \033[1;32m$TICK\033[0m successes: $SUCCESSES"
-// echo -e "# \033[1;31m$CROSS\033[0m  failures: $FAILURES\033[0m"
-// echo -e "# \033[1;33m$MINUS\033[0m   skipped: $SKIPPED\033[0m"
-// if [[ $MEASURE -eq 1 ]]; then
-//   ENDTIME=`date +%s.%N`
-//   ELAPSED=`echo "$ENDTIME - $STARTTIME" | bc`
-//   ELAPSED_FMT=`echo $ELAPSED | awk -F"." '{print $1"."substr($2,1,3)}'`
-//   ACCUMULATED_FMT=`echo $ACCUMULATOR | awk -F"." '{print $1"."substr($2,1,3)}'`
-//   OVERHEAD=`echo "$ELAPSED - $ACCUMULATOR" | bc | awk -F"." '{print $1"."substr($2,1,3)}'`
-//   echo -e "\033[1m== Running time statistics ==\033[0m"
-//   echo "# Total running time: ${ELAPSED_FMT}s"
-//   echo "# Accumulated test running time: ${ACCUMULATED_FMT}s"
-//   echo "# Test script overhead: ${OVERHEAD}s"
-// fi
-// 
-// if [[ $FAILURES -ne 0 ]]; then
-//   exit 1
-// else
-//   exit 0
-// fi
+import 'dart:io';
+
+import 'package:ansicolor/ansicolor.dart' show AnsiPen;
+
+import 'package:args/args.dart' show ArgParser, ArgResults;
+
+import 'package:path/path.dart' as path;
+
+ArgParser argParser = new ArgParser()..addFlag("measure", defaultsTo: false);
+
+const String tick = "✔";
+
+const String cross = "✘";
+
+const String minus = "÷";
+
+final AnsiPen boldPen = new AnsiPen()..black(bold: true);
+
+final AnsiPen redPen = new AnsiPen()..red(bold: true);
+
+final AnsiPen yellowPen = new AnsiPen()..yellow(bold: true);
+
+final AnsiPen greenPen = new AnsiPen()..green(bold: true);
+
+String readFirstLine(String filename) {
+  File f = File(filename);
+  if (!f.existsSync()) return null;
+  return f.readAsLinesSync().first;
+}
+
+class Tester {
+  final String t20 = "./t20";
+
+  final String testsDir;
+
+  final String flagsFilename;
+
+  final bool measure;
+
+  int successes = 0;
+
+  int failures = 0;
+
+  int skipped = 0;
+
+  Duration accumulator = Duration.zero;
+
+  Tester(this.testsDir, this.flagsFilename, this.measure);
+
+  void runtests(String dir, String subdir, int expectation) {
+    String flags = readFirstLine(path.join(dir, subdir, flagsFilename));
+
+    stdout.writeln(boldPen("== Running tests in $dir/$subdir =="));
+
+    Directory testcasesDir = new Directory(path.join(dir, subdir));
+    if (!testcasesDir.existsSync()) return;
+    for (FileSystemEntity entity in testcasesDir.listSync()) {
+      if (entity is File && entity.path.endsWith(".t20")) {
+        String entityRelativePath =
+            path.join(dir, subdir, path.basename(entity.path));
+        if (entity.readAsStringSync().contains(";; SKIP")) {
+          stdout.writeln("${yellowPen(minus)} ${entityRelativePath}");
+          ++skipped;
+        } else {
+          runtest(flags, entityRelativePath, expectation);
+        }
+      }
+    }
+  }
+
+  void runtest(String flags, String relativePath, int expectation) {
+    DateTime startTime;
+    DateTime endTime;
+    String elapsed_str = "";
+
+    String cmd = "$t20 $flags $relativePath";
+    if (measure) {
+      startTime = new DateTime.now();
+    }
+
+    ProcessResult processResult =
+        Process.runSync(t20, flags.split(" ")..add(relativePath));
+
+    if (measure) {
+      endTime = new DateTime.now();
+      Duration elapsed = endTime.difference(startTime);
+      String elapsed_fmt = "${elapsed.inMilliseconds / 1000}";
+      elapsed_str = "[${elapsed_fmt}s]";
+      accumulator += elapsed;
+    }
+
+    if (processResult.exitCode == expectation) {
+      stdout.writeln("${greenPen(tick)} ${elapsed_str}$relativePath");
+      ++successes;
+    } else {
+      ++failures;
+      stdout.writeln("${redPen(cross)} ${elapsed_str}$relativePath");
+      stdout.writeln("command: $cmd");
+      stdout.writeln("exit code: ${processResult.exitCode}");
+      stdout.write("stdout:");
+      if (processResult.stdout.isEmpty) {
+        stdout.writeln(" (empty)");
+      } else {
+        stdout.writeln();
+        for (String line in processResult.stdout.split("\n")) {
+          stdout.writeln("    $line");
+        }
+      }
+      stdout.write("stderr:");
+      if (processResult.stderr.isEmpty) {
+        stdout.writeln(" (empty)");
+      } else {
+        stdout.writeln();
+        for (String line in processResult.stdout.split("\n")) {
+          stdout.writeln("    $line");
+        }
+      }
+    }
+  }
+}
+
+main(List<String> args) {
+  ArgResults argResults = argParser.parse(args);
+  bool measure = argResults["measure"];
+
+  DateTime startTime;
+  String testName = "";
+  String flagsFile = ".flags";
+  String testsDir = "tests";
+  Tester tester = new Tester(testsDir, flagsFile, measure);
+
+  if (measure) {
+    startTime = new DateTime.now();
+  }
+
+  if (argResults.rest.isNotEmpty) {
+    String candidateTestName = argResults.rest[0];
+    if (FileSystemEntity.typeSync(candidateTestName) !=
+        FileSystemEntityType.notFound) {
+      testName = candidateTestName;
+    }
+  }
+
+  if (FileSystemEntity.typeSync(testName) == FileSystemEntityType.directory) {
+    if (FileSystemEntity.typeSync(path.join(testName, "pass")) ==
+        FileSystemEntityType.directory) {
+      tester.runtests(testName, "pass", 0);
+    } else if (path.basename(testName) == "pass") {
+      tester.runtests(testName, "", 0);
+    }
+  } else if (FileSystemEntity.typeSync(testName) == FileSystemEntityType.file) {
+    String directory = path.dirname(testName);
+    String expectation = path.basename(directory);
+    if (expectation == "pass") {
+      String flagsFilename = path.join(path.dirname(testName), flagsFile);
+      if (FileSystemEntity.typeSync(flagsFilename) ==
+          FileSystemEntityType.file) {
+        String flags = readFirstLine(flagsFilename);
+        tester.runtest(flags, testName, 0);
+      } else {
+        tester.runtest("", testName, 0);
+      }
+    } else if (expectation == "fail") {
+      String flagsFilename = path.join(path.dirname(testName), flagsFile);
+      if (FileSystemEntity.typeSync(flagsFilename) ==
+          FileSystemEntityType.file) {
+        String flags = readFirstLine(flagsFilename);
+        tester.runtest(flags, testName, 10);
+      } else {
+        tester.runtest("", testName, 10);
+      }
+    } else {
+      stdout.writeln("Cannot run test script without an expectation.");
+    }
+  } else {
+    if (FileSystemEntity.typeSync(testsDir) == FileSystemEntityType.directory) {
+      Directory testsDirectory = new Directory(testsDir);
+      for (FileSystemEntity entity in testsDirectory.listSync()) {
+        if (entity is Directory) {
+          if (FileSystemEntity.typeSync(path.join(entity.path, "pass")) ==
+              FileSystemEntityType.directory) {
+            tester.runtests(entity.path, "pass", 0);
+          }
+          if (FileSystemEntity.typeSync(path.join(entity.path, "fail")) ==
+              FileSystemEntityType.directory) {
+            tester.runtests(entity.path, "fail", 10);
+          }
+        }
+      }
+    }
+  }
+
+  stdout.writeln(boldPen("== Summary =="));
+  stdout.writeln("# ${greenPen(tick)} successes: ${tester.successes}");
+  stdout.writeln("# ${redPen(cross)}  failures: ${tester.failures}");
+  stdout.writeln("# ${yellowPen(minus)}   skipped: ${tester.skipped}");
+
+  if (measure) {
+    DateTime endTime = new DateTime.now();
+    Duration elapsed = endTime.difference(startTime);
+    String elapsed_fmt = "${elapsed.inMilliseconds / 1000}";
+    String accumulated_fmt = "${tester.accumulator.inMilliseconds / 1000}";
+    String overhead = "${(elapsed - tester.accumulator).inMilliseconds / 1000}";
+    stdout.writeln(boldPen("== Running time statistics =="));
+    stdout.writeln("# Total running time: ${elapsed_fmt}s");
+    stdout.writeln("# Accumulated test running time: ${accumulated_fmt}s");
+    stdout.writeln("# Test script overhead: ${overhead}s");
+  }
+
+  if (tester.failures > 0) {
+    exit(1);
+  } else {
+    exit(0);
+  }
+}
