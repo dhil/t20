@@ -14,6 +14,8 @@
   by Dimitrios Vytiniotis, Simon Peyton Jones, and Tom Schrijvers
 * **[HMF: Simple Type Inference for First-Class Polymorphism](https://dl.acm.org/citation.cfm?id=1411245) (ICFP '08)**  
   by Daan Leijen
+* **[The Guaranteed Optimization Clause of the Macro Writer's Bill of Rights](https://www.youtube.com/watch?v=LIEX3tUliHw) (DanFest '04)**  
+  by R. Kent Dybvig
 * **[Local Type Inference](http://doi.org/10.1145/345099.345100) (TOPLAS '00)**  
   by Benjamin Pierce and  David Turner
 * **[A tutorial on the universality and expressiveness of fold](https://dl.acm.org/citation.cfm?id=968579) (JFP '99)**  
