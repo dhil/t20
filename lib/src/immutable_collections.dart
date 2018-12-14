@@ -31,44 +31,44 @@ abstract class ImmutableMap<K, V> {
 // TODO the current implementation is inefficient and is only intended to serve
 // as a prototype. It should be replaced by an efficient version based on
 // red-black trees.
-class _NaiveImmutableMap<K, V> implements ImmutableMap<K, V> {
-  final Map<K, V> _underlying;
+// class _NaiveImmutableMap<K, V> implements ImmutableMap<K, V> {
+//   final Map<K, V> _underlying;
 
-  _NaiveImmutableMap.empty() : _underlying = new Map<K, V>();
-  _NaiveImmutableMap.using(this._underlying);
+//   _NaiveImmutableMap.empty() : _underlying = new Map<K, V>();
+//   _NaiveImmutableMap.using(this._underlying);
 
-  int get size => _underlying.length;
-  bool get isEmpty => _underlying.isEmpty;
-  bool containsKey(K key) => _underlying.containsKey(key);
-  Iterable<MapEntry<K, V>> get entries => _underlying.entries;
+//   int get size => _underlying.length;
+//   bool get isEmpty => _underlying.isEmpty;
+//   bool containsKey(K key) => _underlying.containsKey(key);
+//   Iterable<MapEntry<K, V>> get entries => _underlying.entries;
 
-  _NaiveImmutableMap<K, V> put(K key, V value) {
-    Map<K, V> copy = Map<K, V>.of(_underlying);
-    copy[key] = value;
-    return _NaiveImmutableMap.using(copy);
-  }
+//   _NaiveImmutableMap<K, V> put(K key, V value) {
+//     Map<K, V> copy = Map<K, V>.of(_underlying);
+//     copy[key] = value;
+//     return _NaiveImmutableMap.using(copy);
+//   }
 
-  _NaiveImmutableMap<K, V> remove(K key) {
-    Map<K, V> copy = Map<K, V>.of(_underlying);
-    copy.remove(key);
-    return _NaiveImmutableMap.using(copy);
-  }
+//   _NaiveImmutableMap<K, V> remove(K key) {
+//     Map<K, V> copy = Map<K, V>.of(_underlying);
+//     copy.remove(key);
+//     return _NaiveImmutableMap.using(copy);
+//   }
 
-  _NaiveImmutableMap<K, V> union(ImmutableMap<K, V> other) {
-    Map<K, V> copy = Map<K, V>.of(_underlying);
-    for (MapEntry<K, V> entry in other.entries) {
-      copy[entry.key] = entry.value;
-    }
-    return _NaiveImmutableMap.using(copy);
-  }
+//   _NaiveImmutableMap<K, V> union(ImmutableMap<K, V> other) {
+//     Map<K, V> copy = Map<K, V>.of(_underlying);
+//     for (MapEntry<K, V> entry in other.entries) {
+//       copy[entry.key] = entry.value;
+//     }
+//     return _NaiveImmutableMap.using(copy);
+//   }
 
-  _NaiveImmutableMap<K, T> map<T>(T Function(K, V) mapper) {
-    return _NaiveImmutableMap.using(_underlying
-        .map((K key, V value) => MapEntry<K, T>(key, mapper(key, value))));
-  }
+//   _NaiveImmutableMap<K, T> map<T>(T Function(K, V) mapper) {
+//     return _NaiveImmutableMap.using(_underlying
+//         .map((K key, V value) => MapEntry<K, T>(key, mapper(key, value))));
+//   }
 
-  V lookup(K key) => _underlying[key];
-}
+//   V lookup(K key) => _underlying[key];
+// }
 
 // Immutable map based on BuiltMap from the built_collection library.
 class BuiltMap<K, V> implements ImmutableMap<K, V> {
