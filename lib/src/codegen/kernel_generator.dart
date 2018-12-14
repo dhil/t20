@@ -5,7 +5,6 @@
 import 'package:kernel/ast.dart';
 
 import '../errors/errors.dart' show unhandled;
-import '../result.dart';
 
 import 'ir.dart';
 
@@ -136,6 +135,7 @@ class KernelGenerator {
     } else {
       unhandled("KernelGenerator.compileApply", apply);
     }
+    return null; // Impossible!
   }
 
   Arguments compileArguments(List<Value> valueArguments) {
@@ -154,8 +154,10 @@ class KernelGenerator {
       case "+":
         break;
       default:
-        unhandled("KernelGenerator.compilePrimitiveApply", primitive.binder.sourceName);
+        unhandled("KernelGenerator.compilePrimitiveApply",
+            primitive.binder.sourceName);
     }
+    return null; // Impossible!
   }
 
   StaticInvocation compileStaticApply(
