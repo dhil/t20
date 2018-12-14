@@ -2,9 +2,11 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'package:built_collection/built_collection.dart' as built;
+
 // Immutable map.
 abstract class ImmutableMap<K, V> {
-  factory ImmutableMap.empty() = _NaiveImmutableMap<K, V>.empty;
+  factory ImmutableMap.empty() = BuiltMap<K, V>.empty; //_NaiveImmutableMap<K, V>.empty;
   factory ImmutableMap.of(Map<K, V> mutableMap) {
     ImmutableMap<K, V> map = ImmutableMap<K, V>.empty();
     for (MapEntry<K, V> entry in mutableMap.entries) {
@@ -66,6 +68,52 @@ class _NaiveImmutableMap<K, V> implements ImmutableMap<K, V> {
   }
 
   V lookup(K key) => _underlying[key];
+}
+
+// Immutable map based on BuiltMap from the built_collection library.
+class BuiltMap<K, V> implements ImmutableMap<K, V> {
+  // Underlying map.
+  final built.BuiltMap<K, V> _map;
+
+  BuiltMap.empty() : _map = new built.BuiltMap<K, V>(<K, V>{});
+  BuiltMap._(this._map);
+
+  bool containsKey(K key) => _map.containsKey(key);
+  bool get isEmpty => _map.isEmpty;
+  int get size => _map.length;
+  Iterable<MapEntry<K, V>> get entries => _map.entries;
+
+  ImmutableMap<K, T> map<T>(T Function(K, V) f) {
+    built.BuiltMap<K, T> map =
+        _map.map((K key, V value) => MapEntry<K, T>(key, f(key, value)));
+    return BuiltMap._(map);
+  }
+
+  ImmutableMap<K, V> put(K key, V value) {
+    built.MapBuilder<K, V> builder = _map.toBuilder();
+    builder[key] = value;
+    return BuiltMap._(builder.build());
+  }
+
+  V lookup(K key) => _map[key];
+
+  ImmutableMap<K, V> remove(K key) {
+    built.MapBuilder<K, V> builder = _map.toBuilder();
+    builder.remove(key);
+    return BuiltMap._(builder.build());
+  }
+
+  // For common keys, the values in other takes precedence.
+  ImmutableMap<K, V> union(ImmutableMap<K, V> other) {
+    if (other is! BuiltMap<K, V>) {
+      throw "expected 'other' to be an instance of 'BuiltMap'.";
+    }
+    built.MapBuilder<K, V> thisBuilder = _map.toBuilder();
+    Map<K, V> otherMap = (other as BuiltMap<K, V>)._map.toMap();
+
+    thisBuilder.addAll(otherMap);
+    return BuiltMap<K, V>._(thisBuilder.build());
+  }
 }
 
 // Immutable list.
