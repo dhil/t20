@@ -7,8 +7,13 @@ import 'package:kernel/ast.dart';
 import '../errors/errors.dart' show unhandled;
 
 import 'ir.dart';
+import 'platform.dart';
 
 class KernelGenerator {
+  final Platform platform;
+
+  KernelGenerator(this.platform);
+
   Library compile(Module module) {
     List<Field> fields = new List<Field>(); // Top-level values.
     List<Procedure> procedures = new List<Procedure>(); // Top-level functions.
@@ -63,17 +68,18 @@ class KernelGenerator {
 
     List<VariableDeclaration> parameters = new List<VariableDeclaration>();
     for (int i = 0; i < letfun.parameters.length; i++) {
-      TypedBinder param = letfun.parameters[i];
-      VariableDeclaration varDecl =
-          VariableDeclaration(param.uniqueName /* TODO: translate type. */);
+      FormalParameter param = letfun.parameters[i];
+      VariableDeclaration varDecl = VariableDeclaration(
+          param.binder.uniqueName /* TODO: translate type. */);
+      param.kernelNode = varDecl;
       parameters.add(varDecl);
     }
 
     Statement body = compileComputation(letfun.body);
     FunctionNode funNode = FunctionNode(body, positionalParameters: parameters);
 
-    letfun.node = Procedure(name, kind, funNode, isStatic: true);
-    return letfun.node;
+    letfun.kernelNode = Procedure(name, kind, funNode, isStatic: true);
+    return letfun.kernelNode;
   }
 
   Field compileToplevelLetVal(LetVal letval) {
@@ -124,7 +130,7 @@ class KernelGenerator {
       Variable v = apply.abstractor;
       if (v.declarator.bindingSite is LetFun) {
         LetFun fun = v.declarator.bindingSite;
-        return compileStaticApply(fun.node, apply.arguments);
+        return compileStaticApply(fun.kernelNode, apply.arguments);
       } else if (v.declarator.bindingSite is PrimitiveFunction) {
         return compilePrimitiveApply(v.declarator.bindingSite, apply.arguments);
       } else {
@@ -152,6 +158,16 @@ class KernelGenerator {
     Arguments arguments = compileArguments(valueArguments);
     switch (primitive.binder.sourceName) {
       case "+":
+        PlatformPath path =
+            PlatformPathBuilder.core.library("num").target("+").build();
+        Procedure plus = platform.getProcedure(path);
+        return StaticInvocation(plus, arguments);
+        break;
+      case "-":
+        PlatformPath path =
+            PlatformPathBuilder.core.library("num").target("-").build();
+        Procedure minus = platform.getProcedure(path);
+        return StaticInvocation(minus, arguments);
         break;
       default:
         unhandled("KernelGenerator.compilePrimitiveApply",
@@ -180,17 +196,49 @@ class KernelGenerator {
         return StringLiteral(s.value);
         break;
       case VAR:
-        Variable v = w;
-        if (v.declarator.bindingSite is LetVal) {
-          throw "Not yet implemented!";
-        } else {
-          throw "Not yet implemented!";
-        }
+        return compileVariable(w as Variable);
         break;
       default:
         unhandled("KernelGenerator.compileValue", w.tag);
     }
 
     return null;
+  }
+
+  Expression compileVariable(Variable v) {
+    // The variable may be either a reference to a 1) toplevel function, 2) primitive function, 3) toplevel
+    // let, 4) local let, or 5) a formal parameter.
+
+    if (v.declarator.bindingSite is LetFun) {
+      // 1) Function.
+      LetFun fun = v.declarator.bindingSite;
+      // [v] is a reference to the function.
+      return StaticGet(fun.kernelNode);
+    } else if (v.declarator.bindingSite is PrimitiveFunction) {
+      // 2) Primitive function.
+      throw "not yet implemented.";
+    } else if (v.declarator.bindingSite is LetVal) {
+      // 3) or 4) let bound value.
+      LetVal let = v.declarator.bindingSite;
+      if (let.kernelNode is Field) {
+        // 3) Toplevel value.
+        Field field = let.kernelNode;
+        return StaticGet(field);
+      } else if (let.kernelNode is VariableDeclaration) {
+        // 4) Local value.
+        VariableDeclaration decl = let.kernelNode;
+        return VariableGet(decl);
+      } else {
+        unhandled("KernelGenerator.compileVariable", let);
+      }
+    } else if (v.declarator.bindingSite is FormalParameter) {
+      // 5) Formal parameter.
+      FormalParameter param = v.declarator.bindingSite;
+      return VariableGet(param.kernelNode);
+    } else {
+      unhandled("KernelGenerator.compileVariable", v.declarator.bindingSite);
+    }
+
+    return null; // Impossible!
   }
 }

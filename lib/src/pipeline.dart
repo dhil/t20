@@ -24,6 +24,7 @@ import 'codegen/desugar.dart';
 import 'codegen/ir.dart' as ir;
 import 'codegen/kernel_emitter.dart';
 import 'codegen/kernel_generator.dart';
+import 'codegen/platform.dart';
 
 Future<bool> compile(List<String> filePaths, Settings settings) async {
   RandomAccessFile currentFile;
@@ -93,7 +94,9 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
         return false;
       }
 
-      kernel.Library kernelResult = new KernelGenerator().compile(codeResult.result);
+      kernel.Library kernelResult =
+          new KernelGenerator(new Platform(settings.platformDill))
+              .compile(codeResult.result);
 
       // Exit now, if requested.
       if (settings.exitAfter == "codegen") {
@@ -101,8 +104,8 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
       }
 
       // Emit DILL.
-      KernelEmitter emitter = new KernelEmitter(settings.platformDill);
-      await emitter.emit(emitter.helloWorld(), settings.outputFile);
+      //KernelEmitter emitter = new KernelEmitter(settings.platformDill);
+      //await emitter.emit(emitter.helloWorld(), settings.outputFile);
     }
   } catch (err) {
     if (currentFile != null) currentFile.closeSync();

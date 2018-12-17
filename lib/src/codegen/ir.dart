@@ -38,6 +38,7 @@ abstract class IRVisitor<T> {
   T visitDatatype(DatatypeDescriptor desc);
   T visitLetFun(LetFun f);
   T visitLetVal(LetVal let);
+  T visitFormal(FormalParameter formal);
 
   // Tail computations.
   T visitIf(If ifthenelse);
@@ -57,25 +58,45 @@ class IRAlgebra {
     return _instance;
   }
 
+  void _setUplinks(List<IRNode> nodes, IRNode parent) {
+    for (int i = 0; i < nodes.length; i++) {
+      nodes[i].parent = parent;
+    }
+  }
+
   // Values.
   ApplyPure applyPure(Value fn, List<Value> arguments, {Location location}) {
-    return ApplyPure(apply(fn, arguments));
+    ApplyPure appl = ApplyPure(apply(fn, arguments));
+    // Set uplinks.
+    fn.parent = appl;
+    _setUplinks(arguments, appl);
+    return appl;
   }
 
   BoolLit boollit(bool lit, {Location location}) => BoolLit(lit);
   IntLit intlit(int lit, {Location location}) => IntLit(lit);
 
-  Lambda lambda(List<TypedBinder> parameters, Computation body,
+  Lambda lambda(List<FormalParameter> parameters, Computation body,
       {Location location}) {
-    return Lambda(parameters, body);
+    Lambda lam = Lambda(parameters, body);
+    // Set uplinks.
+    body.parent = lam;
+    _setUplinks(parameters, lam);
+    return lam;
   }
 
   Record record(Map<String, Value> members, {Location location}) {
-    return Record(members);
+    Record record = Record(members);
+    // Set uplink.
+    members.forEach((String _, Value v) => v.parent = record);
+    return record;
   }
 
   Projection project(Value v, String label, {Location location}) {
-    return Projection(v, label);
+    Projection prj = Projection(v, label);
+    // Set uplink.
+    v.parent = prj;
+    return prj;
   }
 
   StringLit stringlit(String lit, {Location location}) => StringLit(lit);
@@ -100,13 +121,12 @@ class IRAlgebra {
   }
 
   LetFun letFunction(
-      TypedBinder binder, List<TypedBinder> parameters, Computation body,
+      TypedBinder binder, List<FormalParameter> parameters, Computation body,
       {Location location}) {
     LetFun fun = LetFun(binder, parameters, body);
     binder.bindingSite = fun;
-    for (int i = 0; i < parameters.length; i++) {
-      parameters[i].bindingSite = fun;
-    }
+    _setUplinks(parameters, fun);
+    body.parent = fun;
     return fun;
   }
 
@@ -114,29 +134,56 @@ class IRAlgebra {
       {Location location}) {
     LetVal let = LetVal(binder, expr);
     binder.bindingSite = let;
+    expr.parent = let;
     return let;
+  }
+
+  FormalParameter formal(TypedBinder binder) {
+    FormalParameter param = FormalParameter(binder);
+    binder.bindingSite = param;
+    return param;
   }
 
   // Tail computations.
   Apply apply(Value fn, List<Value> arguments, {Location location}) {
-    return Apply(fn, arguments);
+    Apply appl = Apply(fn, arguments);
+    // Set uplinks.
+    fn.parent = appl;
+    _setUplinks(arguments, appl);
+    return appl;
   }
 
   If ifthenelse(Value condition, Computation thenBranch, Computation elseBranch,
       {Location location}) {
-    return If(condition, thenBranch, elseBranch);
+    If ifexpr = If(condition, thenBranch, elseBranch);
+    // Set uplinks.
+    condition.parent = ifexpr;
+    thenBranch.parent = ifexpr;
+    elseBranch.parent = ifexpr;
+    return ifexpr;
   }
 
-  Return return$(Value v, {Location location}) => Return(v);
+  Return return$(Value v, {Location location}) {
+    Return ret = Return(v);
+    v.parent = ret;
+    return ret;
+  }
 
   // Computations.
   Computation computation(List<Binding> bindings, TailComputation tc,
-          {Location location}) =>
-      Computation(bindings, tc);
+      {Location location}) {
+    Computation comp = Computation(bindings, tc);
+    tc.parent = comp;
+    _setUplinks(bindings, comp);
+    return comp;
+  }
 
   // Modules.
-  Module module(List<Binding> bindings, {Location location}) =>
-      Module(bindings);
+  Module module(List<Binding> bindings, {Location location}) {
+    Module mod = Module(bindings);
+    _setUplinks(bindings, mod);
+    return mod;
+  }
 
   // Utils.
   Computation withBindings(List<Binding> bindings, Computation comp) {
@@ -175,9 +222,14 @@ const int LET_FUN = 0x10000;
 const int LET_VAL = 0x20000;
 const int CONSTR = 0x30000;
 const int TYPE = 0x40000;
+const int FORMAL = 0x50000;
 
 abstract class IRNode {
   final int tag;
+
+  IRNode _parent; // May be null.
+  IRNode get parent => _parent;
+  void set parent(IRNode parent) => _parent = parent;
 
   IRNode(this.tag);
 
@@ -185,12 +237,12 @@ abstract class IRNode {
 }
 
 //===== Modules.
-class Module implements IRNode {
+class Module extends IRNode {
   final int tag = MODULE;
   Map<int, Object> datatypes;
   List<Binding> bindings;
 
-  Module(this.bindings);
+  Module(this.bindings) : super(MODULE);
 
   T accept<T>(IRVisitor<T> v) {
     return v.visitModule(this);
@@ -199,7 +251,7 @@ class Module implements IRNode {
 
 //===== Binder.
 class TypedBinder extends Binder {
-  Binding bindingSite;
+  IRNode bindingSite; // Binding | Value (specifically Lambda).
   Datatype type;
   Set<Variable> occurrences;
 
@@ -224,14 +276,13 @@ class TypedBinder extends Binder {
 }
 
 //===== Bindings.
-abstract class Binding implements IRNode {
-  final int tag;
+abstract class Binding extends IRNode {
   TypedBinder binder;
 
   Datatype get type => binder.type;
   int get ident => binder.ident;
 
-  Binding(this.binder, this.tag);
+  Binding(this.binder, int tag) : super(tag);
 
   // bool get hasOccurrences => binder.hasOccurrences;
   // void addOccurrence(Variable v) => binder.addOccurrence(v);
@@ -239,7 +290,7 @@ abstract class Binding implements IRNode {
 
 class LetVal extends Binding {
   TailComputation tailComputation;
-  TreeNode node;
+  TreeNode kernelNode;
 
   LetVal(TypedBinder binder, this.tailComputation) : super(binder, LET_VAL);
 
@@ -249,9 +300,9 @@ class LetVal extends Binding {
 }
 
 class LetFun extends Binding {
-  List<TypedBinder> parameters;
+  List<FormalParameter> parameters;
   Computation body;
-  Procedure node;
+  Procedure kernelNode;
 
   int get arity => parameters == null ? 0 : parameters.length;
 
@@ -261,6 +312,14 @@ class LetFun extends Binding {
   T accept<T>(IRVisitor<T> v) {
     return v.visitLetFun(this);
   }
+}
+
+class FormalParameter extends Binding {
+  VariableDeclaration kernelNode;
+
+  FormalParameter(TypedBinder binder) : super(binder, FORMAL);
+
+  T accept<T>(IRVisitor<T> v) => v.visitFormal(this);
 }
 
 class DatatypeDescriptor extends Binding {
@@ -285,12 +344,16 @@ class DataConstructor extends Binding {
 }
 
 //===== Computations.
-class Computation implements IRNode {
-  final int tag = COMPUTATION;
+class Computation extends IRNode {
   List<Binding> bindings;
-  TailComputation tailComputation;
+  TailComputation _tc;
+  TailComputation get tailComputation => _tc;
+  void set tailComputation(TailComputation tc) {
+    _tc = tc;
+    tc.parent = this;
+  }
 
-  Computation(this.bindings, this.tailComputation);
+  Computation(this.bindings, this._tc) : super(COMPUTATION);
 
   bool get isSimple =>
       (bindings == null || bindings.length == 0) && tailComputation.isSimple;
@@ -301,11 +364,8 @@ class Computation implements IRNode {
 }
 
 //===== Tail computations.
-abstract class TailComputation implements IRNode {
-  final int tag;
-
-  TailComputation(this.tag);
-
+abstract class TailComputation extends IRNode {
+  TailComputation(int tag) : super(tag);
   bool get isSimple;
 }
 
@@ -349,9 +409,8 @@ class Return extends TailComputation {
 }
 
 //===== Values.
-abstract class Value implements IRNode {
-  final int tag;
-  Value(this.tag);
+abstract class Value extends IRNode {
+  Value(int tag) : super(tag);
 }
 
 class ApplyPure extends Value {
@@ -395,8 +454,10 @@ class StringLit extends Literal {
 }
 
 class Lambda extends Value {
-  List<TypedBinder> parameters;
+  List<FormalParameter> parameters;
   Computation body;
+
+  Datatype get type => null; // TODO.
 
   Lambda(this.parameters, this.body) : super(LAMBDA);
 

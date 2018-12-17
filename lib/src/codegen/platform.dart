@@ -32,16 +32,37 @@ class Platform {
   Platform(this._vmPlatformDillPath);
 
   Procedure getProcedure(PlatformPath path) {
+    Component platformComponent = platform;
+    // First find the enclosing library.
+    Library library;
+    for (int i = 0; i < platformComponent.libraries.length; i++) {
+      Library lib = platformComponent.libraries[i];
+      if (lib.name == path.library) {
+        library = lib;
+        break;
+      }
+    }
+
+    // Second find the target procedure.
+    if (library != null) {
+      for (int i = 0; i < library.procedures.length; i++) {
+        Procedure proc = library.procedures[i];
+        if (proc.name.name == path.target) {
+          return proc;
+        }
+      }
+    }
+
     return null;
   }
-
-  PlatformPathBuilder get core => PlatformPathBuilder().library("core");
 }
 
 class PlatformPath {
-  final String path;
+  final String library;
   final String target;
-  const PlatformPath(this.path, this.target);
+  const PlatformPath(this.library, this.target);
+
+  String toString() => "$library.$target";
 }
 
 class PlatformPathBuilder {
@@ -49,6 +70,8 @@ class PlatformPathBuilder {
   String _target;
 
   PlatformPathBuilder() : _path = StringBuffer()..write("dart");
+
+  static PlatformPathBuilder get core => PlatformPathBuilder().library("core");
 
   PlatformPath build() {
     if (target == null) {

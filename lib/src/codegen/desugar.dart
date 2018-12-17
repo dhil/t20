@@ -74,12 +74,12 @@ class Desugarer {
     // Translate the binder.
     TypedBinder binder = translateBinder(fun.binder, fun.type, binderContext);
     // Desugar each parameter.
-    List<TypedBinder> parameters = new List<TypedBinder>();
+    List<FormalParameter> parameters = new List<FormalParameter>();
     for (int i = 0; i < fun.parameters.length; i++) {
       ast.Pattern param = fun.parameters[i];
       // Create a fresh binder.
       TypedBinder binder = TypedBinder.fresh(param.type);
-      parameters.add(binder);
+      parameters.add(alg.formal(binder));
       // Desugar the pattern and append any new bindings onto [bindings].
       bindings = append(
           patternCompiler.desugar(binder, param, binderContext), bindings);
@@ -159,7 +159,7 @@ class Desugarer {
   Computation translateLambda(
       ast.Lambda lambda, Map<int, TypedBinder> binderContext) {
     // Translate each parameter.
-    List<TypedBinder> parameters = new List<TypedBinder>();
+    List<FormalParameter> parameters = new List<FormalParameter>();
     List<Datatype> domain = typeUtils.domain(lambda.type);
     List<Binding> bindings;
     for (int i = 0; i < lambda.parameters.length; i++) {
@@ -168,7 +168,7 @@ class Desugarer {
       bindings = append(
           patternCompiler.desugar(binder, lambda.parameters[i], binderContext),
           bindings);
-      parameters.add(binder);
+      parameters.add(alg.formal(binder));
     }
     // Translate the body.
     Computation body = expression(lambda.body, binderContext);
@@ -278,15 +278,25 @@ class Desugarer {
 
   List<Binding> augment(Binding binding, List<Binding> bindings) {
     bindings ??= new List<Binding>();
+    if (bindings.length > 0) {
+      binding.parent = bindings[0].parent;
+    } else {
+      binding.parent = null;
+    }
     bindings.add(binding);
     return bindings;
   }
 
   List<Binding> append(List<Binding> source, List<Binding> destination) {
-    if (source == null) return destination;
-    if (destination == null) return source;
+    if (source == null || source.length == 0) return destination;
+    if (destination == null || destination.length == 0) return source;
 
-    destination.addAll(source);
+    IRNode parent = destination[0].parent;
+    for (int i = 0; i < source.length; i++) {
+      Binding binding = source[i];
+      destination.add(binding);
+      binding.parent = parent;
+    }
     return destination;
   }
 }
