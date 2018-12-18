@@ -60,7 +60,7 @@ ArgParser _setupArgParser() {
       help: "Display this list of options.");
   parser.addOption(NamedOptions.optimisation_level,
       abbr: 'O',
-      defaultsTo: "3",
+      defaultsTo: "2",
       valueHelp: "number",
       help: "Set optimisation level to <number>");
   parser.addOption(NamedOptions.output,
@@ -98,23 +98,12 @@ ArgResults _parse(args) {
   }
 }
 
-bool _validateExitAfter(String value, [bool allowNull = true]) {
-  switch (value) {
-    case "codegen":
-    case "elaborator":
-    case "parser":
-    case "typechecker":
-      return true;
-    default:
-      return allowNull && value == null;
-  }
-}
-
 class Settings {
   // Boolean flags.
   final bool dumpAst;
   final bool dumpDast;
   final String exitAfter;
+  final int optimisationLevel;
   final bool showHelp;
   final bool showVersion;
   final String platformDill;
@@ -131,6 +120,7 @@ class Settings {
     var dumpAst = results[NamedOptions.dump_ast];
     var dumpDast = results[NamedOptions.dump_dast];
     var exitAfter = results[NamedOptions.exit_after];
+    var optLevel = results[NamedOptions.optimisation_level];
     var outputFile = results[NamedOptions.output];
     var showHelp = results[NamedOptions.help];
     var showVersion = results[NamedOptions.version];
@@ -143,13 +133,18 @@ class Settings {
       throw UnrecognisedOptionValue(NamedOptions.exit_after, exitAfter);
     }
 
+    if (!_validateOptimisationLevel(optLevel)) {
+      throw UnrecognisedOptionValue(NamedOptions.optimisation_level, optLevel);
+    }
+    int O = int.parse(optLevel);
+
     var sourceFile;
     if (results.rest.length == 1) {
       sourceFile = results.rest[0];
     } else if (!showHelp && !showVersion) {
       throw new UsageError();
     }
-    return Settings._(dumpAst, dumpDast, exitAfter, outputFile, showHelp,
+    return Settings._(dumpAst, dumpDast, exitAfter, O, outputFile, showHelp,
         showVersion, sourceFile, trace, typeCheck, verbose, platformDill);
   }
 
@@ -157,6 +152,7 @@ class Settings {
       this.dumpAst,
       this.dumpDast,
       this.exitAfter,
+      this.optimisationLevel,
       this.outputFile,
       this.showHelp,
       this.showVersion,
@@ -165,6 +161,21 @@ class Settings {
       this.typeCheck,
       this.verbose,
       this.platformDill);
+
+  static bool _validateOptimisationLevel(String input) =>
+      input != null && input.compareTo("0") >= 0 && input.compareTo("2") <= 0;
+
+  static bool _validateExitAfter(String value, [bool allowNull = true]) {
+    switch (value) {
+      case "codegen":
+      case "elaborator":
+      case "parser":
+      case "typechecker":
+        return true;
+      default:
+        return allowNull && value == null;
+    }
+  }
 
   static String usage() {
     ArgParser parser = _setupArgParser();

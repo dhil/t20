@@ -94,7 +94,7 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
         return false;
       }
 
-      kernel.Library kernelResult =
+      kernel.Component kernelResult =
           new KernelGenerator(new Platform(settings.platformDill))
               .compile(codeResult.result);
 
@@ -105,7 +105,7 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
 
       // Emit DILL.
       //KernelEmitter emitter = new KernelEmitter(settings.platformDill);
-      //await emitter.emit(emitter.helloWorld(), settings.outputFile);
+      await KernelEmitter().emit(kernelResult, settings.outputFile);
     }
   } catch (err) {
     if (currentFile != null) currentFile.closeSync();

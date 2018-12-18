@@ -59,6 +59,8 @@ class IRAlgebra {
   }
 
   void _setUplinks(List<IRNode> nodes, IRNode parent) {
+    if (nodes == null) return;
+
     for (int i = 0; i < nodes.length; i++) {
       nodes[i].parent = parent;
     }

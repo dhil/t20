@@ -14,7 +14,7 @@ class KernelGenerator {
 
   KernelGenerator(this.platform);
 
-  Library compile(Module module) {
+  Component compile(Module module) {
     List<Field> fields = new List<Field>(); // Top-level values.
     List<Procedure> procedures = new List<Procedure>(); // Top-level functions.
     // TODO include classes aswell.
@@ -28,7 +28,10 @@ class KernelGenerator {
         unhandled("KernelGenerator.compile", module.bindings[i]);
       }
     }
-    return null;
+
+    Library library = Library(Uri(scheme: "app", path: "."),
+        name: "t20lib", procedures: procedures, fields: fields);
+    return Component(libraries: <Library>[library]);
   }
 
   // Compilation of bindings.
@@ -44,7 +47,7 @@ class KernelGenerator {
         unhandled("KernelGenerator.compileToplevelBinding", binding.tag);
     }
 
-    return null;
+    return null; // Impossible!
   }
 
   Statement compileBinding(Binding binding) {
@@ -59,7 +62,7 @@ class KernelGenerator {
         unhandled("KernelGenerator.compileBinding", binding.tag);
     }
 
-    return null;
+    return null; // Impossible!
   }
 
   Procedure compileLetFun(LetFun letfun) {
@@ -69,8 +72,8 @@ class KernelGenerator {
     List<VariableDeclaration> parameters = new List<VariableDeclaration>();
     for (int i = 0; i < letfun.parameters.length; i++) {
       FormalParameter param = letfun.parameters[i];
-      VariableDeclaration varDecl = VariableDeclaration(
-          param.binder.uniqueName /* TODO: translate type. */);
+      VariableDeclaration varDecl =
+          localDeclaration(param.binder /* TODO: translate type. */);
       param.kernelNode = varDecl;
       parameters.add(varDecl);
     }
@@ -83,25 +86,47 @@ class KernelGenerator {
   }
 
   Field compileToplevelLetVal(LetVal letval) {
-    return null;
+    // Construct name.
+    Name name = Name(letval.binder.uniqueName);
+    // Compile the body.
+    Expression body = compileTailComputation(letval.tailComputation);
+    // Construct a field node.
+    Field field = Field(name,
+        initializer: body,
+        type: const DynamicType() /* TODO */,
+        isStatic: true);
+
+    letval.kernelNode = field;
+    return field;
   }
 
   VariableDeclaration compileLetVal(LetVal letval) {
-    return null;
+    // Construct a variable declaration.
+    VariableDeclaration varDecl =
+        localDeclaration(letval.binder /* TODO: translate type */
+            );
+    letval.kernelNode = varDecl;
+    // Compile the initialising expression.
+    varDecl.initializer = compileTailComputation(letval.tailComputation);
+    // Construct the initialiser.
+    return varDecl;
   }
 
   // Compilation of computations.
   Block compileComputation(Computation comp) {
     List<Statement> statements = new List<Statement>();
     // Translate each binding.
-    for (int i = 0; i < comp.bindings.length; i++) {
-      Statement stmt = compileBinding(comp.bindings[i]);
-      statements.add(stmt);
+    if (comp.bindings != null) {
+      for (int i = 0; i < comp.bindings.length; i++) {
+        Statement stmt = compileBinding(comp.bindings[i]);
+        statements.add(stmt);
+      }
     }
 
     // Translate the tail computation.
-    statements
-        .add(ReturnStatement(compileTailComputation(comp.tailComputation)));
+    Expression result = compileTailComputation(comp.tailComputation);
+    // Insert a return statement.
+    statements.add(ReturnStatement(result));
 
     return Block(statements);
   }
@@ -113,15 +138,62 @@ class KernelGenerator {
         return compileApply(tc as Apply);
         break;
       case IF: // IfStatement
-        throw "Not yet implemented.";
+        If ifexpr = tc;
+        return compileIf(ifexpr);
         break;
       case RETURN:
-        throw "Not yet implemented.";
+        Return ret = tc;
+        return compileValue(ret.value);
         break;
       default:
         unhandled("KernelGenerator.compileTailComputation", tc.tag);
     }
-    return null;
+    return null; // Impossible!
+  }
+
+  Expression compileIf(If ifthenelse) {
+    // Decide whether to compile to expression form using the ternary operator ?
+    // or statement form using if-then-else.
+    Expression cond = compileValue(ifthenelse.condition);
+    if (ifthenelse.isSimple) {
+      // Construct a "conditional expression", i.e. "cond ? tt : ff".  Since the
+      // conditional is "simple", we know that neither subtree introduces any
+      // new bindings, therefore we can compile each branch as an expression.
+      Expression tt =
+          compileTailComputation(ifthenelse.thenBranch.tailComputation);
+      Expression ff =
+          compileTailComputation(ifthenelse.elseBranch.tailComputation);
+      return ConditionalExpression(
+          cond, tt, ff, const DynamicType() /* TODO proper typing. */);
+    } else {
+      // Since the conditional is complex (opposite of the vaguely defined
+      // notion of being "simple") either branch may introduce new bindings
+      // (i.e. statements) in the image of the translation. Therefore, we must
+      // compile each branch as a block.
+      Block tt = compileComputation(ifthenelse.thenBranch);
+      Block ff = compileComputation(ifthenelse.elseBranch);
+
+      // Construct the if node.
+      IfStatement ifnode = IfStatement(cond, tt, ff);
+      // ... now we got a statement, but we need to return an expression. The
+      // standard way to "turn" a statement into an expression is to introduce
+      // an application, where the abstractor is a nullary abstraction, whose
+      // body is the statement.
+      return force(thunk(ifnode));
+    }
+  }
+
+  // Lifts a statement into the expression language.
+  FunctionExpression thunk(Statement body,
+      [DartType staticType = const DynamicType()]) {
+    FunctionNode fun = FunctionNode(body, returnType: staticType);
+    FunctionExpression abs = FunctionExpression(fun);
+    return abs;
+  }
+
+  // Applies a thunk.
+  InvocationExpression force(FunctionExpression thunk) {
+    return MethodInvocation(thunk, Name("call"), Arguments.empty());
   }
 
   InvocationExpression compileApply(Apply apply) {
@@ -132,16 +204,37 @@ class KernelGenerator {
         LetFun fun = v.declarator.bindingSite;
         return compileStaticApply(fun.kernelNode, apply.arguments);
       } else if (v.declarator.bindingSite is PrimitiveFunction) {
-        return compilePrimitiveApply(v.declarator.bindingSite, apply.arguments);
+        return compileStaticApply(
+            primitiveFunction(v.declarator.sourceName), apply.arguments);
+      } else if (v.declarator.bindingSite is LetVal) {
+        // Must be a function expression.
+        LetVal letval = v.declarator.bindingSite;
+        Expression receiver;
+        if (letval.kernelNode is VariableDeclaration) {
+          receiver = VariableGet(letval.kernelNode);
+        } else if (letval.kernelNode is Field) {
+          receiver = StaticGet(letval.kernelNode);
+        } else {
+          unhandled("KernelGenerator.compileApply", letval.kernelNode);
+        }
+        return compileLambdaApply(receiver, apply.arguments);
       } else {
         unhandled("KernelGenerator.compileApply", apply);
       }
     } else if (apply.abstractor is PrimitiveFunction) {
-      return compilePrimitiveApply(apply.abstractor, apply.arguments);
+      PrimitiveFunction primitive = apply.abstractor;
+      return compileStaticApply(
+          primitiveFunction(primitive.binder.sourceName), apply.arguments);
     } else {
       unhandled("KernelGenerator.compileApply", apply);
     }
     return null; // Impossible!
+  }
+
+  MethodInvocation compileLambdaApply(
+      Expression lambda, List<Value> valueArguments) {
+    Arguments arguments = compileArguments(valueArguments);
+    return MethodInvocation(lambda, Name("call"), arguments);
   }
 
   Arguments compileArguments(List<Value> valueArguments) {
@@ -156,24 +249,8 @@ class KernelGenerator {
   StaticInvocation compilePrimitiveApply(
       PrimitiveFunction primitive, List<Value> valueArguments) {
     Arguments arguments = compileArguments(valueArguments);
-    switch (primitive.binder.sourceName) {
-      case "+":
-        PlatformPath path =
-            PlatformPathBuilder.core.library("num").target("+").build();
-        Procedure plus = platform.getProcedure(path);
-        return StaticInvocation(plus, arguments);
-        break;
-      case "-":
-        PlatformPath path =
-            PlatformPathBuilder.core.library("num").target("-").build();
-        Procedure minus = platform.getProcedure(path);
-        return StaticInvocation(minus, arguments);
-        break;
-      default:
-        unhandled("KernelGenerator.compilePrimitiveApply",
-            primitive.binder.sourceName);
-    }
-    return null; // Impossible!
+    return StaticInvocation(
+        primitiveFunction(primitive.binder.sourceName), arguments);
   }
 
   StaticInvocation compileStaticApply(
@@ -202,12 +279,13 @@ class KernelGenerator {
         unhandled("KernelGenerator.compileValue", w.tag);
     }
 
-    return null;
+    return null; // Impossible!
   }
 
   Expression compileVariable(Variable v) {
-    // The variable may be either a reference to a 1) toplevel function, 2) primitive function, 3) toplevel
-    // let, 4) local let, or 5) a formal parameter.
+    // The variable may be either a reference to a 1) toplevel function, 2)
+    // primitive function, 3) toplevel let, 4) local let, or 5) a formal
+    // parameter.
 
     if (v.declarator.bindingSite is LetFun) {
       // 1) Function.
@@ -216,7 +294,7 @@ class KernelGenerator {
       return StaticGet(fun.kernelNode);
     } else if (v.declarator.bindingSite is PrimitiveFunction) {
       // 2) Primitive function.
-      throw "not yet implemented.";
+      return StaticGet(primitiveFunction(v.declarator.sourceName));
     } else if (v.declarator.bindingSite is LetVal) {
       // 3) or 4) let bound value.
       LetVal let = v.declarator.bindingSite;
@@ -229,7 +307,7 @@ class KernelGenerator {
         VariableDeclaration decl = let.kernelNode;
         return VariableGet(decl);
       } else {
-        unhandled("KernelGenerator.compileVariable", let);
+        unhandled("KernelGenerator.compileVariable", let.kernelNode);
       }
     } else if (v.declarator.bindingSite is FormalParameter) {
       // 5) Formal parameter.
@@ -241,4 +319,46 @@ class KernelGenerator {
 
     return null; // Impossible!
   }
+
+  Procedure primitiveFunction(String primitiveName) {
+    PlatformPathBuilder builder = PlatformPathBuilder.core;
+    Procedure proc;
+    switch (primitiveName) {
+      case "+":
+        PlatformPath path = builder.library("num").target("+").build();
+        Procedure plus = platform.getProcedure(path);
+        proc = plus;
+        break;
+      case "-":
+        PlatformPath path = builder.library("num").target("-").build();
+        Procedure minus = platform.getProcedure(path);
+        proc = minus;
+        break;
+      case "print":
+        PlatformPath path = builder.target("print").build();
+        proc = platform.getProcedure(path);
+        break;
+      case "int-eq?":
+        PlatformPath path = builder.library("num").target("==").build();
+        proc = platform.getProcedure(path);
+        break;
+      case "string-eq?":
+        PlatformPath path = builder.library("String").target("==").build();
+        proc = platform.getProcedure(path);
+        break;
+      case "bool-eq?":
+        PlatformPath path = builder.library("Object").target("==").build();
+        proc = platform.getProcedure(path);
+        break;
+      default:
+        unhandled("KernelGenerator.compilePrimitiveApply", primitiveName);
+    }
+
+    // TODO check for null?
+    return proc;
+  }
+
+  VariableDeclaration localDeclaration(TypedBinder binder,
+          [DartType staticType = const DynamicType()]) =>
+      VariableDeclaration(binder.uniqueName, type: staticType);
 }
