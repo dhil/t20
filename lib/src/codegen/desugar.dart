@@ -75,17 +75,22 @@ class Desugarer {
     TypedBinder binder = translateBinder(fun.binder, fun.type, binderContext);
     // Desugar each parameter.
     List<FormalParameter> parameters = new List<FormalParameter>();
+    List<Binding> bodyBindings;
     for (int i = 0; i < fun.parameters.length; i++) {
       ast.Pattern param = fun.parameters[i];
       // Create a fresh binder.
       TypedBinder binder = TypedBinder.fresh(param.type);
       parameters.add(alg.formal(binder));
       // Desugar the pattern and append any new bindings onto [bindings].
-      bindings = append(
-          patternCompiler.desugar(binder, param, binderContext), bindings);
+      bodyBindings = append(
+          patternCompiler.desugar(binder, param, binderContext), bodyBindings);
     }
     // Desugar the body.
     Computation body = expression(fun.body, binderContext);
+    if (bodyBindings != null) {
+      append(body.bindings, bodyBindings);
+      body.bindings = bodyBindings;
+    }
 
     // Construct the IR node.
     LetFun letfun = alg.letFunction(binder, parameters, body);

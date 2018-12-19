@@ -236,6 +236,12 @@ abstract class IRNode {
   IRNode(this.tag);
 
   T accept<T>(IRVisitor<T> v);
+
+  String toString() {
+    _PrettyPrinter ppr = _PrettyPrinter();
+    this.accept<void>(ppr);
+    return ppr.result;
+  }
 }
 
 //===== Modules.
@@ -517,4 +523,189 @@ class PrimitiveFunction extends Primitive {
   PrimitiveFunction(TypedBinder binder) : super(binder);
 
   T accept<T>(IRVisitor<T> v) => v.visitPrimitiveFunction(this);
+}
+
+//===== Pretty printer.
+
+class _PrettyPrinter implements IRVisitor<void> {
+  final StringBuffer _buffer;
+  String get result => _buffer.toString();
+  _PrettyPrinter() : _buffer = StringBuffer();
+
+  void put(String contents) => _buffer.write(contents);
+  void lparen() => put("(");
+  void rparen() => put(")");
+  void lsquare() => put("[");
+  void rsquare() => put("]");
+  void space() => put(" ");
+  void binder(TypedBinder binder) => put("${binder.uniqueName}");
+
+  void bindings(List<Binding> bs) {
+    lsquare();
+    if (bs != null && bs.length > 0) {
+      for (int i = 0; i < bs.length; i++) {
+        bs[i].accept<void>(this);
+        if (i + 1 < bs.length) space();
+      }
+    }
+    rsquare();
+  }
+
+  // Modules.
+  void visitModule(Module mod) {
+    lparen();
+    bindings(mod.bindings);
+    rparen();
+  }
+
+  // Computations.
+  void visitComputation(Computation comp) {
+    lparen();
+    bindings(comp.bindings);
+
+    comp.tailComputation.accept<void>(this);
+    rparen();
+  }
+
+  // Values.
+  void visitApplyPure(ApplyPure apply) => visitApply(apply.apply);
+  void visitBoolLit(BoolLit lit) => put("${lit.value}");
+  void visitIntLit(IntLit lit) => put("${lit.value}");
+
+  void visitLambda(Lambda lambda) {
+    lparen();
+    put("lambda");
+
+    space();
+    lparen();
+    if (lambda.parameters != null && lambda.parameters.length > 0) {
+      for (int i = 0; i < lambda.parameters.length; i++) {
+        lambda.parameters[i].accept<void>(this);
+        if (i + 1 < lambda.parameters.length) space();
+      }
+    }
+    rparen();
+
+    lambda.body.accept<void>(this);
+    rparen();
+  }
+
+  void visitRecord(Record record) {
+    lparen();
+    put("record");
+
+    if (record.members != null && record.members.length > 0) {
+      record.members.forEach((String key, Value value) {
+        space();
+        lsquare();
+        put(key);
+
+        space();
+        value.accept<void>(this);
+        rsquare();
+      });
+    }
+    rparen();
+  }
+
+  void visitPrimitiveFunction(PrimitiveFunction primitive) {
+    put("${primitive.binder.sourceName}");
+  }
+
+  void visitProjection(Projection proj) {
+    lparen();
+    put("project");
+
+    space();
+    put("${proj.label}");
+
+    space();
+    proj.receiver.accept<void>(this);
+    rparen();
+  }
+
+  void visitStringLit(StringLit lit) => put('"${lit.value}"');
+  void visitVariable(Variable v) => binder(v.declarator);
+
+  // Bindings.
+  void visitDataConstructor(DataConstructor constr) =>
+      throw "Not yet implemented.";
+  void visitDatatype(DatatypeDescriptor desc) => throw "Not yet implemented.";
+  void visitLetFun(LetFun f) {
+    lparen();
+    put("let-fun");
+
+    space();
+    lparen();
+    binder(f.binder);
+
+    if (f.parameters != null && f.parameters.length > 0) {
+      for (int i = 0; i < f.parameters.length; i++) {
+        space();
+        f.parameters[i].accept<void>(this);
+      }
+    }
+    rparen();
+    space();
+
+    f.body.accept<void>(this);
+
+    rparen();
+  }
+
+  void visitLetVal(LetVal let) {
+    lparen();
+    put("let-val");
+
+    space();
+    binder(let.binder);
+    space();
+
+    let.tailComputation.accept<void>(this);
+
+    rparen();
+  }
+
+  void visitFormal(FormalParameter formal) {
+    binder(formal.binder);
+  }
+
+  // Tail computations.
+  void visitIf(If ifthenelse) {
+    lparen();
+    put("if");
+
+    space();
+    ifthenelse.condition.accept<void>(this);
+
+    space();
+    ifthenelse.thenBranch.accept<void>(this);
+
+    space();
+    ifthenelse.elseBranch.accept<void>(this);
+    rparen();
+  }
+
+  void visitApply(Apply apply) {
+    lparen();
+    apply.abstractor.accept<void>(this);
+    if (apply.arguments != null && apply.arguments.length > 0) {
+      for (int i = 0; i < apply.arguments.length; i++) {
+        space();
+        apply.arguments[i].accept<void>(this);
+      }
+    }
+    rparen();
+  }
+
+  void visitReturn(Return ret) {
+    lparen();
+    put("return");
+    space();
+    ret.value.accept<void>(this);
+    rparen();
+  }
+
+  // Specials.
+  /* Empty (for now) */
 }
