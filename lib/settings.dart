@@ -26,7 +26,7 @@ class NamedOptions {
   static String get help => "help";
   static String get optimisation_level => "optimisation-level";
   static String get output => "output";
-  static String get vm_platform => "vm-platform";
+  static String get platform => "platform";
   static String get trace => "trace";
   static String get type_check => "type-check";
   static String get verbose => "verbose";
@@ -80,9 +80,9 @@ ArgParser _setupArgParser() {
       help: "Enable verbose logging.");
   parser.addFlag(NamedOptions.version,
       negatable: false, defaultsTo: false, help: "Display the version.");
-  parser.addOption(NamedOptions.vm_platform,
-      help: "Specify where to locate the Dart VM Platform dill file.",
-      defaultsTo: Platform.environment['T20_DART_VM_PLATFORM_DILL'] ??
+  parser.addOption(NamedOptions.platform,
+      help: "Specify where to locate the Dart Platform dill file.",
+      defaultsTo: Platform.environment['T20_DART_PLATFORM_DILL'] ??
           "/usr/lib/dart/lib/_internal/vm_platform_strong.dill",
       valueHelp: "file");
 
@@ -125,7 +125,7 @@ class Settings {
     var showHelp = results[NamedOptions.help];
     var showVersion = results[NamedOptions.version];
     var verbose = results[NamedOptions.verbose];
-    var platformDill = results[NamedOptions.vm_platform];
+    var platformDill = results[NamedOptions.platform];
     var trace = new MultiOption(results[NamedOptions.trace], verbose ?? false);
     var typeCheck = results[NamedOptions.type_check];
 
@@ -144,6 +144,7 @@ class Settings {
     } else if (!showHelp && !showVersion) {
       throw new UsageError();
     }
+
     return Settings._(dumpAst, dumpDast, exitAfter, O, outputFile, showHelp,
         showVersion, sourceFile, trace, typeCheck, verbose, platformDill);
   }

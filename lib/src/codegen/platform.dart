@@ -9,7 +9,7 @@ import 'package:kernel/binary/ast_from_binary.dart';
 
 // An abstraction for querying the SDK VM platform.
 class Platform {
-  final String _vmPlatformDillPath;
+  final String _platformDillPath;
 
   Component _platform;
   Component get platform {
@@ -20,7 +20,7 @@ class Platform {
   Component _loadPlatform() {
     Component component = Component();
     try {
-      File platformFile = new File(_vmPlatformDillPath);
+      File platformFile = new File(_platformDillPath);
       new BinaryBuilder(platformFile.readAsBytesSync())
           .readSingleFileComponent(component);
     } catch (err) {
@@ -29,7 +29,7 @@ class Platform {
     return component;
   }
 
-  Platform(this._vmPlatformDillPath);
+  Platform(this._platformDillPath);
 
   Procedure getProcedure(PlatformPath path) {
     Component platformComponent = platform;
@@ -69,9 +69,12 @@ class PlatformPathBuilder {
   StringBuffer _path;
   String _target;
 
-  PlatformPathBuilder() : _path = StringBuffer()..write("dart");
+  PlatformPathBuilder._dart() : this._("dart");
+  PlatformPathBuilder._pkg(pkgname) : this._(pkgname);
+  PlatformPathBuilder._(String scheme) : _path = StringBuffer()..write(scheme);
 
-  static PlatformPathBuilder get core => PlatformPathBuilder().library("core");
+  static PlatformPathBuilder get core => PlatformPathBuilder._dart().library("core");
+  static PlatformPathBuilder package(String pkgname) => PlatformPathBuilder._pkg(pkgname);
 
   PlatformPath build() {
     if (target == null) {
