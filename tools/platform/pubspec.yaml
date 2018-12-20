@@ -1,0 +1,11 @@
+name: build_platform
+authors:
+  - Daniel Hillerström <hillerstrom@google.com>
+description: A script that generates a customised version of the Dart VM Platform for the T20 DSL compiler
+version: 0.1.0
+environment:
+  sdk: '>=2.1.0 <3.0.0'
+executables:
+  build_platform: build_platform
+dependencies:
+  args: ^1.5.0
