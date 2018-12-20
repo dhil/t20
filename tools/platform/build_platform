@@ -6,5 +6,6 @@
 #
 # Executable wrapper for the t20 custom platform build script.
 #
-pub run build_platform $@
+SCRIPTPATH=$(dirname $(realpath $0))
+dart $SCRIPTPATH/bin/build_platform.dart $@
 exit $?

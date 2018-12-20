@@ -92,8 +92,8 @@ class PlatformCompilationException {
 
 void compilePlatform(String fasta, String source) {
   ProcessResult result = Process.runSync(fasta, <String>["compile", source]);
-  if (exitCode != 0) {
-    throw PlatformCompilationException(exitCode);
+  if (result.exitCode != 0) {
+    throw PlatformCompilationException(result.exitCode);
   }
 }
 
