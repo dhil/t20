@@ -3,6 +3,7 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'package:kernel/ast.dart';
+import 'package:kernel/transformations/continuation.dart' as transform;
 
 import '../errors/errors.dart' show unhandled;
 
@@ -30,9 +31,22 @@ class KernelGenerator {
       }
     }
 
-    Library library = Library(Uri(scheme: "app", path: "."),
-        name: "t20lib", procedures: procedures, fields: fields);
-    return Component(libraries: <Library>[library]);
+    Component component = platform.platform;
+
+    Procedure mainProcedure = main(Name("transform"));
+    procedures.add(mainProcedure);
+    Library library = Library(Uri(scheme: "file", path: "."),
+        name: "t20app", procedures: procedures, fields: fields);
+    library.parent = component;
+    CanonicalName name = library.reference.canonicalName;
+    if (name != null && name.parent != component.root) {
+      component.root.adoptChild(name);
+    }
+
+    component.computeCanonicalNamesForLibrary(library);
+    component.libraries.add(library);
+    component.mainMethodName = mainProcedure.reference;
+    return component;
   }
 
   // Compilation of bindings.
@@ -364,6 +378,139 @@ class KernelGenerator {
       VariableDeclaration(binder.uniqueName, type: staticType);
 
   Procedure main(Name entryPoint) {
-    return null;
+    // Generates:
+    //   void main(List<String> args) async {
+    //     String file = args[0];
+    //     Component c  = Component();
+    //     BinaryBuilder(File(file).readAsBytesSync()).readSingleFileComponent(c);
+    //     c = entryPoint(c);
+    //     IOSink sink = File("transformed.dill").openWrite();
+    //     BinaryPrinter(sink).writeComponentFile(c);
+    //     await sink.flush();
+    //     await sink.close();
+    //   }
+
+    Class fileCls = platform.getClass(
+        PlatformPathBuilder.dart.library("io").target("File").build());
+
+    VariableDeclaration args = VariableDeclaration("args",
+        type: InterfaceType(platform.coreTypes.listClass,
+            <DartType>[InterfaceType(platform.coreTypes.stringClass)]));
+    VariableDeclaration file = VariableDeclaration("file0",
+        initializer: subscript(VariableGet(args), 0),
+        type: InterfaceType(platform.coreTypes.stringClass));
+
+    Class componentCls = platform.getClass(
+        PlatformPathBuilder.kernel.library("ast").target("Component").build());
+    VariableDeclaration component = VariableDeclaration("component",
+        type: InterfaceType(componentCls),
+        initializer: construct(componentCls, Arguments.empty()));
+
+    Class binaryBuilder = platform.getClass(PlatformPathBuilder.kernel
+        .library("ast_from_binary")
+        .target("BinaryBuilder")
+        .build());
+    Expression readBytesAsSync = MethodInvocation(
+        construct(fileCls, Arguments(<Expression>[VariableGet(file)]),
+            isFactory: true),
+        Name("readAsBytesSync"),
+        Arguments.empty());
+    Statement readComponent = ExpressionStatement(MethodInvocation(
+        construct(binaryBuilder, Arguments(<Expression>[readBytesAsSync])),
+        Name("readSingleFileComponent"),
+        Arguments(<Expression>[VariableGet(component)])));
+
+    //VariableDeclaration componentArg = VariableDeclaration("componentArg");
+    Expression entryPoint = VariableGet(component); // MethodInvocation(
+    // FunctionExpression(FunctionNode(
+    //     ReturnStatement(VariableGet(componentArg)),
+    //     positionalParameters: <VariableDeclaration>[componentArg])),
+    // Name("call"),
+    // Arguments(<Expression>[VariableGet(componentArg)]));
+
+    // c = entryPoint(c);
+    Statement runTransformation =
+        ExpressionStatement(VariableSet(component, entryPoint));
+
+    // Class ioSink = platform.getClass(
+    //     PlatformPathBuilder.dart.library("io").target("IOSink").build());
+    VariableDeclaration sink = VariableDeclaration("sink",
+        initializer: MethodInvocation(
+            construct(fileCls,
+                Arguments(<Expression>[StringLiteral("transformed.dill")]),
+                isFactory: true),
+            Name("openWrite"),
+            Arguments.empty()));
+
+    Class binaryPrinter = platform.getClass(PlatformPathBuilder.kernel
+        .library("ast_to_binary")
+        .target("BinaryPrinter")
+        .build());
+    Statement writeComponent = ExpressionStatement(MethodInvocation(
+        construct(binaryPrinter, Arguments(<Expression>[VariableGet(sink)])),
+        Name("writeComponentFile"),
+        Arguments(<Expression>[VariableGet(component)])));
+
+    Statement flush = ExpressionStatement(AwaitExpression(
+        MethodInvocation(VariableGet(sink), Name("flush"), Arguments.empty())));
+    Statement close = ExpressionStatement(AwaitExpression(
+        MethodInvocation(VariableGet(sink), Name("close"), Arguments.empty())));
+
+    // Construct the main procedure.
+    Procedure main = Procedure(
+        Name("main"),
+        ProcedureKind.Method,
+        FunctionNode(
+            Block(<Statement>[
+              file,
+              component,
+              sink,
+              readComponent,
+              runTransformation,
+              writeComponent,
+              flush,
+              close
+            ]),
+            positionalParameters: <VariableDeclaration>[args],
+            returnType: const VoidType(),
+            asyncMarker: AsyncMarker.Async),
+        isStatic: true);
+    main = transform.transformProcedure(platform.coreTypes, main);
+
+    return main;
+  }
+
+  InvocationExpression subscript(Expression receiver, int index) =>
+      MethodInvocation(
+          receiver,
+          Name("[]"),
+          Arguments(<Expression>[IntLiteral(index)]));
+
+  InvocationExpression construct(Class cls, Arguments arguments,
+      {Name constructor, bool isFactory: false}) {
+    if (constructor == null) constructor = Name("");
+    // Lookup the constructor.
+    if (isFactory) {
+      for (int i = 0; i < cls.procedures.length; i++) {
+        Procedure target = cls.procedures[i];
+        if (target.kind == ProcedureKind.Factory &&
+            target.name.name == constructor.name) {
+          // Construct the invocation expression.
+          return StaticInvocation(target, arguments);
+        }
+      }
+    } else {
+      for (int i = 0; i < cls.constructors.length; i++) {
+        Constructor target = cls.constructors[i];
+        if (target.name.name == constructor.name) {
+          // Construct the invocation expression.
+          return ConstructorInvocation(target, arguments);
+        }
+      }
+    }
+
+    throw isFactory
+        ? "No such factory constructor '$constructor' in $cls."
+        : "No such factory constructor '$constructor' in $cls.";
   }
 }

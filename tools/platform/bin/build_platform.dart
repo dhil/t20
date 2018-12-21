@@ -13,16 +13,32 @@ class CompilerContext {
   final Uri sdkRoot;
   final Uri _target;
 
-  String get source {
+  List<String> get sources {
     StringBuffer buffer = StringBuffer();
     buffer.write(sdkRoot.toFilePath());
     buffer.write("pkg/kernel/lib/ast.dart");
-    return buffer.toString();
+    String ast = buffer.toString();
+
+    buffer = StringBuffer();
+    buffer.write(sdkRoot.toFilePath());
+    buffer.write("pkg/kernel/lib/binary/ast_to_binary.dart");
+    String toBinary = buffer.toString();
+
+    buffer = StringBuffer();
+    buffer.write(sdkRoot.toFilePath());
+    buffer.write("pkg/kernel/lib/binary/ast_from_binary.dart");
+    String fromBinary = buffer.toString();
+
+    buffer = StringBuffer();
+    buffer.write(sdkRoot.toFilePath());
+    buffer.write("third_party/pkg/path/lib/path.dart");
+    String path = buffer.toString();
+    return <String>[path, ast, fromBinary, toBinary];
   }
 
   String get builtTarget {
     StringBuffer buffer = StringBuffer();
-    buffer.write(source);
+    buffer.write(sources[0]);
     buffer.write(".dill");
     return buffer.toString();
   }
@@ -91,8 +107,8 @@ class PlatformCompilationException {
   }
 }
 
-void compilePlatform(String fasta, String source) {
-  ProcessResult result = Process.runSync(fasta, <String>["compile", source]);
+void compilePlatform(String fasta, List<String> sources) {
+  ProcessResult result = Process.runSync(fasta, <String>["compile"]..addAll(sources));
   if (result.exitCode != 0) {
     throw PlatformCompilationException(result.exitCode);
   }
@@ -120,7 +136,7 @@ void main(List<String> args) {
     CompilerContext context = parseArguments(args);
     // Invoke fasta to compile a version of the VM platform with kernel embedded
     // into it.
-    compilePlatform(context.fasta, context.source);
+    compilePlatform(context.fasta, context.sources);
     // Move the compiled platform.
     move(context.builtTarget, context.target);
   } on ArgParserException catch (err) {

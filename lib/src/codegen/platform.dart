@@ -5,6 +5,7 @@
 import 'dart:io';
 
 import 'package:kernel/ast.dart';
+import 'package:kernel/core_types.dart';
 import 'package:kernel/binary/ast_from_binary.dart';
 
 // An abstraction for querying the SDK VM platform.
@@ -57,6 +58,7 @@ class Platform {
       }
     }
 
+    warn("procedure", path.toString());
     return null;
   }
 
@@ -74,7 +76,18 @@ class Platform {
       }
     }
 
+    warn("class", path.toString());
     return null;
+  }
+
+  static CoreTypes _coreTypes = null;
+  CoreTypes get coreTypes {
+    _coreTypes ??= CoreTypes(platform);
+    return _coreTypes;
+  }
+
+  void warn(String kind, String target) {
+    stderr.writeln("warning: could not resolve '$target' as $kind");
   }
 }
 
@@ -94,8 +107,9 @@ class PlatformPathBuilder {
   PlatformPathBuilder._pkg(String pkgname) : this._(pkgname);
   PlatformPathBuilder._(String scheme) : _path = StringBuffer()..write(scheme);
 
+  static PlatformPathBuilder get dart => PlatformPathBuilder._dart();
   static PlatformPathBuilder get core =>
-      PlatformPathBuilder._dart().library("core");
+      PlatformPathBuilder.dart.library("core");
   static PlatformPathBuilder get kernel =>
       PlatformPathBuilder.package("kernel");
   static PlatformPathBuilder package(String pkgname) =>
