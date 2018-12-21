@@ -704,7 +704,7 @@ class BoolPattern extends BaseValuePattern {
 
 class ConstructorPattern extends Pattern {
   DataConstructor declarator;
-  List<VariablePattern> components;
+  List<Pattern> components;
   Datatype get type => declarator.type;
 
   ConstructorPattern(this.declarator, this.components, Location location)

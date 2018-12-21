@@ -35,7 +35,7 @@ Point<A> representative<A>(Point<A> point) {
   if (point.link is _InfoNode<A>) {
     return point;
   } else {
-    _LinkNode<A> node = point.link;
+    _LinkNode<A> node = point.link as _LinkNode<A>;
     Point<A> pointRepr = representative<A>(node.point);
     if (!identical(pointRepr, point)) {
       // Path compression.
@@ -48,10 +48,10 @@ Point<A> representative<A>(Point<A> point) {
 // Returns the representative data of the equivalence class.
 A find<A>(Point<A> point) {
   if (point.link is _InfoNode<A>) {
-    _InfoNode<A> node = point.link;
+    _InfoNode<A> node = point.link as _InfoNode<A>;
     return node.data;
   } else {
-    _LinkNode<A> node = point.link;
+    _LinkNode<A> node = point.link as _LinkNode<A>;
     return find<A>(representative<A>(node.point));
   }
 }
@@ -59,10 +59,10 @@ A find<A>(Point<A> point) {
 // Changes the representative data of the equivalence class.
 void change<A>(Point<A> point, A data) {
   if (point.link is _InfoNode<A>) {
-    _InfoNode<A> node = point.link;
+    _InfoNode<A> node = point.link as _InfoNode<A>;
     node.data = data;
   } else {
-    _LinkNode<A> node = point.link;
+    _LinkNode<A> node = point.link as _LinkNode<A>;
     change<A>(representative(node.point), data);
   }
 }
@@ -81,8 +81,8 @@ void union<A>(Point<A> point1, Point<A> point2) {
 
   // The link of each representative point is guaranteed to be an instance of
   // [_InfoNode].
-  _InfoNode<A> info1 = point1Repr.link;
-  _InfoNode<A> info2 = point2Repr.link;
+  _InfoNode<A> info1 = point1Repr.link as _InfoNode<A>;
+  _InfoNode<A> info2 = point2Repr.link as _InfoNode<A>;
 
   if (info1.size >= info2.size) {
     point2.link = _LinkNode<A>(point1);

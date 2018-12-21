@@ -102,7 +102,7 @@ class Tester {
       stdout.writeln("command: $cmd");
       stdout.writeln("exit code: ${processResult.exitCode}");
       stdout.write("stdout:");
-      if (processResult.stdout.isEmpty) {
+      if (processResult.stdout.isEmpty as bool) {
         stdout.writeln(" (empty)");
       } else {
         stdout.writeln();
@@ -111,7 +111,7 @@ class Tester {
         }
       }
       stdout.write("stderr:");
-      if (processResult.stderr.isEmpty) {
+      if (processResult.stderr.isEmpty as bool) {
         stdout.writeln(" (empty)");
       } else {
         stdout.writeln();
@@ -125,7 +125,7 @@ class Tester {
 
 main(List<String> args) {
   ArgResults argResults = argParser.parse(args);
-  bool measure = argResults["measure"];
+  bool measure = argResults["measure"] as bool;
 
   DateTime startTime;
   String testName = "";

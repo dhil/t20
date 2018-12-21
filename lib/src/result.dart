@@ -8,9 +8,9 @@ class Result<TRes, TErr> {
   bool get wasSuccessful => errorCount == 0;
   final TRes result;
 
-  const Result(this.result, [errors = null])
-      : this.errors = errors == null ? const [] : errors;
+  Result(this.result, [List<TErr> errors = null])
+      : this.errors = errors == null ? <TErr>[] : errors;
 
-  const Result.success(TRes result) : this(result, null);
-  const Result.failure(List<TErr> errors) : this(null, errors);
+  Result.success(TRes result) : this(result, null);
+  Result.failure(List<TErr> errors) : this(null, errors);
 }

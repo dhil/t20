@@ -137,7 +137,7 @@ class Error extends Sexp {
 
   const Error(this.error, Location location) : super(location);
 
-  T accept<T>(SexpVisitor visitor) {
+  T accept<T>(SexpVisitor<T> visitor) {
     return visitor.visitError(this);
   }
 

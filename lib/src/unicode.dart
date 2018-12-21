@@ -1,11 +1,5 @@
-// Copyright (c) 2018, the Dart project authors.  Please see the AUTHORS file
-// for details. All rights reserved. Use of this source code is governed by a
-// BSD-style license that can be found in the LICENSE file.
-
 // NOTE: THIS FILE IS GENERATED. DO NOT EDIT.
-// Generated on 2018-09-19 18:02:02.253650765 CEST.
-
-library t20.unicode;
+// Generated on 2018-12-21 09:48:59.821149473 CET.
 
 const int NULL = 0x0000;
 const int START_OF_HEADING = 0x0002;
@@ -352,76 +346,33 @@ const int LATIN_SMALL_LETTER_U_WITH_DIAERESIS = 0x00fc;
 const int LATIN_SMALL_LETTER_Y_WITH_ACUTE = 0x00fd;
 const int LATIN_SMALL_LETTER_THORN = 0x00fe;
 const int LATIN_SMALL_LETTER_Y_WITH_DIAERESIS = 0x00ff;
-bool isAsciiLower(c) {
-  return 0x0061 <= c && c <= 0x007a;
+bool isAsciiLower(int c) {
+  return 0x0061<=c&&c<=0x007a;
 }
-
-bool isAsciiUpper(c) {
-  return 0x0041 <= c && c <= 0x005a;
+bool isAsciiUpper(int c) {
+  return 0x0041<=c&&c<=0x005a;
 }
-
-bool isAsciiLetter(c) {
-  return 0x0061 <= c && c <= 0x007a || 0x0041 <= c && c <= 0x005a;
+bool isAsciiLetter(int c) {
+  return 0x0061<=c&&c<=0x007a||0x0041<=c&&c<=0x005a;
 }
-
-bool isAsciiSpace(c) {
-  return c == 0x0020 ||
-      c == 0x000a ||
-      c == 0x0009 ||
-      c == 0x000d ||
-      c == 0x000c ||
-      c == 0x000b;
+bool isAsciiSpace(int c) {
+  return c==0x0020||c==0x000a||c==0x0009||c==0x000d||c==0x000c||c==0x000b;
 }
-
-bool isDigit(c) {
-  return 0x0030 <= c && c <= 0x0039;
+bool isDigit(int c) {
+  return 0x0030<=c&&c<=0x0039;
 }
-
-bool isLatin1Lower(c) {
-  return 0x0061 <= c && c <= 0x007a ||
-      0x00df <= c && c <= 0x00f6 ||
-      0x00f8 <= c && c <= 0x00ff;
+bool isLatin1Lower(int c) {
+  return 0x0061<=c&&c<=0x007a||0x00df<=c&&c<=0x00f6||0x00f8<=c&&c<=0x00ff;
 }
-
-bool isLatin1Upper(c) {
-  return 0x0041 <= c && c <= 0x005a ||
-      0x00c0 <= c && c <= 0x00d6 ||
-      0x00d8 <= c && c <= 0x00de;
+bool isLatin1Upper(int c) {
+  return 0x0041<=c&&c<=0x005a||0x00c0<=c&&c<=0x00d6||0x00d8<=c&&c<=0x00de;
 }
-
-bool isLatin1Letter(c) {
-  return 0x0061 <= c && c <= 0x007a ||
-      0x00df <= c && c <= 0x00f6 ||
-      0x00f8 <= c && c <= 0x00ff ||
-      0x0041 <= c && c <= 0x005a ||
-      0x00c0 <= c && c <= 0x00d6 ||
-      0x00d8 <= c && c <= 0x00de;
+bool isLatin1Letter(int c) {
+  return 0x0061<=c&&c<=0x007a||0x00df<=c&&c<=0x00f6||0x00f8<=c&&c<=0x00ff||0x0041<=c&&c<=0x005a||0x00c0<=c&&c<=0x00d6||0x00d8<=c&&c<=0x00de;
 }
-
-bool isLetter(c) {
-  return 0x0061 <= c && c <= 0x007a ||
-      0x0041 <= c && c <= 0x005a ||
-      0x0061 <= c && c <= 0x007a ||
-      0x00df <= c && c <= 0x00f6 ||
-      0x00f8 <= c && c <= 0x00ff ||
-      0x0041 <= c && c <= 0x005a ||
-      0x00c0 <= c && c <= 0x00d6 ||
-      0x00d8 <= c && c <= 0x00de;
+bool isLetter(int c) {
+  return 0x0061<=c&&c<=0x007a||0x0041<=c&&c<=0x005a||0x0061<=c&&c<=0x007a||0x00df<=c&&c<=0x00f6||0x00f8<=c&&c<=0x00ff||0x0041<=c&&c<=0x005a||0x00c0<=c&&c<=0x00d6||0x00d8<=c&&c<=0x00de;
 }
-
-bool isSpace(c) {
-  return c == 0x0020 ||
-      c == 0x000a ||
-      c == 0x0009 ||
-      c == 0x000d ||
-      c == 0x000c ||
-      c == 0x000b ||
-      c == 0x00a0 ||
-      c == 0x1680 ||
-      c == 0x180e ||
-      0x2000 <= c && c <= 0x200b ||
-      c == 0x202f ||
-      c == 0x205f ||
-      c == 0x3000 ||
-      c == 0xfeff;
+bool isSpace(int c) {
+  return c==0x0020||c==0x000a||c==0x0009||c==0x000d||c==0x000c||c==0x000b||c==0x00a0||c==0x1680||c==0x180e||0x2000<=c&&c<=0x200b||c==0x202f||c==0x205f||c==0x3000||c==0xfeff;
 }

@@ -70,7 +70,7 @@ class PlatformPathBuilder {
   String _target;
 
   PlatformPathBuilder._dart() : this._("dart");
-  PlatformPathBuilder._pkg(pkgname) : this._(pkgname);
+  PlatformPathBuilder._pkg(String pkgname) : this._(pkgname);
   PlatformPathBuilder._(String scheme) : _path = StringBuffer()..write(scheme);
 
   static PlatformPathBuilder get core => PlatformPathBuilder._dart().library("core");

@@ -360,7 +360,7 @@ emitConstant fh name value
 
 emitTerm :: Handle -> String -> Term -> IO ()
 emitTerm fh name (Lam b e) = do
-  hPutStrLn fh ("bool " ++ name ++ "(" ++ b ++ ") {")
+  hPutStrLn fh ("bool " ++ name ++ "(int " ++ b ++ ") {")
   hPutStr fh "  return "
   emitExp fh e
   hPutStrLn fh ";"

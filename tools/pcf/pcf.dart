@@ -135,7 +135,7 @@ class EvaluableLam extends Evaluable {
 
   Value eval(Map<String, Value> env) {
     Map<String, Value> env0 = Map<String, Value>.of(env);
-    return Closure(env0, binder, body);
+    return Closure<Evaluable>(env0, binder, body);
   }
 }
 
@@ -168,8 +168,8 @@ class EvaluableApp extends Evaluable {
   }
 
   Value call(Value fval, Value argval) {
-    if (fval is Closure) {
-      Closure clo = fval;
+    if (fval is Closure<Evaluable>) {
+      Closure<Evaluable> clo = fval;
       Map<String, Value> fenv = clo.env;
       fenv[clo.binder] = argval;
       return clo.comp.eval(fenv);
@@ -270,11 +270,11 @@ class TermEval0 extends TermAlgebra<Evaluator, Null> {
 
   // Auxiliary functions for application of user-defined and built-in functions.
   static Value _call(Value fval, Value argval) {
-    if (fval is Closure) {
-      Closure<Evaluator> clo = fval;
+    if (fval is Closure<Evaluable>) {
+      Closure<Evaluable> clo = fval;
       Map<String, Value> fenv = clo.env;
       fenv[clo.binder] = argval;
-      return clo.comp(fenv);
+      return clo.comp.eval(fenv);
     } else {
       throw "evaluation error.";
     }

@@ -5,7 +5,6 @@
 import 'dart:io';
 
 import 'package:kernel/ast.dart';
-import 'package:kernel/binary/ast_from_binary.dart';
 import 'package:kernel/binary/ast_to_binary.dart';
 
 class KernelEmitter {

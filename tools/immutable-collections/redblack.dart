@@ -186,7 +186,7 @@ class Node<T extends Comparable<T>> implements RBNode<T> {
 
           Node<T> left0 = Node<T>(a, x, b, Colour.BLACK);
           Node<T> right0 = Node<T>(c, z, d, Colour.BLACK);
-          return Node<T>(left0, z, right0, Colour.RED);
+          return Node<T>(left0, y, right0, Colour.RED);
         } else if (lchild.right.colour == Colour.RED && lchild.right is Node) {
           // B (Node R a x (Node R b y c)) z d = Node R (Node B a x b) y (Node B c z d).
           Node<T> rgrandchild = lchild.right as Node<T>;

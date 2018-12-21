@@ -86,10 +86,11 @@ ArgParser _setupArgParser() {
           "/usr/lib/dart/lib/_internal/vm_platform_strong.dill",
       valueHelp: "file");
 
-  return _parser = parser;
+  _parser = parser;
+  return parser;
 }
 
-ArgResults _parse(args) {
+ArgResults _parse(List<String> args) {
   try {
     final ArgParser parser = _setupArgParser();
     return parser.parse(args);
@@ -117,17 +118,17 @@ class Settings {
 
   factory Settings.fromCLI(List<String> args) {
     ArgResults results = _parse(args);
-    var dumpAst = results[NamedOptions.dump_ast];
-    var dumpDast = results[NamedOptions.dump_dast];
-    var exitAfter = results[NamedOptions.exit_after];
-    var optLevel = results[NamedOptions.optimisation_level];
-    var outputFile = results[NamedOptions.output];
-    var showHelp = results[NamedOptions.help];
-    var showVersion = results[NamedOptions.version];
-    var verbose = results[NamedOptions.verbose];
-    var platformDill = results[NamedOptions.platform];
-    var trace = new MultiOption(results[NamedOptions.trace], verbose ?? false);
-    var typeCheck = results[NamedOptions.type_check];
+    bool dumpAst = results[NamedOptions.dump_ast] as bool;
+    bool dumpDast = results[NamedOptions.dump_dast] as bool;
+    String exitAfter = results[NamedOptions.exit_after] as String;
+    String optLevel = results[NamedOptions.optimisation_level] as String;
+    String outputFile = results[NamedOptions.output] as String;
+    bool showHelp = results[NamedOptions.help] as bool;
+    bool showVersion = results[NamedOptions.version] as bool;
+    bool verbose = results[NamedOptions.verbose] as bool;
+    String platformDill = results[NamedOptions.platform] as String;
+    MultiOption trace = new MultiOption(results[NamedOptions.trace] as List<String>, verbose ?? false);
+    bool typeCheck = results[NamedOptions.type_check] as bool;
 
     if (!_validateExitAfter(exitAfter)) {
       throw UnrecognisedOptionValue(NamedOptions.exit_after, exitAfter);
@@ -138,7 +139,7 @@ class Settings {
     }
     int O = int.parse(optLevel);
 
-    var sourceFile;
+    String sourceFile;
     if (results.rest.length == 1) {
       sourceFile = results.rest[0];
     } else if (!showHelp && !showVersion) {

@@ -1,0 +1,21 @@
+analyzer:
+  strong-mode:
+    implicit-casts: false
+    implicit-dynamic: false
+  errors:
+    todo: ignore
+    missing_return: error
+    dead_code: warning
+  exclude:
+    - tools/**
+    - lib/src/unicode.dart
+
+linter:
+  rules:
+    - always_declare_return_types
+    - avoid_empty_else
+    - avoid_init_to_null
+    - avoid_empty_statements
+    - close_sinks
+    - unnecessary_const
+    - unnecessary_new

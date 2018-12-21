@@ -358,7 +358,7 @@ class ForallType extends Datatype {
     ForallType type = new ForallType();
     type.quantifiers = quantifiers;
     type.body = body;
-    return body;
+    return type;
   }
 
   T accept<T>(TypeVisitor<T> v) {

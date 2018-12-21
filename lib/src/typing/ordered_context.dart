@@ -12,7 +12,6 @@ import '../ast/ast.dart'
         ReduceDatatype,
         TransformDatatype;
 import '../ast/monoids.dart' show Monoid, LAndMonoid;
-import '../fp.dart' show Pair;
 import '../immutable_collections.dart' show ImmutableList;
 
 class DatatypeVerifier extends ReduceDatatype<bool> {

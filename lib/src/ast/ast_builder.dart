@@ -207,8 +207,9 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   Triple<BuildContext, List<Name>, Pattern> buildPattern(
       Build<Pattern> builder, BuildContext context) {
     Pair<BuildContext, Pattern> result = builder(context);
-    if (result.fst is OutputBuildContext) {
-      OutputBuildContext ctxt0 = result.fst;
+    context = result.fst;
+    if (context is OutputBuildContext) {
+      OutputBuildContext ctxt0 = context;
       return Triple<BuildContext, List<Name>, Pattern>(
           ctxt0, ctxt0.declaredNames, result.snd);
     } else {
@@ -223,7 +224,13 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
     List<Name> declaredNames = new List<Name>();
     for (int i = 0; i < parameters.length; i++) {
       Triple<BuildContext, List<Name>, Pattern> result =
-          buildPattern(parameters[i], context);
+          buildPattern(parameters[i], context) as Triple<
+              BuildContext,
+              List<Name>,
+              Pattern>; // This cast seems to be necessary to silence the
+      // analyzer. It claims that [buildPattern] returns a
+      // value of type [Triple<BuildContext, List<Name>,
+      // dynamic>].
       ctxt0 = ctxt0.union(result.fst);
       declaredNames.addAll(result.snd);
       parameters0.add(result.thd);
@@ -261,10 +268,11 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   }
 
   Binder binderOf(Name name) {
-    if (name == null)
+    if (name == null) {
       return Binder.fresh();
-    else
+    } else {
       return Binder.fromSource(name.sourceName, name.location);
+    }
   }
 
   Pair<BuildContext, T> addError<T>(LocatedError error, T node) {
@@ -974,7 +982,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         List<Name> declaredNames = new List<Name>();
         for (int i = 0; i < components.length; i++) {
           Triple<BuildContext, List<Name>, Pattern> result =
-              buildPattern(components[i], ctxt);
+              buildPattern(components[i], ctxt) as Triple<BuildContext, List<Name>, Pattern>;
           components0.add(result.thd);
           declaredNames.addAll(result.snd);
           // Update the context.
@@ -1105,8 +1113,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
       };
 
   Build<Datatype> constraintType(
-          List<Pair<Name, Build<Datatype>>> constraints,
-          Build<Datatype> body,
+          List<Pair<Name, Build<Datatype>>> constraints, Build<Datatype> body,
           {Location location}) =>
       (BuildContext ctxt) {
         return null; // TODO.

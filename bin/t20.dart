@@ -22,7 +22,7 @@ void reportError(String errorMsg, {kind = null}) {
 }
 
 void reportFatal(String errorMsg, StackTrace trace,
-    {unexpected = false, kind = null}) {
+    {bool unexpected = false, String kind = null}) {
   kind = kind == null
       ? (unexpected ? "unexpected fatal" : "fatal")
       : (unexpected ? "unexpected fatal $kind" : "fatal $kind");

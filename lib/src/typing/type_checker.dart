@@ -902,7 +902,7 @@ class _TypeChecker {
       Existential codomainEx = Existential(codomain);
       ctxt = ctxt.insertBefore(codomainEx, exA);
 
-      List<Datatype> domain = List<Datatype>();
+      List<Skolem> domain = List<Skolem>();
       for (int i = 0; i < b.arity; i++) {
         Skolem skolem = Skolem();
         domain.add(skolem);
@@ -940,7 +940,7 @@ class _TypeChecker {
     // %a <:= (* bs*), if %as* <:= bs*, where
     // %a = (* %as* ), where %as* are fresh.
     if (a is Skolem && b is TupleType) {
-      List<Datatype> components = new List<Datatype>();
+      List<Skolem> components = new List<Skolem>();
       for (int i = 0; i < b.components.length; i++) {
         Skolem skolem = Skolem();
         components.add(skolem);
@@ -958,7 +958,7 @@ class _TypeChecker {
     // %a <:= K bs*, if %as* <:= bs*, where
     // %a = K %as*, where %as* are fresh.
     if (b is TypeConstructor) {
-      List<Datatype> arguments = new List<Datatype>();
+      List<Skolem> arguments = new List<Skolem>();
       for (int i = 0; i < b.arguments.length; i++) {
         Skolem skolem = Skolem();
         arguments.add(skolem);
@@ -1043,7 +1043,7 @@ class _TypeChecker {
       Existential codomainEx = Existential(codomain);
       ctxt = ctxt.insertBefore(codomainEx, exB);
 
-      List<Datatype> domain = List<Datatype>();
+      List<Skolem> domain = List<Skolem>();
       for (int i = 0; i < a.arity; i++) {
         Skolem skolem = Skolem();
         domain.add(skolem);
@@ -1063,7 +1063,7 @@ class _TypeChecker {
     // (* as*) <=: %b, if as* <=: %bs*, where
     // %b = (* %bs* ), where %bs* are fresh.
     if (a is TupleType) {
-      List<Datatype> components = new List<Datatype>();
+      List<Skolem> components = new List<Skolem>();
       for (int i = 0; i < a.components.length; i++) {
         Skolem skolem = Skolem();
         components.add(skolem);
@@ -1081,7 +1081,7 @@ class _TypeChecker {
     // K as* <=: %b, if as* <:= %bs*, where
     // %b = K %bs*, where %bs* are fresh.
     if (a is TypeConstructor) {
-      List<Datatype> arguments = new List<Datatype>();
+      List<Skolem> arguments = new List<Skolem>();
       for (int i = 0; i < a.arguments.length; i++) {
         Skolem skolem = Skolem();
         arguments.add(skolem);
@@ -1098,6 +1098,6 @@ class _TypeChecker {
     }
 
     unhandled("instantiateRight", "$a <=: $b");
-    return null;
+    return null; // Impossible!
   }
 }

@@ -71,13 +71,14 @@ CompilerContext parseArguments(List<String> args) {
 
   ArgResults results = parser.parse(args);
 
-  if (results["help"]) throw ShowUsageException(parser.usage);
-  String sdkRoot = results["sdk-root"];
+  if (results["help"] as bool) throw ShowUsageException(parser.usage);
+  String sdkRoot = results["sdk-root"] as String;
   if (sdkRoot == null) {
     throw CannotLocateSDKException();
   }
 
-  return CompilerContext(Uri.directory(sdkRoot), Uri.file(results["output"]));
+  return CompilerContext(
+      Uri.directory(sdkRoot), Uri.file(results["output"] as String));
 }
 
 class PlatformCompilationException {
