@@ -362,4 +362,8 @@ class KernelGenerator {
   VariableDeclaration localDeclaration(TypedBinder binder,
           [DartType staticType = const DynamicType()]) =>
       VariableDeclaration(binder.uniqueName, type: staticType);
+
+  Procedure main(Name entryPoint) {
+    return null;
+  }
 }

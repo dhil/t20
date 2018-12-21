@@ -31,17 +31,21 @@ class Platform {
 
   Platform(this._platformDillPath);
 
-  Procedure getProcedure(PlatformPath path) {
+  Library getLibrary(PlatformPath path) {
     Component platformComponent = platform;
-    // First find the enclosing library.
-    Library library;
     for (int i = 0; i < platformComponent.libraries.length; i++) {
       Library lib = platformComponent.libraries[i];
       if (lib.name == path.library) {
-        library = lib;
-        break;
+        return lib;
       }
     }
+
+    return null;
+  }
+
+  Procedure getProcedure(PlatformPath path) {
+    // First find the enclosing library.
+    Library library = getLibrary(path);
 
     // Second find the target procedure.
     if (library != null) {
@@ -49,6 +53,23 @@ class Platform {
         Procedure proc = library.procedures[i];
         if (proc.name.name == path.target) {
           return proc;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  Class getClass(PlatformPath path) {
+    // First find the enclosing library.
+    Library library = getLibrary(path);
+
+    // Second find the target procedure.
+    if (library != null) {
+      for (int i = 0; i < library.classes.length; i++) {
+        Class cls = library.classes[i];
+        if (cls.name == path.target) {
+          return cls;
         }
       }
     }
@@ -73,8 +94,12 @@ class PlatformPathBuilder {
   PlatformPathBuilder._pkg(String pkgname) : this._(pkgname);
   PlatformPathBuilder._(String scheme) : _path = StringBuffer()..write(scheme);
 
-  static PlatformPathBuilder get core => PlatformPathBuilder._dart().library("core");
-  static PlatformPathBuilder package(String pkgname) => PlatformPathBuilder._pkg(pkgname);
+  static PlatformPathBuilder get core =>
+      PlatformPathBuilder._dart().library("core");
+  static PlatformPathBuilder get kernel =>
+      PlatformPathBuilder.package("kernel");
+  static PlatformPathBuilder package(String pkgname) =>
+      PlatformPathBuilder._pkg(pkgname);
 
   PlatformPath build() {
     if (target == null) {
