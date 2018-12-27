@@ -15,6 +15,7 @@ import 'builtins.dart' as builtins;
 import 'compilation_unit.dart';
 import 'errors/error_reporting.dart';
 import 'errors/errors.dart';
+import 'module_environment.dart' show ModuleEnvironment;
 import 'result.dart';
 import 'syntax/parse_sexp.dart';
 
@@ -28,6 +29,7 @@ import 'codegen/platform.dart';
 
 Future<bool> compile(List<String> filePaths, Settings settings) async {
   RandomAccessFile currentFile;
+  ModuleEnvironment moduleEnv = ModuleEnvironment();
   try {
     for (String path in filePaths) {
       File file = new File(path);
@@ -54,7 +56,7 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
 
       // Elaborate.
       Result<ModuleMember, LocatedError> elabResult = new ASTBuilder()
-          .build(parseResult.result, BuildContext.withBuiltins());
+          .build(parseResult.result, moduleEnv, BuildContext.withBuiltins());
 
       // Report errors, if any.
       if (!elabResult.wasSuccessful) {
@@ -85,27 +87,31 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
         return typeResult == null ? true : typeResult.wasSuccessful;
       }
 
+      // Save module.
+      TopModule typedModule = typeResult.result;
+      moduleEnv.store(typedModule);
+
       // Generate code.
-      Result<ir.Module, T20Error> codeResult = new Desugarer(ir.IRAlgebra())
-          .desugar(typeResult.result, Map.of(builtins.getPrimitiveBinders()));
+      // Result<ir.Module, T20Error> codeResult = new Desugarer(ir.IRAlgebra())
+      //     .desugar(typedModule, Map.of(builtins.getPrimitiveBinders()));
 
-      if (!codeResult.wasSuccessful) {
-        report(codeResult.errors);
-        return false;
-      }
+      // if (!codeResult.wasSuccessful) {
+      //   report(codeResult.errors);
+      //   return false;
+      // }
 
-      kernel.Component kernelResult =
-          new KernelGenerator(new Platform(settings.platformDill))
-              .compile(codeResult.result);
+      // kernel.Component kernelResult =
+      //     new KernelGenerator(new Platform(settings.platformDill))
+      //         .compile(codeResult.result);
 
-      // Exit now, if requested.
-      if (settings.exitAfter == "codegen") {
-        return codeResult.wasSuccessful;
-      }
+      // // Exit now, if requested.
+      // if (settings.exitAfter == "codegen") {
+      //   return codeResult.wasSuccessful;
+      // }
 
-      // Emit DILL.
-      //KernelEmitter emitter = new KernelEmitter(settings.platformDill);
-      await KernelEmitter().emit(kernelResult, settings.outputFile);
+      // // Emit DILL.
+      // //KernelEmitter emitter = new KernelEmitter(settings.platformDill);
+      // await KernelEmitter().emit(kernelResult, settings.outputFile);
     }
   } catch (err) {
     if (currentFile != null) currentFile.closeSync();

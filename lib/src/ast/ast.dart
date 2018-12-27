@@ -177,9 +177,10 @@ class VirtualFunctionDeclaration extends FunctionDeclaration {
 
   VirtualFunctionDeclaration._(Signature signature, Binder binder)
       : super(signature, binder, null, null, signature.location);
-  factory VirtualFunctionDeclaration(String name, Datatype type) {
-    Location location = Location.dummy();
-    Binder binder = Binder.primitive(name);
+  factory VirtualFunctionDeclaration(
+      TopModule origin, String name, Datatype type) {
+    Location location = Location.primitive();
+    Binder binder = Binder.primitive(origin, name);
     Signature signature = new Signature(binder, type, location);
     VirtualFunctionDeclaration funDecl =
         new VirtualFunctionDeclaration._(signature, binder);
@@ -327,8 +328,10 @@ class Include extends ModuleMember {
 
 class TopModule extends ModuleMember {
   List<ModuleMember> members;
+  String name;
 
-  TopModule(this.members, Location location) : super(ModuleTag.TOP, location);
+  TopModule(this.members, this.name, Location location)
+      : super(ModuleTag.TOP, location);
 
   T accept<T>(ModuleVisitor<T> v) {
     return v.visitTopModule(this);
@@ -338,6 +341,16 @@ class TopModule extends ModuleMember {
     //String members0 = ListUtils.stringify(" ", members);
     return "(module ...)";
   }
+
+  bool get isVirtual => false;
+}
+
+class VirtualModule extends TopModule {
+  VirtualModule(String name)
+      : super(const <ModuleMember>[], name, Location.primitive());
+  bool get isVirtual => true;
+
+  String toString() => "(virtual-module ...)";
 }
 
 class TypeAliasDescriptor extends ModuleMember
@@ -381,7 +394,6 @@ class ErrorModule extends ModuleMember {
     return v.visitError(this);
   }
 }
-
 
 //===== Expression language.
 abstract class ExpressionVisitor<T> {
@@ -450,8 +462,10 @@ class BoolLit extends Constant<bool> {
   static const String F_LITERAL = "#f";
 
   String toString() {
-    if (value) return T_LITERAL;
-    else return F_LITERAL;
+    if (value)
+      return T_LITERAL;
+    else
+      return F_LITERAL;
   }
 }
 

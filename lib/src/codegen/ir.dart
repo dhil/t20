@@ -4,10 +4,11 @@
 
 import 'package:kernel/ast.dart' hide Location;
 
-import '../ast/binder.dart';
+import '../ast/binder.dart' show Binder;
 import '../ast/datatype.dart';
 import '../location.dart' show Location;
 import '../typing/type_utils.dart' as typeUtils show arity;
+import '../utils.dart' show Gensym;
 
 /*
  * The intermediate representation (IR) is an ANF-ish representation of the
@@ -258,18 +259,27 @@ class Module extends IRNode {
 }
 
 //===== Binder.
-class TypedBinder extends Binder {
+class TypedBinder {
+  //Module origin;
+  final String _sourceName;
+  final Location _location;
+  final int _ident;
+  int get ident => _ident;
+
+  Location get location => _location ?? Location.dummy();
+  String get sourceName => _sourceName ?? "<synthetic>";
+
   IRNode bindingSite; // Binding | Value (specifically Lambda).
   Datatype type;
   Set<Variable> occurrences;
 
   TypedBinder.of(Binder b, Datatype type)
-      : this.type = type,
-        super.raw(b.ident, b.sourceName, b.location);
+      : this._raw(b.ident, b.sourceName, b.location, type);
 
   TypedBinder.fresh(Datatype type)
-      : this.type = type,
-        super.fresh();
+      : this._raw(Gensym.freshInt(), null, null, type);
+
+  TypedBinder._raw(this._ident, this._sourceName, this._location, this.type);
 
   bool get hasOccurrences => occurrences != null && occurrences.length > 0;
   void addOccurrence(Variable v) {
@@ -278,8 +288,20 @@ class TypedBinder extends Binder {
   }
 
   int get hashCode {
-    int hash = super.hashCode * 13 + type.hashCode;
+    int hash = 1;
+    hash = hash * 13 + (_location == null ? 0 : _location.hashCode);
+    hash = hash * 17 + ident;
+    hash = hash * 31 + (_sourceName == null ? 0 : _sourceName.hashCode);
+    hash = hash * 13 + type.hashCode;
     return hash;
+  }
+
+  String get uniqueName {
+    if (_sourceName == null) {
+      return "_${_ident}";
+    } else {
+      return "${_sourceName}_${_ident}";
+    }
   }
 }
 

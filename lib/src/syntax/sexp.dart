@@ -66,9 +66,12 @@ class SList extends Sexp {
 
   String closingBracket() {
     switch (brackets) {
-      case ListBrackets.BRACES: return "}";
-      case ListBrackets.BRACKETS: return "]";
-      case ListBrackets.PARENS: return ")";
+      case ListBrackets.BRACES:
+        return "}";
+      case ListBrackets.BRACKETS:
+        return "]";
+      case ListBrackets.PARENS:
+        return ")";
       default:
         unhandled("closingBracket", brackets);
     }
@@ -123,7 +126,8 @@ class StringLiteral extends Sexp {
 
 class Toplevel extends Sexp {
   final List<Sexp> sexps;
-  const Toplevel(this.sexps, Location location) : super(location);
+  final String modulename;
+  const Toplevel(this.sexps, this.modulename, Location location) : super(location);
 
   SpanLocation get location => super.location as SpanLocation;
 

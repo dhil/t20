@@ -18,10 +18,11 @@ abstract class ModuleAlgebra<Name, Mod, Exp, Pat, Typ> {
   Mod valueDef(Name name, Exp body, {Location location});
   Mod functionDef(Name name, List<Pat> parameters, Exp body,
       {Location location});
-  Mod module(List<Mod> members, {Location location});
+  Mod module(List<Mod> members, String name, {Location location});
   Mod typename(Name name, List<Name> typeParameters, Typ type,
       {Location location});
   Mod signature(Name name, Typ type, {Location location});
+  Mod open(String moduleName, {Location location});
 
   Mod errorModule(LocatedError error, {Location location});
 }

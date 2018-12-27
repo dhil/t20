@@ -7,12 +7,15 @@ import '../errors/errors.dart';
 import '../fp.dart';
 import '../location.dart';
 import '../immutable_collections.dart';
+import '../module_environment.dart';
 import '../result.dart';
 
 import '../syntax/elaboration.dart' show ModuleElaborator, TypeElaborator;
 import '../syntax/sexp.dart';
 import '../typing/type_utils.dart' as typeUtils
     show boolType, intType, stringType, extractQuantifiers;
+
+import '../unicode.dart' as unicode;
 
 import 'algebra.dart';
 import 'ast.dart';
@@ -56,6 +59,20 @@ class BuildContext {
             ImmutableMap<int, Signature>.empty(),
             ImmutableMap<int, TypeDescriptor>.empty(),
             Map<int, ClassDescriptor>());
+
+  factory BuildContext.fromSummary(Summary summary) {
+    ImmutableMap<int, Declaration> decls =
+        ImmutableMap<int, Declaration>.of(summary.getDeclarations(true));
+    ImmutableMap<int, TypeDescriptor> descriptors =
+        ImmutableMap<int, TypeDescriptor>.of(summary.getTypeDescriptors(true));
+    return BuildContext(
+        decls,
+        ImmutableMap<int, Quantifier>.empty(),
+        ImmutableMap<int, Signature>.empty(),
+        descriptors,
+        Map<int, ClassDescriptor>());
+  }
+
   factory BuildContext.withBuiltins() {
     MapEntry<int, Declaration> patchEntry(int _, Declaration decl) {
       return MapEntry<int, Declaration>(
@@ -146,12 +163,13 @@ class OutputBuildContext extends BuildContext {
 }
 
 class ASTBuilder {
-  Result<ModuleMember, LocatedError> build(Sexp program,
+  Result<ModuleMember, LocatedError> build(
+      Sexp program, ModuleEnvironment moduleEnv,
       [BuildContext context]) {
     if (context == null) {
       context = BuildContext.empty();
     }
-    _ASTBuilder builder = new _ASTBuilder();
+    _ASTBuilder builder = new _ASTBuilder(moduleEnv);
     ModuleMember module =
         new ModuleElaborator(builder).elaborate(program)(context).snd;
     Result<ModuleMember, LocatedError> result;
@@ -164,11 +182,14 @@ class ASTBuilder {
   }
 
   Result<Datatype, LocatedError> buildDatatype(Sexp type,
-      [BuildContext context]) {
+      {ModuleEnvironment moduleEnv, TopModule origin, BuildContext context}) {
     if (context == null) {
       context = BuildContext.empty();
     }
-    _ASTBuilder builder = new _ASTBuilder();
+    if (origin == null) {
+      throw ArgumentError.notNull("origin");
+    }
+    _ASTBuilder builder = new _ASTBuilder(moduleEnv, origin);
     Datatype datatype =
         new TypeElaborator(builder).elaborate(type)(context).snd;
     Result<Datatype, LocatedError> result;
@@ -190,6 +211,10 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   final List<LocatedError> errors = new List<LocatedError>();
   final List<Signature> lacksAccompanyingDefinition = new List<Signature>();
   final BuildContext emptyContext = new BuildContext.empty();
+  TopModule _thisModule;
+  ModuleEnvironment _moduleEnv;
+
+  _ASTBuilder([this._moduleEnv, this._thisModule]);
 
   Pair<BuildContext, T> trivial<T>(Build<T> builder) {
     return builder(emptyContext);
@@ -269,9 +294,9 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
 
   Binder binderOf(Name name) {
     if (name == null) {
-      return Binder.fresh();
+      return Binder.fresh(_thisModule);
     } else {
-      return Binder.fromSource(name.sourceName, name.location);
+      return Binder.fromSource(_thisModule, name.sourceName, name.location);
     }
   }
 
@@ -501,17 +526,21 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         return Pair<BuildContext, ModuleMember>(ctxt, member);
       };
 
-  Build<ModuleMember> module(List<Build<ModuleMember>> members,
+  Build<ModuleMember> module(List<Build<ModuleMember>> members, String name,
           {Location location}) =>
       (BuildContext ctxt) {
-        // Build each member.
+        assert(_thisModule == null);
+        // Construct the module.
         List<ModuleMember> members0 = new List<ModuleMember>();
+        _thisModule = TopModule(members0, name, location);
+
+        // Build each member.
         for (int i = 0; i < members.length; i++) {
           Pair<BuildContext, ModuleMember> result =
               build<ModuleMember>(members[i], ctxt);
           // Update the context.
           if (result.fst != emptyContext) ctxt = result.fst;
-          // Only include non-null members. Members like signatures become null.
+          // Only include non-null members. Members like signatures and open become null.
           if (result.snd != null) {
             members0.add(result.snd);
           }
@@ -539,10 +568,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           }
         }
 
-        // Construct the module.
-        TopModule module = new TopModule(members0, location);
-
-        return Pair<BuildContext, ModuleMember>(ctxt, module);
+        return Pair<BuildContext, ModuleMember>(ctxt, _thisModule);
       };
 
   Build<ModuleMember> typename(
@@ -609,6 +635,15 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         ctxt = ctxt.putSignature(name, sig);
 
         return Pair<BuildContext, ModuleMember>(ctxt, null);
+      };
+
+  Build<ModuleMember> open(String moduleName, {Location location}) =>
+      (BuildContext ctxt) {
+        // Lookup [moduleName].
+        Summary summary = _moduleEnv.find(moduleName);
+        BuildContext ctxt0 = BuildContext.fromSummary(summary);
+        ctxt0 = ctxt.union(ctxt0);
+        return Pair<BuildContext, ModuleMember>(ctxt0, null);
       };
 
   Build<ModuleMember> errorModule(LocatedError error, {Location location}) =>
@@ -982,7 +1017,8 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         List<Name> declaredNames = new List<Name>();
         for (int i = 0; i < components.length; i++) {
           Triple<BuildContext, List<Name>, Pattern> result =
-              buildPattern(components[i], ctxt) as Triple<BuildContext, List<Name>, Pattern>;
+              buildPattern(components[i], ctxt)
+                  as Triple<BuildContext, List<Name>, Pattern>;
           components0.add(result.thd);
           declaredNames.addAll(result.snd);
           // Update the context.
@@ -1125,15 +1161,38 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
       };
 
   Name termName(String name, {Location location}) {
-    return Name(name, location);
+    // Might be a qualified name.
+    if (isQualifiedName(name)) {
+      // TODO.
+      return Name(name, location);
+    } else {
+      return Name(name, location);
+    }
   }
 
   Name typeName(String name, {Location location}) {
+    // Might be a qualified name.
     return Name(name, location);
   }
 
   Name errorName(LocatedError error, {Location location}) {
     errors.add(error);
     return null;
+  }
+
+  bool isQualifiedName(String name) {
+    assert(name != null && name.length > 0);
+    int c = name.codeUnitAt(0);
+    if (!unicode.isAsciiUpper(c)) return false;
+
+    bool hasDot = false;
+    for (int i = 1; i < name.length; i++) {
+      c = name.codeUnitAt(i);
+      if (c == unicode.DOT) {
+        if (hasDot) return false;
+        hasDot = true;
+      }
+    }
+    return hasDot;
   }
 }

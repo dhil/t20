@@ -107,7 +107,8 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
       c = name.codeUnitAt(i);
       if (!unicode.isAsciiLetter(c) &&
           !unicode.isDigit(c) &&
-          !allowedIdentSymbols.contains(c)) {
+          !allowedIdentSymbols.contains(c) &&
+          c != unicode.DOT) {
         return false;
       }
     }
@@ -151,7 +152,9 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
 
     for (int i = 1; i < name.length; i++) {
       c = name.codeUnitAt(i);
-      if (!unicode.isAsciiLetter(c)) return false;
+      if (!unicode.isAsciiLetter(c) &&
+          !(name.codeUnitAt(i - 1) == unicode.DOT && c == unicode.DOT))
+        return false;
     }
     return true;
   }
@@ -186,6 +189,17 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
         throw "fatal error: not a (surface syntax) boolean literal.";
     }
     return denotation;
+  }
+
+  bool isValidModuleName(String name) {
+    assert(name != null);
+    if (name.length == 0) return false;
+    if (!unicode.isAsciiUpper(name.codeUnitAt(0))) return false;
+    for (int i = 1; i < name.length; i++) {
+      if (!unicode.isAsciiLetter(name.codeUnitAt(i))) return false;
+    }
+
+    return true;
   }
 
   // Atom parsers.
@@ -304,7 +318,8 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
       for (int i = 0; i < toplevel.sexps.length; i++) {
         results[i] = moduleMember(toplevel.sexps[i]);
       }
-      return alg.module(results, location: program.location);
+      return alg.module(results, toplevel.modulename,
+          location: program.location);
     } else {
       throw "unhandled."; // TODO use a proper exception.
     }
@@ -551,8 +566,24 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
 
   Mod inclusion(Atom head, SList list) {
     assert(head.value == "open");
-    throw "module inclusion is not yet implemented.";
-    // return null;
+    // (open ModuleName)
+    if (list.length < 2 || list.length > 2) {
+      if (list.length < 2) {
+        return alg.errorModule(BadSyntaxError(list.location.end));
+      } else {
+        return alg.errorModule(BadSyntaxError(list[2].location));
+      }
+    }
+
+    if (list[1] is Atom) {
+      Atom atom = list[1];
+      if (isValidModuleName(atom.value)) {
+        return alg.open(atom.value, location: list.location);
+      }
+    }
+
+    return alg
+        .errorModule(BadSyntaxError(list[1].location, <String>["module name"]));
   }
 
   Mod signature(Atom colon, SList list) {

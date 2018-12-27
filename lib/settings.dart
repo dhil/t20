@@ -113,7 +113,7 @@ class Settings {
   final bool verbose;
 
   // Other settings.
-  final String sourceFile;
+  final List<String> sourceFiles;
   final String outputFile;
 
   factory Settings.fromCLI(List<String> args) {
@@ -139,15 +139,15 @@ class Settings {
     }
     int O = int.parse(optLevel);
 
-    String sourceFile;
-    if (results.rest.length == 1) {
-      sourceFile = results.rest[0];
+    List<String> sourceFiles;
+    if (results.rest.length > 0) {
+      sourceFiles = results.rest;
     } else if (!showHelp && !showVersion) {
       throw new UsageError();
     }
 
     return Settings._(dumpAst, dumpDast, exitAfter, O, outputFile, showHelp,
-        showVersion, sourceFile, trace, typeCheck, verbose, platformDill);
+        showVersion, sourceFiles, trace, typeCheck, verbose, platformDill);
   }
 
   const Settings._(
@@ -158,7 +158,7 @@ class Settings {
       this.outputFile,
       this.showHelp,
       this.showVersion,
-      this.sourceFile,
+      this.sourceFiles,
       this.trace,
       this.typeCheck,
       this.verbose,

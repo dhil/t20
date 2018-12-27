@@ -40,10 +40,10 @@ void main(List<String> args) async {
       stdout.writeln("Triple 20 compiler, version $_VERSION");
       exit(0);
     }
-    if (settings.sourceFile == null) throw new UsageError();
+    if (settings.sourceFiles == null) throw new UsageError();
 
     // Run compilation pipeline.
-    bool result = await compile(<String>[settings.sourceFile], settings);
+    bool result = await compile(settings.sourceFiles, settings);
     if (!result) exitCode = 10;
   } on UsageError {
     stdout.writeln(Settings.usage());

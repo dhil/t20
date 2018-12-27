@@ -8,6 +8,7 @@ import '../unionfind.dart' as unionfind;
 import '../unionfind.dart' show Point;
 import '../utils.dart' show Gensym;
 
+import 'ast.dart' show TopModule;
 import 'binder.dart';
 import 'identifiable.dart';
 import 'monoids.dart' show Monoid, StringMonoid;
@@ -272,8 +273,8 @@ class Quantifier implements Identifiable {
   int get ident => binder.ident;
   // final Set<Object> constraints;
 
-  Quantifier.fresh()
-      : binder = Binder.fresh(); // : constraints = new Set<Object>();
+  Quantifier.fresh(TopModule origin)
+      : binder = Binder.fresh(origin); // : constraints = new Set<Object>();
   Quantifier.of(Binder binder) : this.binder = binder;
 
   static int compare(Quantifier a, Quantifier b) {
@@ -298,7 +299,7 @@ class TypeVariable extends Datatype implements Identifiable {
   bool get isQuantified => declarator != null;
 
   TypeVariable() : super(TypeTag.VAR);
-  TypeVariable.unbound() : this.bound(Quantifier.fresh());
+  TypeVariable.unbound(TopModule origin) : this.bound(Quantifier.fresh(origin));
   TypeVariable.bound(this.declarator) : super(TypeTag.VAR);
 
   T accept<T>(TypeVisitor<T> v) {

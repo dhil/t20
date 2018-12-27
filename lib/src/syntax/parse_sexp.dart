@@ -27,9 +27,13 @@ class SexpParser implements Parser {
   Result<Sexp, SyntaxError> parse(Source source, {bool trace = false}) {
     if (source == null) throw new ArgumentError.notNull("source");
     if (trace) {
-      return new _TracingSexpParser(source.uri, source.openStream()).parse();
+      return new _TracingSexpParser(
+              source.uri, source.basename, source.openStream())
+          .parse();
     } else {
-      return new _StatefulSexpParser(source.uri, source.openStream()).parse();
+      return new _StatefulSexpParser(
+              source.uri, source.basename, source.openStream())
+          .parse();
     }
   }
 }
@@ -89,12 +93,13 @@ class _StatefulSexpParser {
   // The input stream.
   ByteStream _stream;
   Uri _uri;
+  String _modulename;
 
   // Book keeping.
   int _offset = 0;
   List<SyntaxError> _errors;
 
-  _StatefulSexpParser(this._uri, this._stream);
+  _StatefulSexpParser(this._uri, this._modulename, this._stream);
 
   Result<Sexp, SyntaxError> parse() {
     spaces(); // Consume any initial white space.
@@ -104,7 +109,7 @@ class _StatefulSexpParser {
     }
 
     return new Result<Sexp, SyntaxError>(
-        new Toplevel(sexps, _spanLocation(0, _offset)), _errors);
+        new Toplevel(sexps, _modulename, _spanLocation(0, _offset)), _errors);
   }
 
   bool _match(int c) {
@@ -374,7 +379,7 @@ class _StatefulSexpParser {
   }
 
   bool isValidAtomContinuation(int c) {
-    return isValidAtomStart(c) || unicode.isDigit(c);
+    return isValidAtomStart(c) || unicode.isDigit(c) || c == unicode.DOT;
   }
 
   bool isHex(int c) {
@@ -394,7 +399,8 @@ class _StatefulSexpParser {
 
 class _TracingSexpParser extends _StatefulSexpParser {
   ParseTreeInteriorNode tree;
-  _TracingSexpParser(Uri uri, ByteStream stream) : super(uri, stream);
+  _TracingSexpParser(Uri uri, String modulename, ByteStream stream)
+      : super(uri, modulename, stream);
 
   Result<Sexp, SyntaxError> parse() {
     tree = new ParseTreeInteriorNode("parse");
@@ -408,7 +414,8 @@ class _TracingSexpParser extends _StatefulSexpParser {
     tree = new ParseTreeInteriorNode("atom");
     var node = super.atom();
     if (node is Atom) {
-      parent.add(new ParseTreeLeaf("atom", "${node.toString()} ${node.location}"));
+      parent.add(
+          new ParseTreeLeaf("atom", "${node.toString()} ${node.location}"));
     } else {
       parent.add(tree);
     }
@@ -472,7 +479,8 @@ class _TracingSexpParser extends _StatefulSexpParser {
     tree = new ParseTreeInteriorNode("string");
     var node = super.string();
     if (node is StringLiteral) {
-      parent.add(new ParseTreeLeaf("string", "${node.toString()} ${node.location}"));
+      parent.add(
+          new ParseTreeLeaf("string", "${node.toString()} ${node.location}"));
     } else {
       parent.add(tree);
     }

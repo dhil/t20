@@ -10,6 +10,7 @@ import 'io/bytestream.dart';
 
 abstract class Source {
   Uri get uri;
+  String get basename;
   ByteStream openStream();
 }
 
@@ -26,14 +27,22 @@ class FileSource implements Source {
   }
 
   Uri get uri => Uri.file(_sourceFile.path);
+
+  String get basename {
+    // Attempt to compute the basename from the uri.
+    String fileName = uri.pathSegments.last;
+    return fileName;
+  }
 }
 
 class StringSource implements Source {
   String _contents;
+  String _basename;
 
-  StringSource(String contents) {
+  StringSource(String contents, [String name = "stdin"]) {
     if (contents == null) throw new ArgumentError.notNull("contents");
     _contents = contents;
+    _basename = name;
   }
 
   ByteStream openStream() {
@@ -41,4 +50,5 @@ class StringSource implements Source {
   }
 
   Uri get uri => Uri.dataFromString(_contents);
+  String get basename => _basename;
 }

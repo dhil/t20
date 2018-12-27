@@ -16,10 +16,11 @@ import 'syntax/sexp.dart';
 import 'syntax/parse_sexp.dart';
 
 // TODO remove the machinery for parsing data types out of this module.
+VirtualModule builtinModule = VirtualModule("@builtins");
 Datatype parseDatatype(String sexp) {
   // Parse source.
-  Result<Sexp, SyntaxError> parseResult =
-      Parser.sexp().parse(new StringSource(sexp), trace: false);
+  Result<Sexp, SyntaxError> parseResult = Parser.sexp()
+      .parse(new StringSource(sexp, builtinModule.name), trace: false);
   if (!parseResult.wasSuccessful) {
     report(parseResult.errors);
     throw "fatal error: parseDatatype parse failed.";
@@ -27,7 +28,7 @@ Datatype parseDatatype(String sexp) {
 
   // Elaborate.
   Result<Datatype, LocatedError> buildResult =
-      new ASTBuilder().buildDatatype(parseResult.result);
+      new ASTBuilder().buildDatatype(parseResult.result, origin: builtinModule);
   if (!buildResult.wasSuccessful) {
     report(buildResult.errors);
     throw "fatal error: parseDatatype build failed.";
@@ -39,7 +40,7 @@ Datatype parseDatatype(String sexp) {
 VirtualFunctionDeclaration makeVirtualFunctionDeclaration(
     String name, String rawType) {
   Datatype type = parseDatatype(rawType);
-  Declaration decl = VirtualFunctionDeclaration(name, type);
+  Declaration decl = VirtualFunctionDeclaration(builtinModule, name, type);
   return decl;
 }
 
@@ -66,7 +67,7 @@ Map<int, ClassDescriptor> makeBuiltinClasses() {
   final Map<int, ClassDescriptor> classes =
       rawClasses.map((String key, Map<String, String> val) {
     // Class binder.
-    Binder binder = Binder.primitive(key);
+          Binder binder = Binder.primitive(builtinModule, key);
     // Create virtual declarations.
     List<VirtualFunctionDeclaration> decls =
         new List<VirtualFunctionDeclaration>();
