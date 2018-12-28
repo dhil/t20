@@ -27,9 +27,15 @@ import 'codegen/kernel_emitter.dart';
 import 'codegen/kernel_generator.dart';
 import 'codegen/platform.dart';
 
-Future<bool> compile(List<String> filePaths, Settings settings) async {
+Result<List<TopModule>, T20Error> frontendResult(
+        Result<Object, T20Error> result, ModuleEnvironment moduleEnv) =>
+    result == null
+        ? Result<List<TopModule>, T20Error>.success(moduleEnv.modules)
+        : result.map<List<TopModule>>((Object _) => moduleEnv.modules);
+
+Result<List<TopModule>, T20Error> frontend(
+    ModuleEnvironment moduleEnv, List<String> filePaths, Settings settings) {
   RandomAccessFile currentFile;
-  ModuleEnvironment moduleEnv = ModuleEnvironment();
   try {
     for (String path in filePaths) {
       File file = new File(path);
@@ -43,30 +49,18 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
       currentFile.closeSync();
       currentFile = null;
 
-      // Report errors, if any.
-      if (!parseResult.wasSuccessful) {
-        report(parseResult.errors);
-        return false;
-      }
-
-      // Exit now, if requested.
-      if (settings.exitAfter == "parser") {
-        return parseResult.wasSuccessful;
+      // Exit now, if requested or the input was erroneous.
+      if (!parseResult.wasSuccessful || settings.exitAfter == "parser") {
+        return frontendResult(parseResult, moduleEnv);
       }
 
       // Elaborate.
-      Result<ModuleMember, LocatedError> elabResult = new ASTBuilder()
-          .build(parseResult.result, moduleEnv, BuildContext.withBuiltins());
+      Result<ModuleMember, LocatedError> elabResult =
+          new ASTBuilder().build(parseResult.result, moduleEnv);
 
-      // Report errors, if any.
-      if (!elabResult.wasSuccessful) {
-        report(elabResult.errors);
-        return false;
-      }
-
-      // Exit now, if requested.
-      if (settings.exitAfter == "elaborator") {
-        return elabResult.wasSuccessful;
+      // Exit now, if requested or the input was erroneous.
+      if (!elabResult.wasSuccessful || settings.exitAfter == "elaborator") {
+        return frontendResult(elabResult, moduleEnv);
       }
 
       // Type check.
@@ -74,54 +68,86 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
       if (settings.typeCheck) {
         typeResult = new TypeChecker(settings.trace["typechecker"])
             .typeCheck(elabResult.result);
-
-        // Report errors, if any.
-        if (!typeResult.wasSuccessful) {
-          report(typeResult.errors);
-          return false;
-        }
       }
 
-      // Exit now, if requested.
-      if (settings.exitAfter == "typechecker") {
-        return typeResult == null ? true : typeResult.wasSuccessful;
+      // Exit now, if requested or the input was erroneous.
+      if (typeResult != null && !typeResult.wasSuccessful ||
+          settings.exitAfter == "typechecker") {
+        return frontendResult(typeResult, moduleEnv);
       }
 
-      // Save module.
+      // Save the module.
       TopModule typedModule = typeResult.result;
       moduleEnv.store(typedModule);
-
-      // Generate code.
-      // Result<ir.Module, T20Error> codeResult = new Desugarer(ir.IRAlgebra())
-      //     .desugar(typedModule, Map.of(builtins.getPrimitiveBinders()));
-
-      // if (!codeResult.wasSuccessful) {
-      //   report(codeResult.errors);
-      //   return false;
-      // }
-
-      // kernel.Component kernelResult =
-      //     new KernelGenerator(new Platform(settings.platformDill))
-      //         .compile(codeResult.result);
-
-      // // Exit now, if requested.
-      // if (settings.exitAfter == "codegen") {
-      //   return codeResult.wasSuccessful;
-      // }
-
-      // // Emit DILL.
-      // //KernelEmitter emitter = new KernelEmitter(settings.platformDill);
-      // await KernelEmitter().emit(kernelResult, settings.outputFile);
     }
   } catch (err) {
     if (currentFile != null) currentFile.closeSync();
     rethrow;
-    // stderr.writeln("Fatal error: $err");
-    // stderr.writeln("$stack");
-    // rethrow;
   }
-  // finally {
-  //   if (currentFile != null) currentFile.closeSync();
-  // }
+
+  return Result<List<TopModule>, T20Error>.success(moduleEnv.modules);
+}
+
+Future<Result<void, T20Error>> backend(
+    List<TopModule> modules, Settings settings) async {
+  TopModule module = modules.first; // TODO generalise.
+
+  // Generate code.
+  Result<ir.Module, T20Error> codeResult = new Desugarer(ir.IRAlgebra())
+      .desugar(module, Map.of(builtins.getPrimitiveBinders()));
+
+  if (!codeResult.wasSuccessful || settings.exitAfter == "desugar") {
+    return codeResult;
+  }
+
+  kernel.Component kernelResult =
+      new KernelGenerator(new Platform(settings.platformDill))
+          .compile(codeResult.result);
+
+  // Exit now, if requested.
+  if (kernelResult == null || settings.exitAfter == "codegen") {
+    return kernelResult == null
+        ? Result<void, T20Error>.success(null)
+        : Result<void, T20Error>.failure(<T20Error>[CodeGenerationError()]);
+  }
+
+  // Emit DILL.
+  await KernelEmitter().emit(kernelResult, settings.outputFile);
+
+  return Result<void, T20Error>.success(true);
+}
+
+Future<bool> compile(List<String> filePaths, Settings settings) async {
+  // Prepare compilation.
+  ModuleEnvironment moduleEnv = ModuleEnvironment();
+  moduleEnv.builtins = builtins.module;
+
+  // Run the frontend.
+  Result<List<TopModule>, T20Error> frontResult =
+      frontend(moduleEnv, filePaths, settings);
+
+  // Report errors, if any.
+  if (!frontResult.wasSuccessful) {
+    report(frontResult.errors);
+    return false;
+  }
+
+  // Exit now, if requested.
+  if (settings.exitAfter == "parser" ||
+      settings.exitAfter == "elaborator" ||
+      settings.exitAfter == "typechecker") {
+    return frontResult.wasSuccessful;
+  }
+
+  // Run the backend.
+  List<TopModule> modules = frontResult.result;
+  Result<void, T20Error> backResult = await backend(modules, settings);
+
+  // Report errors, if any.
+  if (!backResult.wasSuccessful) {
+    report(backResult.errors);
+    return false;
+  }
+
   return true;
 }

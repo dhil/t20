@@ -4,9 +4,16 @@
 
 //import 'ast/binder.dart' show Binder;
 import 'ast/ast.dart'
-    show Declaration, ModuleMember, ModuleTag, TopModule, TypeDescriptor;
+    show
+        Declaration,
+        ModuleMember,
+        ModuleTag,
+        TopModule,
+        VirtualModule,
+        TypeDescriptor;
 
 class Summary {
+  // Reference to the module.
   TopModule module;
 
   Summary(this.module);
@@ -70,11 +77,12 @@ class Summary {
 }
 
 class ModuleEnvironment {
-  List<TopModule> modules;
+  VirtualModule _builtinsModule;
+  List<TopModule> _modules;
   Map<String, Summary> summaries;
 
   ModuleEnvironment()
-      : modules = new List<TopModule>(),
+      : _modules = new List<TopModule>(),
         summaries = new Map<String, Summary>();
 
   Summary find(String name) {
@@ -84,5 +92,25 @@ class ModuleEnvironment {
   void store(TopModule module) {
     modules.add(module);
     summaries[module.name] = Summary(module);
+  }
+
+  void set builtins(VirtualModule builtinsModule) {
+    summaries[builtinsModule.name] = Summary(builtinsModule);
+    _builtinsModule = builtinsModule;
+  }
+
+  VirtualModule get builtins => _builtinsModule;
+  Summary get builtinsSummary {
+    if (builtins == null) return null;
+    return summaries[builtins.name];
+  }
+
+  List<TopModule> get modules {
+    List<TopModule> allModules = new List<TopModule>();
+    if (builtins != null) {
+      allModules.add(builtins);
+    }
+    allModules.addAll(_modules);
+    return allModules;
   }
 }

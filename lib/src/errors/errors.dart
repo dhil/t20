@@ -344,6 +344,12 @@ class UnboundConstructorError extends UnboundNameError {
   }
 }
 
+class UnboundModuleError extends UnboundNameError {
+  UnboundModuleError(String name, Location location) : super(name, location);
+
+  String toString() => "Unbound module '$name'";
+}
+
 // Type errors.
 abstract class TypeError implements T20Error {}
 
@@ -435,4 +441,8 @@ class CheckTuplePatternError extends LocatedError implements TypeError {
   String toString() {
     return "The pattern is expected to have type '$type'";
   }
+}
+
+class CodeGenerationError extends T20Error {
+  String toString() => "Code generation failed";
 }

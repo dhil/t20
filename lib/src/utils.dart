@@ -48,6 +48,7 @@ class ListUtils {
   }
 
   static String stringify<T>(String separator, List<T> elements, [String Function(T) convert]) {
+    if (elements == null) return "null";
     if (convert == null) convert = (T x) => "$x";
     return elements.map(convert).join(separator);
   }

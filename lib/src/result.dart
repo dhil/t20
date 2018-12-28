@@ -13,4 +13,12 @@ class Result<TRes, TErr> {
 
   Result.success(TRes result) : this(result, null);
   Result.failure(List<TErr> errors) : this(null, errors);
+
+  Result<URes, TErr> map<URes>(URes Function(TRes) f) {
+    if (wasSuccessful) {
+      return Result<URes, TErr>.success(f(result));
+    } else {
+      return Result<URes, TErr>.failure(errors);
+    }
+  }
 }

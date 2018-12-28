@@ -241,6 +241,15 @@ class DataConstructor extends ModuleMember implements Declaration {
   }
 }
 
+class Derivable {
+  final String name;
+  Derivable(this.name);
+
+  Datatype type(String name, List<Quantifier> parameters) {
+    return null;
+  }
+}
+
 class ClassDescriptor {
   final Binder binder;
   final List<VirtualFunctionDeclaration> members;
@@ -251,8 +260,16 @@ class ClassDescriptor {
 }
 
 class Derive {
-  final ClassDescriptor classDescriptor;
+  ClassDescriptor classDescriptor;
+  DatatypeDescriptor descriptor;
+  Derivable template;
+
   Derive(this.classDescriptor);
+
+  Datatype _buildType() {
+    Datatype type = template.type(descriptor.binder.sourceName, descriptor.parameters);
+    return type;
+  }
 }
 
 class DatatypeDescriptor extends ModuleMember
@@ -347,7 +364,7 @@ class TopModule extends ModuleMember {
 
 class VirtualModule extends TopModule {
   VirtualModule(String name)
-      : super(const <ModuleMember>[], name, Location.primitive());
+      : super(<ModuleMember>[], name, Location.primitive());
   bool get isVirtual => true;
 
   String toString() => "(virtual-module ...)";

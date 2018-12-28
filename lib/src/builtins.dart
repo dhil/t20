@@ -16,19 +16,19 @@ import 'syntax/sexp.dart';
 import 'syntax/parse_sexp.dart';
 
 // TODO remove the machinery for parsing data types out of this module.
-VirtualModule builtinModule = VirtualModule("@builtins");
-Datatype parseDatatype(String sexp) {
+Datatype parseDatatype(String sexp, VirtualModule module,
+    {BuildContext context}) {
   // Parse source.
-  Result<Sexp, SyntaxError> parseResult = Parser.sexp()
-      .parse(new StringSource(sexp, builtinModule.name), trace: false);
+  Result<Sexp, SyntaxError> parseResult =
+      Parser.sexp().parse(new StringSource(sexp, module.name), trace: false);
   if (!parseResult.wasSuccessful) {
     report(parseResult.errors);
     throw "fatal error: parseDatatype parse failed.";
   }
 
   // Elaborate.
-  Result<Datatype, LocatedError> buildResult =
-      new ASTBuilder().buildDatatype(parseResult.result, origin: builtinModule);
+  Result<Datatype, LocatedError> buildResult = new ASTBuilder()
+      .buildDatatype(parseResult.result, origin: module, context: context);
   if (!buildResult.wasSuccessful) {
     report(buildResult.errors);
     throw "fatal error: parseDatatype build failed.";
@@ -38,14 +38,38 @@ Datatype parseDatatype(String sexp) {
 }
 
 VirtualFunctionDeclaration makeVirtualFunctionDeclaration(
-    String name, String rawType) {
-  Datatype type = parseDatatype(rawType);
-  Declaration decl = VirtualFunctionDeclaration(builtinModule, name, type);
+    VirtualModule module, String name, String rawType) {
+  Datatype type = parseDatatype(rawType, module);
+  VirtualFunctionDeclaration decl =
+      VirtualFunctionDeclaration(module, name, type);
   return decl;
 }
 
+// void foo() {
+//   Datatype Function(String, List<Quantifier>, TopModule) mapTemplate =
+//       (String typeName, List<Quantifier> quantifiers, TopModule module) {
+//     if (quantifiers.length == 0) {
+//       String template = "(-> [-> $typeName $typeName] $typeName $typeName)";
+//       return null; // TODO.
+//     } else {
+//       String qs = quantifiers.join(" ");
+//       String last = quantifiers.last.binder.sourceName;
+//       String template =
+//           "(forall ($qs 'target) (-> [-> $last 'target] ($typeName $last) ($typeName 'target)))";
+//     }
+//     return null;
+//   };
+// }
+
+List<Derivable> derivables = <Derivable>[
+  Derivable("map"),
+  Derivable("map!"),
+  Derivable("fold-left"),
+  Derivable("fold-right")
+];
+
 // ident -> class
-Map<int, ClassDescriptor> makeBuiltinClasses() {
+Map<int, ClassDescriptor> makeBuiltinClasses(VirtualModule module) {
   final Map<String, Map<String, String>> rawClasses =
       <String, Map<String, String>>{
     // TODO patch up types when support for constraints has been implemented.
@@ -67,14 +91,14 @@ Map<int, ClassDescriptor> makeBuiltinClasses() {
   final Map<int, ClassDescriptor> classes =
       rawClasses.map((String key, Map<String, String> val) {
     // Class binder.
-          Binder binder = Binder.primitive(builtinModule, key);
+    Binder binder = Binder.primitive(module, key);
     // Create virtual declarations.
     List<VirtualFunctionDeclaration> decls =
         new List<VirtualFunctionDeclaration>();
     List<MapEntry<String, String>> entries = val.entries.toList();
     for (int i = 0; i < entries.length; i++) {
-      VirtualFunctionDeclaration decl =
-          makeVirtualFunctionDeclaration(entries[i].key, entries[i].value);
+      VirtualFunctionDeclaration decl = makeVirtualFunctionDeclaration(
+          module, entries[i].key, entries[i].value);
       decls.add(decl);
     }
     // Create the class.
@@ -85,10 +109,72 @@ Map<int, ClassDescriptor> makeBuiltinClasses() {
   return classes;
 }
 
-final Map<int, ClassDescriptor> classes = makeBuiltinClasses();
+final Map<int, ClassDescriptor> classes = makeBuiltinClasses(module);
 
 // ident -> declaration
-Map<int, Declaration> makeBuiltinDeclarations() {
+// Map<int, Declaration> makeBuiltinDeclarations() {
+//   final Map<String, String> rawFunDeclarations = <String, String>{
+//     // Arithmetics.
+//     "+": "(-> Int Int Int)",
+//     "-": "(-> Int Int Int)",
+//     "*": "(-> Int Int Int)",
+//     "/": "(-> Int Int Int)",
+//     "mod": "(-> Int Int Int)",
+//     // Relational. TODO replace by classes.
+//     "=": "(forall 'a (-> 'a 'a Bool))",
+//     "!=": "(forall 'a (-> 'a 'a Bool))",
+//     "<": "(forall 'a (-> 'a 'a Bool))",
+//     ">": "(forall 'a (-> 'a 'a Bool))",
+//     "<=": "(forall 'a (-> 'a 'a Bool))",
+//     ">=": "(forall 'a (-> 'a 'a Bool))",
+//     // Type specific relational operations.
+//     "bool-eq?": "(-> Bool Bool Bool)",
+//     "int-eq?": "(-> Int Int Bool)",
+//     "int-less?": "(-> Int Int Bool)",
+//     "int-greater?": "(-> Int Int Bool)",
+//     "string-eq?": "(-> String String Bool)",
+//     "string-less?": "(-> String String Bool)",
+//     "string-greater?": "(-> String String Bool)",
+//     // Boolean.
+//     "&&": "(-> Bool Bool Bool)",
+//     "||": "(-> Bool Bool Bool)",
+//     // Auxiliary.
+//     "error": "(forall 'a (-> String 'a))"
+//   };
+
+//   final Map<int, Declaration> funDeclarations =
+//       rawFunDeclarations.map((String key, String val) {
+//     Declaration decl = makeVirtualFunctionDeclaration(key, val);
+//     return MapEntry<int, Declaration>(decl.ident, decl);
+//   });
+
+//   // Insert class members.
+//   final List<ClassDescriptor> defaultClasses = classes.values.toList();
+//   for (int i = 0; i < defaultClasses.length; i++) {
+//     ClassDescriptor cl = defaultClasses[i];
+//     for (int j = 0; j < cl.members.length; j++) {
+//       VirtualFunctionDeclaration member = cl.members[j];
+//       funDeclarations[member.ident] = member;
+//     }
+//   }
+
+//   return funDeclarations;
+// }
+
+//final Map<int, Declaration> declarations = makeBuiltinDeclarations();
+
+// int _startIdent = 0, _endIdent = 0;
+
+// bool isPrimitive(int ident) => _startIdent < ident && ident < _endIdent;
+
+// Declaration find(int ident) {
+//   return declarations[ident];
+// }
+
+VirtualModule _build() {
+  VirtualModule builtinsModule = VirtualModule("@builtins");
+  // int _startIdent = utils.Gensym();
+
   final Map<String, String> rawFunDeclarations = <String, String>{
     // Arithmetics.
     "+": "(-> Int Int Int)",
@@ -96,13 +182,13 @@ Map<int, Declaration> makeBuiltinDeclarations() {
     "*": "(-> Int Int Int)",
     "/": "(-> Int Int Int)",
     "mod": "(-> Int Int Int)",
-    // Relational. TODO replace by classes.
-    "=": "(forall 'a (-> 'a 'a Bool))",
-    "!=": "(forall 'a (-> 'a 'a Bool))",
-    "<": "(forall 'a (-> 'a 'a Bool))",
-    ">": "(forall 'a (-> 'a 'a Bool))",
-    "<=": "(forall 'a (-> 'a 'a Bool))",
-    ">=": "(forall 'a (-> 'a 'a Bool))",
+    // // Relational.
+    // "=": "(forall 'a (-> 'a 'a Bool))",
+    // "!=": "(forall 'a (-> 'a 'a Bool))",
+    // "<": "(forall 'a (-> 'a 'a Bool))",
+    // ">": "(forall 'a (-> 'a 'a Bool))",
+    // "<=": "(forall 'a (-> 'a 'a Bool))",
+    // ">=": "(forall 'a (-> 'a 'a Bool))",
     // Type specific relational operations.
     "bool-eq?": "(-> Bool Bool Bool)",
     "int-eq?": "(-> Int Int Bool)",
@@ -111,40 +197,24 @@ Map<int, Declaration> makeBuiltinDeclarations() {
     "string-eq?": "(-> String String Bool)",
     "string-less?": "(-> String String Bool)",
     "string-greater?": "(-> String String Bool)",
-    // Boolean.
+    // Logical operations.
     "&&": "(-> Bool Bool Bool)",
     "||": "(-> Bool Bool Bool)",
     // Auxiliary.
     "error": "(forall 'a (-> String 'a))"
   };
 
-  final Map<int, Declaration> funDeclarations =
-      rawFunDeclarations.map((String key, String val) {
-    Declaration decl = makeVirtualFunctionDeclaration(key, val);
-    return MapEntry<int, Declaration>(decl.ident, decl);
-  });
-
-  // Insert class members.
-  final List<ClassDescriptor> defaultClasses = classes.values.toList();
-  for (int i = 0; i < defaultClasses.length; i++) {
-    ClassDescriptor cl = defaultClasses[i];
-    for (int j = 0; j < cl.members.length; j++) {
-      VirtualFunctionDeclaration member = cl.members[j];
-      funDeclarations[member.ident] = member;
-    }
+  for (MapEntry<String, String> entry in rawFunDeclarations.entries) {
+    VirtualFunctionDeclaration member =
+        makeVirtualFunctionDeclaration(builtinsModule, entry.key, entry.value);
+    builtinsModule.members.add(member);
   }
 
-  return funDeclarations;
+  // _endIdent = utils.Gensym();
+  return builtinsModule;
 }
 
-final Map<int, Declaration> declarations = makeBuiltinDeclarations();
-
-bool isPrimitive(int ident) =>
-    declarations.containsKey(ident) || classes.containsKey(ident);
-
-Declaration find(int ident) {
-  return declarations[ident];
-}
+VirtualModule module = _build();
 
 //=== IR.
 Map<int, ir.Primitive> _desugaredDeclarations;
@@ -159,19 +229,22 @@ Map<int, ir.Primitive> getDesugaredDeclarations() {
   // Populate the [_typedBinders] map at the same time.
   _typedBinders = new Map<int, ir.TypedBinder>();
   _sourceNameIdentMapping = new Map<String, int>();
-  Map<int, ir.Primitive> result =
-      declarations.map((int ident, Declaration decl) {
-    if (decl is VirtualFunctionDeclaration) {
+  Map<int, ir.Primitive> result = Map<int, ir.Primitive>();
+
+  for (int i = 0; i < module.members.length; i++) {
+    ModuleMember member = module.members[i];
+    if (member is VirtualFunctionDeclaration) {
+      VirtualFunctionDeclaration decl = member;
       ir.TypedBinder binder = ir.TypedBinder.of(decl.binder, decl.type);
       ir.Primitive prim = ir.PrimitiveFunction(binder);
       binder.bindingSite = prim;
       _typedBinders[binder.ident] = binder;
       _sourceNameIdentMapping[binder.sourceName] = binder.ident;
-      return MapEntry<int, ir.Primitive>(binder.ident, prim);
+      result[binder.ident] = prim;
     } else {
-      throw "not yet implemented.";
+      unhandled("builtins.getDesugaredDeclarations", member);
     }
-  });
+  }
 
   _desugaredDeclarations = result;
   return _desugaredDeclarations;

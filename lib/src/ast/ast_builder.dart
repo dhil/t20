@@ -24,6 +24,7 @@ class Name {
   final Location location;
   final int intern;
   final String sourceName;
+  String get fullName => sourceName;
 
   Name(this.sourceName, this.location) : intern = computeIntern(sourceName);
   Name.synthesise(Binder binder)
@@ -32,7 +33,7 @@ class Name {
         sourceName = binder.sourceName;
 
   String toString() {
-    return "$sourceName:$location";
+    return "$fullName:$location";
   }
 
   static int computeIntern(String name) {
@@ -41,6 +42,14 @@ class Name {
     else
       return 0;
   }
+}
+
+class QualifiedName extends Name {
+  final String module;
+  String get fullName => "$module.$sourceName";
+
+  QualifiedName(this.module, String sourceName, Location location)
+      : super(sourceName, location);
 }
 
 class BuildContext {
@@ -79,7 +88,7 @@ class BuildContext {
           Name.computeIntern(decl.binder.sourceName), decl);
     }
 
-    Map<int, Declaration> declarations = builtins.declarations.map(patchEntry);
+    //Map<int, Declaration> declarations = builtins.declarations.map(patchEntry);
     Map<int, ClassDescriptor> classes =
         builtins.classes.map((int _, ClassDescriptor desc) {
       // // Populate [declarations] with the members of [desc].
@@ -91,7 +100,7 @@ class BuildContext {
           Name.computeIntern(desc.binder.sourceName), desc);
     });
     return BuildContext(
-        ImmutableMap<int, Declaration>.of(declarations),
+        ImmutableMap<int, Declaration>.empty(), //ImmutableMap<int, Declaration>.of(declarations),
         ImmutableMap<int, Quantifier>.empty(),
         ImmutableMap<int, Signature>.empty(),
         ImmutableMap<int, TypeDescriptor>.empty(),
@@ -152,6 +161,11 @@ class BuildContext {
         typenames.union(other.typenames),
         classes); // Classes are supposed to be "fixed".
   }
+
+  BuildContext include(Summary summary) {
+    BuildContext other = BuildContext.fromSummary(summary);
+    return this.union(other);
+  }
 }
 
 class OutputBuildContext extends BuildContext {
@@ -169,9 +183,16 @@ class ASTBuilder {
     if (context == null) {
       context = BuildContext.empty();
     }
+    Summary builtins = moduleEnv.builtinsSummary;
+    if (builtins != null) {
+      context = context.include(builtins);
+    }
+
     _ASTBuilder builder = new _ASTBuilder(moduleEnv);
+
     ModuleMember module =
         new ModuleElaborator(builder).elaborate(program)(context).snd;
+
     Result<ModuleMember, LocatedError> result;
     if (builder.errors.length > 0) {
       result = Result<ModuleMember, LocatedError>.failure(builder.errors);
@@ -641,9 +662,13 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
       (BuildContext ctxt) {
         // Lookup [moduleName].
         Summary summary = _moduleEnv.find(moduleName);
-        BuildContext ctxt0 = BuildContext.fromSummary(summary);
-        ctxt0 = ctxt.union(ctxt0);
-        return Pair<BuildContext, ModuleMember>(ctxt0, null);
+        if (summary != null) {
+          ctxt = ctxt.include(summary);
+        } else {
+          moduleError(UnboundModuleError(moduleName, location), location);
+          return Pair<BuildContext, ModuleMember>(ctxt, null);
+        }
+        return Pair<BuildContext, ModuleMember>(ctxt, null);
       };
 
   Build<ModuleMember> errorModule(LocatedError error, {Location location}) =>
@@ -674,13 +699,25 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         return Pair<BuildContext, Expression>(ctxt, lit);
       };
 
+  Declaration findDeclaration(Name name, BuildContext ctxt) {
+    if (name is QualifiedName) {
+      QualifiedName qname = name;
+      Summary summary = _moduleEnv.find(qname.module);
+      if (summary == null) return null;
+      return summary
+          .getDeclarations(true)[name.intern]; // TODO somewhat expensive.
+    } else {
+      return ctxt.getDeclaration(name);
+    }
+  }
+
   Build<Expression> varExp(Name name, {Location location}) =>
       (BuildContext ctxt) {
         // Lookup the declaration.
-        Declaration declarator = ctxt.getDeclaration(name);
+        Declaration declarator = findDeclaration(name, ctxt);
         if (declarator == null) {
           // Signal error.
-          LocatedError err = UnboundNameError(name.sourceName, location);
+          LocatedError err = UnboundNameError(name.fullName, location);
           return expressionError(err, location);
         }
 
@@ -972,7 +1009,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           {Location location}) =>
       (BuildContext ctxt) {
         // Check that the [name] refers to data constructor in the current scope.
-        Declaration decl = ctxt.getDeclaration(name);
+        Declaration decl = findDeclaration(name, ctxt);
         if (decl is! DataConstructor) {
           LocatedError err =
               UnboundConstructorError(name.sourceName, name.location);
@@ -1163,8 +1200,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   Name termName(String name, {Location location}) {
     // Might be a qualified name.
     if (isQualifiedName(name)) {
-      // TODO.
-      return Name(name, location);
+      return QualifiedName(modulePrefix(name), name, location);
     } else {
       return Name(name, location);
     }
@@ -1172,7 +1208,11 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
 
   Name typeName(String name, {Location location}) {
     // Might be a qualified name.
-    return Name(name, location);
+    if (isQualifiedName(name)) {
+      return QualifiedName(modulePrefix(name), name, location);
+    } else {
+      return Name(name, location);
+    }
   }
 
   Name errorName(LocatedError error, {Location location}) {
@@ -1194,5 +1234,15 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
       }
     }
     return hasDot;
+  }
+
+  String modulePrefix(String name) {
+    StringBuffer buffer = StringBuffer();
+    for (int i = 0; i < name.length; i++) {
+      int c = name.codeUnitAt(i);
+      if (c == unicode.DOT) break;
+      buffer.writeCharCode(c);
+    }
+    return buffer.toString();
   }
 }
