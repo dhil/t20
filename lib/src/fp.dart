@@ -70,7 +70,8 @@ class Left<L, R> extends Either<L, R> {
           Either<L0, R0> Function(L) fn, Either<L0, R0> Function(R) _) =>
       fn(value);
 
-  Either<L, R0> bind<R0>(Either<L, R0> Function(R) fn) => (this as Either<L, Null>);
+  Either<L, R0> bind<R0>(Either<L, R0> Function(R) fn) =>
+      (this as Either<L, Null>);
 }
 
 class Right<L, R> extends Either<L, R> {
@@ -131,6 +132,14 @@ class Triple<A, B, C> extends Pair<A, B> {
   const Triple(A fst, B snd, this.thd) : super(fst, snd);
 
   C get $3 => thd;
+}
+
+class Quadruple<A, B, C, D> extends Triple<A, B, C> {
+  final D fourth;
+
+  const Quadruple(A fst, B snd, C thd, this.fourth) : super(fst, snd, thd);
+
+  D get $4 => fourth;
 }
 
 // Reference types.

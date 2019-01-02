@@ -3,11 +3,11 @@
 (define-datatype (List 'a)
   [cons 'a (List 'a)]
   [nil]
-  (derive! Mappable Foldable))
+  (derive! map fold-left fold-right))
 
 (: list-concat (-> (List 'a) (List 'a) (List 'a)))
 (define (list-concat xs ys)
-  (fold-right cons xs ys))
+  (list-fold-right cons xs ys))
 
 ;; Modelling cards.
 (define-datatype Suit
@@ -41,7 +41,7 @@
 
 (: values (List Value))
 (define values
-  (map value-of-int two-to-fourteen))
+  (list-map value-of-int two-to-fourteen))
 
 (define-datatype Card
   [Card (* Suit Value)])
@@ -52,13 +52,13 @@
 
 (: offsuited-cards (List (-> Suit Card)))
 (define offsuited-cards
-  (map (lambda ([v : Value])
+  (list-map (lambda ([v : Value])
          (lambda ([suit : Suit])
            (make-card suit v)))))
 
 (: make-all-cards-with-suit (-> Suit (List Card)))
 (define (make-all-cards-with-suit suit)
-  (map (lambda ([make-suited-card : (-> Suit (List Card))])
+  (list-map (lambda ([make-suited-card : (-> Suit (List Card))])
          (make-suited-card suit))
        offsuited-cards))
 

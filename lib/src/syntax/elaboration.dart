@@ -208,6 +208,7 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
     if (isValidTermName(sexp.value)) {
       return alg.termName(sexp.value, location: sexp.location);
     } else {
+      print("${sexp.value}");
       return alg.errorName(BadSyntaxError(sexp.location));
     }
   }
@@ -415,47 +416,63 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
           list.location.end, const <String>["data type definition group"]));
     }
 
-    int end = list.length;
-    List<Name> deriving;
-    if (list.length > 2) {
-      if (list.last is SList) {
-        SList clause = list.last;
-        if (clause[0] is Atom) {
-          Atom atom = clause[0];
-          if (atom.value == "derive!") {
-            end = end - 1;
-            deriving = expectMany<Atom, Name>(typeName, clause,
-                start: 1); // TODO fix demote type argument to Sexp.
-          } else {
-            deriving = <Name>[];
-          }
-        }
-      }
-    }
-
-    List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> defs =
-        new List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>();
-    for (int i = 1; i < end; i++) {
-      Either<LocatedError,
-              Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> result =
-          parseDatatypeDecl(list[i], 0);
+    List<Quadruple<Name, List<Name>, List<Pair<Name, List<Typ>>>, List<Name>>>
+        defs = new List<
+            Quadruple<Name, List<Name>, List<Pair<Name, List<Typ>>>,
+                List<Name>>>();
+    for (int i = 1; i < list.length; i++) {
+      Either<
+          LocatedError,
+          Quadruple<Name, List<Name>, List<Pair<Name, List<Typ>>>,
+              List<Name>>> result = parseDatatypeDecl(list[i], 0);
       if (result.isLeft) {
         LocatedError err = result.value as LocatedError;
         return alg.errorModule(err);
       } else {
-        Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>> def = result.value
-            as Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>;
+        Quadruple<Name, List<Name>, List<Pair<Name, List<Typ>>>, List<Name>>
+            def = result.value as Quadruple<Name, List<Name>,
+                List<Pair<Name, List<Typ>>>, List<Name>>;
         defs.add(def);
       }
     }
 
-    return alg.datatypes(defs, deriving, location: list.location);
+    return alg.datatypes(defs, location: list.location);
   }
 
   Mod datatypeDefinition(Atom head, SList list) {
     assert(head.value == "define-datatype");
 
     // (define-datatype name (K T*)* or (define-datatype (name q+) (K T*)*
+    Either<
+        LocatedError,
+        Quadruple<Name, List<Name>, List<Pair<Name, List<Typ>>>,
+            List<Name>>> result = parseDatatypeDecl(list, 1);
+    if (result.isLeft) {
+      LocatedError err = result.value as LocatedError;
+      return alg.errorModule(err);
+    } else {
+      Quadruple<Name, List<Name>, List<Pair<Name, List<Typ>>>, List<Name>> def =
+          result.value as Quadruple<Name, List<Name>,
+              List<Pair<Name, List<Typ>>>, List<Name>>;
+      List<Quadruple<Name, List<Name>, List<Pair<Name, List<Typ>>>, List<Name>>>
+          defs = <
+              Quadruple<Name, List<Name>, List<Pair<Name, List<Typ>>>,
+                  List<Name>>>[def];
+      return alg.datatypes(defs, location: list.location);
+    }
+  }
+
+  Either<LocatedError,
+          Quadruple<Name, List<Name>, List<Pair<Name, List<Typ>>>, List<Name>>>
+      parseDatatypeDecl(SList list, int start) {
+    assert(list != null && start >= 0);
+    // (define-datatype name (K T*)* or (define-datatype (name q+) (K T*)*
+    if (list.length - start == 0) {
+      return Either.left(BadSyntaxError(
+          list.location.end, const <String>["data type definition"]));
+    }
+
+    // Determine whether a deriving clause is present.
     int end = list.length;
     List<Name> deriving;
     if (list.length > 2) {
@@ -465,37 +482,13 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
           Atom atom = clause[0];
           if (atom.value == "derive!") {
             end = end - 1;
-            deriving = expectMany<Atom, Name>(typeName, clause,
+            deriving = expectMany<Atom, Name>(termName, clause,
                 start: 1); // TODO fix demote type argument to Sexp.
           } else {
             deriving = <Name>[];
           }
         }
       }
-    }
-
-    Either<LocatedError, Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>
-        result = parseDatatypeDecl(list, 1, end);
-    if (result.isLeft) {
-      LocatedError err = result.value as LocatedError;
-      return alg.errorModule(err);
-    } else {
-      Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>> def =
-          result.value as Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>;
-      List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> defs =
-          <Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>[def];
-      return alg.datatypes(defs, deriving, location: list.location);
-    }
-  }
-
-  Either<LocatedError, Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>>
-      parseDatatypeDecl(SList list, int start, [int end = -1]) {
-    assert(list != null && start >= 0);
-    if (end < 0) end = list.length;
-    // (define-datatype name (K T*)* or (define-datatype (name q+) (K T*)*
-    if (list.length - start == 0) {
-      return Either.left(BadSyntaxError(
-          list.location.end, const <String>["data type definition"]));
     }
 
     Name name;
@@ -540,9 +533,10 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
       }
     }
 
-    Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>> result =
-        Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>(
-            name, typeParameters, constructors);
+    Quadruple<Name, List<Name>, List<Pair<Name, List<Typ>>>, List<Name>>
+        result =
+        Quadruple<Name, List<Name>, List<Pair<Name, List<Typ>>>, List<Name>>(
+            name, typeParameters, constructors, deriving);
 
     return Either.right(result);
   }

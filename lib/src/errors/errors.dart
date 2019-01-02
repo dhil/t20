@@ -350,6 +350,12 @@ class UnboundModuleError extends UnboundNameError {
   String toString() => "Unbound module '$name'";
 }
 
+class UnsupportedDerivableError extends UnboundNameError {
+  UnsupportedDerivableError(String name, Location location) : super(name, location);
+
+  String toString() => "Cannot derive '$name'";
+}
+
 // Type errors.
 abstract class TypeError implements T20Error {}
 

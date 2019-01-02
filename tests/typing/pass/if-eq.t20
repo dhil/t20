@@ -2,4 +2,4 @@
 
 (: test Int)
 (define test
-  (if (eq? 0 (+ 20 (- 20 40))) 0 1))
+  (if (int-eq? 0 (+ 20 (- 20 40))) 0 1))

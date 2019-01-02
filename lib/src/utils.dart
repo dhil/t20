@@ -8,7 +8,7 @@
 library t20.utils;
 
 import 'fp.dart';
-
+import 'unicode.dart' as unicode;
 
 class Gensym {
   static int _i = 0;
@@ -47,7 +47,8 @@ class ListUtils {
     return xs;
   }
 
-  static String stringify<T>(String separator, List<T> elements, [String Function(T) convert]) {
+  static String stringify<T>(String separator, List<T> elements,
+      [String Function(T) convert]) {
     if (elements == null) return "null";
     if (convert == null) convert = (T x) => "$x";
     return elements.map(convert).join(separator);
@@ -64,7 +65,7 @@ class ListUtils {
     return elements;
   }
 
-  static Map<A,B> assocToMap<A, B>(List<Pair<A, B>> assocList) {
+  static Map<A, B> assocToMap<A, B>(List<Pair<A, B>> assocList) {
     assert(assocList != null);
     Map<A, B> map = Map<A, B>();
     for (int i = 0; i < assocList.length; i++) {
@@ -75,7 +76,8 @@ class ListUtils {
   }
 
   // Computes the multi-set differences xs \ ys and ys \ xs.
-  static Pair<List<T>, List<T>> diff<T>(List<T> xs, List<T> ys, int Function(T, T) compare) {
+  static Pair<List<T>, List<T>> diff<T>(
+      List<T> xs, List<T> ys, int Function(T, T) compare) {
     // Precondition `xs' and `ys' are sorted.
     Iterator<T> itxs = xs.iterator;
     Iterator<T> itys = ys.iterator;
@@ -118,5 +120,25 @@ class ListUtils {
     }
 
     return Pair<List<T>, List<T>>(xsDelta, ysDelta);
+  }
+}
+
+class StringUtils {
+  static String uncapitalise(String str) {
+    if (str == null) return null;
+    if (str.length == 0) return str;
+
+    int c = str.codeUnitAt(0);
+    if (unicode.isAsciiUpper(c)) {
+      StringBuffer buffer = StringBuffer();
+      // The position of lowercase letter in the ASCII table is 32 + its
+      // uppercase equivalent's position, it ought to suffice to flip the 5th
+      // bit, which, in the case of an uppercase letter, corresponds to adding
+      // 32.
+      buffer.writeCharCode(c ^ 0x20);
+      buffer.write(str.substring(1));
+      return buffer.toString();
+    }
+    return str;
   }
 }

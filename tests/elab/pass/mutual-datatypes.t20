@@ -3,8 +3,9 @@
 (define-datatypes
   {(Tree 'a)
    [empty]
-   [node 'a (Forest 'a)]}
+   [node 'a (Forest 'a)]
+   (derive! map fold-left)}
   {(Forest 'a)
    [nil]
-   [cons (Tree 'a) (Forest 'a)]}
-  (derive! Mappable Foldable))
+   [cons (Tree 'a) (Forest 'a)]
+   (derive! map fold-left)})

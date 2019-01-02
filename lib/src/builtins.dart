@@ -45,71 +45,48 @@ VirtualFunctionDeclaration makeVirtualFunctionDeclaration(
   return decl;
 }
 
-// void foo() {
-//   Datatype Function(String, List<Quantifier>, TopModule) mapTemplate =
-//       (String typeName, List<Quantifier> quantifiers, TopModule module) {
-//     if (quantifiers.length == 0) {
-//       String template = "(-> [-> $typeName $typeName] $typeName $typeName)";
-//       return null; // TODO.
-//     } else {
-//       String qs = quantifiers.join(" ");
-//       String last = quantifiers.last.binder.sourceName;
-//       String template =
-//           "(forall ($qs 'target) (-> [-> $last 'target] ($typeName $last) ($typeName 'target)))";
-//     }
-//     return null;
+// ident -> class
+// Map<int, ClassDescriptor> makeBuiltinClasses(VirtualModule module) {
+//   final Map<String, Map<String, String>> rawClasses =
+//       <String, Map<String, String>>{
+//     // TODO patch up types when support for constraints has been implemented.
+//     "Mappable": <String, String>{
+//       "map":
+//           "(forall ('a 'b 'f 'temp2) (=> ([Mappable 'f]) (-> (-> 'a 'b) 'f 'temp2)))"
+//     },
+//     "Foldable": <String, String>{
+//       "fold-right":
+//           "(forall ('a 'b 'f) (=> ([Foldable 'f]) [-> (-> 'a 'b 'b) 'f 'b 'b]))",
+//       "fold-left":
+//           "(forall ('a 'b 'temp) (=> ([Foldable 'f]) [-> (-> 'a 'b 'a) 'a 'temp 'a]))"
+//     },
+//     "Equatable": <String, String>{
+//       "eq?": "(forall 'a (=> ([Equatable 'a]) [-> 'a 'a Bool]))"
+//     },
 //   };
+
+//   final Map<int, ClassDescriptor> classes =
+//       rawClasses.map((String key, Map<String, String> val) {
+//     // Class binder.
+//     Binder binder = Binder.primitive(module, key);
+//     // Create virtual declarations.
+//     List<VirtualFunctionDeclaration> decls =
+//         new List<VirtualFunctionDeclaration>();
+//     List<MapEntry<String, String>> entries = val.entries.toList();
+//     for (int i = 0; i < entries.length; i++) {
+//       VirtualFunctionDeclaration decl = makeVirtualFunctionDeclaration(
+//           module, entries[i].key, entries[i].value);
+//       decls.add(decl);
+//     }
+//     // Create the class.
+//     ClassDescriptor classDesc = ClassDescriptor(binder, decls);
+//     return MapEntry<int, ClassDescriptor>(binder.ident, classDesc);
+//   });
+
+//   return classes;
 // }
 
-List<Derivable> derivables = <Derivable>[
-  Derivable("map"),
-  Derivable("map!"),
-  Derivable("fold-left"),
-  Derivable("fold-right")
-];
-
-// ident -> class
-Map<int, ClassDescriptor> makeBuiltinClasses(VirtualModule module) {
-  final Map<String, Map<String, String>> rawClasses =
-      <String, Map<String, String>>{
-    // TODO patch up types when support for constraints has been implemented.
-    "Mappable": <String, String>{
-      "map":
-          "(forall ('a 'b 'f 'temp2) (=> ([Mappable 'f]) (-> (-> 'a 'b) 'f 'temp2)))"
-    },
-    "Foldable": <String, String>{
-      "fold-right":
-          "(forall ('a 'b 'f) (=> ([Foldable 'f]) [-> (-> 'a 'b 'b) 'f 'b 'b]))",
-      "fold-left":
-          "(forall ('a 'b 'temp) (=> ([Foldable 'f]) [-> (-> 'a 'b 'a) 'a 'temp 'a]))"
-    },
-    "Equatable": <String, String>{
-      "eq?": "(forall 'a (=> ([Equatable 'a]) [-> 'a 'a Bool]))"
-    },
-  };
-
-  final Map<int, ClassDescriptor> classes =
-      rawClasses.map((String key, Map<String, String> val) {
-    // Class binder.
-    Binder binder = Binder.primitive(module, key);
-    // Create virtual declarations.
-    List<VirtualFunctionDeclaration> decls =
-        new List<VirtualFunctionDeclaration>();
-    List<MapEntry<String, String>> entries = val.entries.toList();
-    for (int i = 0; i < entries.length; i++) {
-      VirtualFunctionDeclaration decl = makeVirtualFunctionDeclaration(
-          module, entries[i].key, entries[i].value);
-      decls.add(decl);
-    }
-    // Create the class.
-    ClassDescriptor classDesc = ClassDescriptor(binder, decls);
-    return MapEntry<int, ClassDescriptor>(binder.ident, classDesc);
-  });
-
-  return classes;
-}
-
-final Map<int, ClassDescriptor> classes = makeBuiltinClasses(module);
+// final Map<int, ClassDescriptor> classes = makeBuiltinClasses(module);
 
 // ident -> declaration
 // Map<int, Declaration> makeBuiltinDeclarations() {
@@ -182,14 +159,14 @@ VirtualModule _build() {
     "*": "(-> Int Int Int)",
     "/": "(-> Int Int Int)",
     "mod": "(-> Int Int Int)",
-    // // Relational.
-    // "=": "(forall 'a (-> 'a 'a Bool))",
-    // "!=": "(forall 'a (-> 'a 'a Bool))",
-    // "<": "(forall 'a (-> 'a 'a Bool))",
-    // ">": "(forall 'a (-> 'a 'a Bool))",
-    // "<=": "(forall 'a (-> 'a 'a Bool))",
-    // ">=": "(forall 'a (-> 'a 'a Bool))",
-    // Type specific relational operations.
+    // Polymorphic relational operators.
+    "=": "(forall 'a (-> 'a 'a Bool))",
+    "!=": "(forall 'a (-> 'a 'a Bool))",
+    "<": "(forall 'a (-> 'a 'a Bool))",
+    ">": "(forall 'a (-> 'a 'a Bool))",
+    "<=": "(forall 'a (-> 'a 'a Bool))",
+    ">=": "(forall 'a (-> 'a 'a Bool))",
+    // Type specific relational operators.
     "bool-eq?": "(-> Bool Bool Bool)",
     "int-eq?": "(-> Int Int Bool)",
     "int-less?": "(-> Int Int Bool)",

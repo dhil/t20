@@ -3,6 +3,7 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import '../builtins.dart' as builtins;
+import '../deriving.dart';
 import '../errors/errors.dart';
 import '../fp.dart';
 import '../location.dart';
@@ -57,59 +58,29 @@ class BuildContext {
   final ImmutableMap<int, Quantifier> quantifiers;
   final ImmutableMap<int, Signature> signatures;
   final ImmutableMap<int, TypeDescriptor> typenames;
-  final Map<int, ClassDescriptor> classes;
+  // final Map<int, ClassDescriptor> classes;
 
-  BuildContext(this.declarations, this.quantifiers, this.signatures,
-      this.typenames, this.classes);
+  BuildContext(
+      this.declarations, this.quantifiers, this.signatures, this.typenames);
   BuildContext.empty()
       : this(
             ImmutableMap<int, Declaration>.empty(),
             ImmutableMap<int, Quantifier>.empty(),
             ImmutableMap<int, Signature>.empty(),
-            ImmutableMap<int, TypeDescriptor>.empty(),
-            Map<int, ClassDescriptor>());
+            ImmutableMap<int, TypeDescriptor>.empty());
 
   factory BuildContext.fromSummary(Summary summary) {
     ImmutableMap<int, Declaration> decls =
         ImmutableMap<int, Declaration>.of(summary.getDeclarations(true));
     ImmutableMap<int, TypeDescriptor> descriptors =
         ImmutableMap<int, TypeDescriptor>.of(summary.getTypeDescriptors(true));
-    return BuildContext(
-        decls,
-        ImmutableMap<int, Quantifier>.empty(),
-        ImmutableMap<int, Signature>.empty(),
-        descriptors,
-        Map<int, ClassDescriptor>());
+    return BuildContext(decls, ImmutableMap<int, Quantifier>.empty(),
+        ImmutableMap<int, Signature>.empty(), descriptors);
   }
 
-  factory BuildContext.withBuiltins() {
-    MapEntry<int, Declaration> patchEntry(int _, Declaration decl) {
-      return MapEntry<int, Declaration>(
-          Name.computeIntern(decl.binder.sourceName), decl);
-    }
-
-    //Map<int, Declaration> declarations = builtins.declarations.map(patchEntry);
-    Map<int, ClassDescriptor> classes =
-        builtins.classes.map((int _, ClassDescriptor desc) {
-      // // Populate [declarations] with the members of [desc].
-      // for (int i = 0; i < desc.members.length; i++) {
-      //   Declaration member = desc.members[i];
-      //   declarations[Name.computeIntern(member.binder.sourceName)] = member;
-      // }
-      return MapEntry<int, ClassDescriptor>(
-          Name.computeIntern(desc.binder.sourceName), desc);
-    });
-    return BuildContext(
-        ImmutableMap<int, Declaration>.empty(), //ImmutableMap<int, Declaration>.of(declarations),
-        ImmutableMap<int, Quantifier>.empty(),
-        ImmutableMap<int, Signature>.empty(),
-        ImmutableMap<int, TypeDescriptor>.empty(),
-        classes);
-  }
-
-  ClassDescriptor getClass(Name name) {
-    return classes[name.intern];
-  }
+  // ClassDescriptor getClass(Name name) {
+  //   return classes[name.intern];
+  // }
 
   Declaration getDeclaration(Name name) {
     return declarations.lookup(name.intern);
@@ -117,7 +88,7 @@ class BuildContext {
 
   BuildContext putDeclaration(Name name, Declaration declaration) {
     return BuildContext(declarations.put(name.intern, declaration), quantifiers,
-        signatures, typenames, classes);
+        signatures, typenames);
   }
 
   Signature getSignature(Name name) {
@@ -128,7 +99,7 @@ class BuildContext {
   BuildContext putSignature(Name name, Signature signature) {
     if (name == null) return this;
     return BuildContext(declarations, quantifiers,
-        signatures.put(name.intern, signature), typenames, classes);
+        signatures.put(name.intern, signature), typenames);
   }
 
   TypeDescriptor getTypeDescriptor(Name name) {
@@ -139,7 +110,7 @@ class BuildContext {
   BuildContext putTypeDescriptor(Name name, TypeDescriptor desc) {
     if (name == null) return this;
     return BuildContext(declarations, quantifiers, signatures,
-        typenames.put(name.intern, desc), classes);
+        typenames.put(name.intern, desc));
   }
 
   Quantifier getQuantifier(Name name) {
@@ -150,7 +121,7 @@ class BuildContext {
   BuildContext putQuantifier(Name name, Quantifier quantifier) {
     if (name == null) return this;
     return BuildContext(declarations, quantifiers.put(name.intern, quantifier),
-        signatures, typenames, classes);
+        signatures, typenames);
   }
 
   BuildContext union(BuildContext other) {
@@ -158,8 +129,7 @@ class BuildContext {
         declarations.union(other.declarations),
         quantifiers.union(other.quantifiers),
         signatures.union(other.signatures),
-        typenames.union(other.typenames),
-        classes); // Classes are supposed to be "fixed".
+        typenames.union(other.typenames));
   }
 
   BuildContext include(Summary summary) {
@@ -173,7 +143,7 @@ class OutputBuildContext extends BuildContext {
 
   OutputBuildContext(this.declaredNames, BuildContext ctxt)
       : super(ctxt.declarations, ctxt.quantifiers, ctxt.signatures,
-            ctxt.typenames, ctxt.classes);
+            ctxt.typenames);
 }
 
 class ASTBuilder {
@@ -351,10 +321,9 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
 
   Build<ModuleMember> datatypes(
           List<
-                  Triple<Name, List<Name>,
-                      List<Pair<Name, List<Build<Datatype>>>>>>
+                  Quadruple<Name, List<Name>,
+                      List<Pair<Name, List<Build<Datatype>>>>, List<Name>>>
               defs,
-          List<Name> deriving,
           {Location location}) =>
       (BuildContext ctxt) {
         // Two pass algorithm:
@@ -371,8 +340,8 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         // Build each datatype definition.
         List<DatatypeDescriptor> descs = new List<DatatypeDescriptor>();
         for (int i = 0; i < defs.length; i++) {
-          Triple<Name, List<Name>, List<Pair<Name, List<Build<Datatype>>>>>
-              def = defs[i];
+          Quadruple<Name, List<Name>, List<Pair<Name, List<Build<Datatype>>>>,
+              List<Name>> def = defs[i];
           // Create a binder for name.
           Name name = def.fst;
           Binder binder = binderOf(name);
@@ -410,8 +379,8 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         List<Name> declaredNames = new List<Name>();
         // Construct the data constructors.
         for (int i = 0; i < descs.length; i++) {
-          Triple<Name, List<Name>, List<Pair<Name, List<Build<Datatype>>>>>
-              def = defs[i];
+          Quadruple<Name, List<Name>, List<Pair<Name, List<Build<Datatype>>>>,
+              List<Name>> def = defs[i];
           List<Name> typeParameters = def.snd;
           DatatypeDescriptor desc = descs[i];
           // Expose the quantifiers.
@@ -444,25 +413,34 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
             sharedContext =
                 sharedContext.putDeclaration(constrName, dataConstructor);
           }
-          // Finish the type descriptor.
+          // Attach the data constructors to the descriptor.
           desc.constructors = dataConstructors;
-        }
 
-        // Build the deriving clause.
-        List<Derive> deriving0 = new List<Derive>();
-        for (int i = 0; i < deriving.length; i++) {
-          ClassDescriptor classDescriptor = ctxt.getClass(deriving[i]);
-          if (classDescriptor == null) {
-            LocatedError err =
-                UnboundNameError(deriving[i].sourceName, deriving[i].location);
-            return moduleError(err, deriving[i].location);
-          } else {
-            deriving0.add(Derive(classDescriptor));
+          // Build the deriving clause.
+          List<Name> deriving = def.fourth;
+          Set<Derivable> deriving0 = new Set<Derivable>();
+          for (int i = 0; i < deriving.length; i++) {
+            Derivable derivable = Derivable.fromString(deriving[i].sourceName);
+            if (derivable == null) {
+              LocatedError err = UnsupportedDerivableError(
+                  deriving[i].sourceName, deriving[i].location);
+              return moduleError(err, deriving[i].location);
+            } else {
+              // Construct a virtual declaration corresponding to the derived
+              // operator.
+              String surfaceName =
+                  derivable.surfaceName(desc.binder.sourceName);
+              Datatype type = derivable.computeType(desc);
+              VirtualFunctionDeclaration decl =
+                  VirtualFunctionDeclaration(_thisModule, surfaceName, type);
+
+              deriving0.add(derivable);
+              sharedContext = sharedContext.putDeclaration(
+                  Name(surfaceName, decl.binder.location), decl);
+            }
           }
-        }
-        // Attach the deriving clauses to each datatype declaration.
-        for (int i = 0; i < descs.length; i++) {
-          descs[i].deriving = deriving0;
+          // Attach derivables to the descriptor.
+          desc.deriving = deriving0;
         }
 
         // Construct the datatypes node.
@@ -808,8 +786,8 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
               for (int i = 0; i < contexts.length; i++) {
                 decls = decls.union(contexts[i].declarations);
               }
-              ctxt0 = BuildContext(decls, ctxt.quantifiers, ctxt.signatures,
-                  ctxt.typenames, ctxt.classes);
+              ctxt0 = BuildContext(
+                  decls, ctxt.quantifiers, ctxt.signatures, ctxt.typenames);
               break;
             }
           case BindingMethod.Sequential:
@@ -835,8 +813,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
                     ctxt0.declarations.union(result.fst.declarations),
                     ctxt0.quantifiers,
                     ctxt0.signatures,
-                    ctxt0.typenames,
-                    ctxt0.classes);
+                    ctxt0.typenames);
 
                 // Construct the binding node.
                 bindings0.add(new Binding(result.thd, body));

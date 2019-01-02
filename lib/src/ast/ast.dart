@@ -51,6 +51,7 @@ library t20.ast;
 //    | K T*                 (* type application *)
 //    | ∗ T*                 (* n-ary tuple types *)
 
+import '../deriving.dart';
 import '../location.dart';
 import '../errors/errors.dart' show LocatedError;
 import '../utils.dart' show ListUtils;
@@ -241,43 +242,43 @@ class DataConstructor extends ModuleMember implements Declaration {
   }
 }
 
-class Derivable {
-  final String name;
-  Derivable(this.name);
+// class Derivable {
+//   final String name;
+//   Derivable(this.name);
 
-  Datatype type(String name, List<Quantifier> parameters) {
-    return null;
-  }
-}
+//   Datatype type(String name, List<Quantifier> parameters) {
+//     return null;
+//   }
+// }
 
-class ClassDescriptor {
-  final Binder binder;
-  final List<VirtualFunctionDeclaration> members;
+// class ClassDescriptor {
+//   final Binder binder;
+//   final List<VirtualFunctionDeclaration> members;
 
-  int get ident => binder.ident;
+//   int get ident => binder.ident;
 
-  ClassDescriptor(this.binder, this.members);
-}
+//   ClassDescriptor(this.binder, this.members);
+// }
 
-class Derive {
-  ClassDescriptor classDescriptor;
-  DatatypeDescriptor descriptor;
-  Derivable template;
+// class Derive {
+//   ClassDescriptor classDescriptor;
+//   DatatypeDescriptor descriptor;
+//   Derivable template;
 
-  Derive(this.classDescriptor);
+//   Derive(this.classDescriptor);
 
-  Datatype _buildType() {
-    Datatype type = template.type(descriptor.binder.sourceName, descriptor.parameters);
-    return type;
-  }
-}
+//   Datatype _buildType() {
+//     Datatype type = template.type(descriptor.binder.sourceName, descriptor.parameters);
+//     return type;
+//   }
+// }
 
 class DatatypeDescriptor extends ModuleMember
     implements Declaration, TypeDescriptor {
   Binder binder;
   List<Quantifier> parameters;
   List<DataConstructor> constructors;
-  List<Derive> deriving;
+  Set<Derivable> deriving;
 
   bool get isVirtual => false;
   int get ident => binder.ident;

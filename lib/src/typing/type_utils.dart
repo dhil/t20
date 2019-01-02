@@ -2,8 +2,10 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import '../ast/binder.dart';
 import '../ast/datatype.dart';
 import '../ast/monoids.dart';
+import '../unicode.dart' as unicode;
 
 import 'ordered_context.dart' show OrderedContext;
 
@@ -113,7 +115,63 @@ class _FreeTypeVariables extends ReduceDatatype<Set<int>> {
 
 Set<int> freeTypeVariables(Datatype type) {
   _FreeTypeVariables ftv = _FreeTypeVariables();
-  return type.accept(ftv);
+  return type.accept<Set<int>>(ftv);
+}
+
+class _Substitutor extends TransformDatatype {
+  Map<int, Datatype> substMap;
+
+  _Substitutor(this.substMap);
+
+  Datatype visitForallType(ForallType forallType) {
+    Set<int> qs = new Set<int>();
+    for (int i = 0; i < forallType.quantifiers.length; i++) {
+      Quantifier q = forallType.quantifiers[i];
+      qs.add(q.ident);
+    }
+
+    Set<int> keys = Set.of(substMap.keys);
+    Set<int> common = keys.intersection(qs);
+
+    if (common.length == 0) {
+      Datatype body0 = forallType.body.accept<Datatype>(this);
+      return ForallType.complete(forallType.quantifiers, body0);
+    } else if (common.length == forallType.quantifiers.length) {
+      return forallType.body.accept<Datatype>(this);
+    } else {
+      Datatype body0 = forallType.body.accept<Datatype>(this);
+      List<Quantifier> quantifiers0 = forallType.quantifiers
+          .where((Quantifier q) => !common.contains(q))
+          .toList();
+      return ForallType.complete(quantifiers0, body0);
+    }
+  }
+
+  Datatype visitTypeVariable(TypeVariable variable) =>
+      substMap.containsKey(variable.ident)
+          ? substMap[variable.ident]
+          : variable;
+
+  Datatype visitSkolem(Skolem skolem) {
+    Datatype type;
+    if (skolem.painted) {
+      type = skolem;
+    } else {
+      skolem.paint();
+      if (substMap.containsKey(skolem.ident)) {
+        type = substMap[skolem.ident];
+      } else {
+        type = skolem;
+      }
+      skolem.reset();
+    }
+    return type;
+  }
+}
+
+Datatype substitute(Datatype type, Map<int, Datatype> substitutionMap) {
+  _Substitutor subst = _Substitutor(substitutionMap);
+  return type.accept<Datatype>(subst);
 }
 
 class _MonoTypeVerifier extends ReduceDatatype<bool> {
@@ -142,4 +200,35 @@ bool isMonoType(Datatype type, OrderedContext prefix) {
   bool result = type.accept<bool>(verifier);
   verifier.prefix = null; // Allow [prefix] to be garbage collected.
   return result;
+}
+
+List<Quantifier> freshenQuantifiers(List<Quantifier> qs) {
+  List<Quantifier> result = new List<Quantifier>();
+  int repetitions = 1;
+  int next = null;
+
+  for (int i = 0; i < qs.length; i++) {
+    // Compute [next].
+    if (next == null) next = unicode.a;
+    else ++next;
+    if (next > unicode.z) {
+      next = unicode.a;
+      ++repetitions;
+    }
+
+    // Build fake surface name.
+    String surfaceName = List.filled(repetitions, next).join();
+    Binder binder = Binder.primitive(qs[i].binder.origin, surfaceName);
+    result.add(Quantifier.of(binder));
+  }
+
+  return result;
+}
+
+List<TypeVariable> typeVariables(List<Quantifier> qs) {
+  List<TypeVariable> variables = new List<TypeVariable>();
+  for (int i = 0; i < qs.length; i++) {
+    variables.add(TypeVariable.bound(qs[i]));
+  }
+  return variables;
 }

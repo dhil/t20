@@ -14,7 +14,7 @@
 ;; (define-datatype (List 'a)
 ;;   [cons 'a (List 'a)]
 ;;   [nil]
-;;   (derive! Foldable Mappable))
+;;   (derive! fold-left map))
 
 ;; (: flip (-> [-> 'a 'b 'c] [-> 'b 'a 'c]))
 ;; (define (flip f)

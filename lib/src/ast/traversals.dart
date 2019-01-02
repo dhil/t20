@@ -3,7 +3,7 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import '../errors/errors.dart' show LocatedError;
-import '../fp.dart' show Pair, Triple;
+import '../fp.dart' show Pair, Quadruple;
 import '../location.dart';
 
 import 'algebra.dart';
@@ -138,12 +138,13 @@ abstract class Catamorphism<Name, Mod, Exp, Pat, Typ>
   // }
 
   Mod datatypes(
-      List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> defs,
-      List<Name> deriving,
+      List<Quadruple<Name, List<Name>, List<Pair<Name, List<Typ>>>, List<Name>>>
+          defs,
       {Location location}) {
     Mod r0 = mod.empty;
     for (int i = 0; i < defs.length; i++) {
-      Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>> def = defs[i];
+      Quadruple<Name, List<Name>, List<Pair<Name, List<Typ>>>, List<Name>> def =
+          defs[i];
       Name r1 = def.$1;
       r1 = def.$2.fold(r1, name.compose);
       r0 = mod.compose(r0, name2mod.apply(r1));
@@ -154,6 +155,7 @@ abstract class Catamorphism<Name, Mod, Exp, Pat, Typ>
         Typ result = constr.$2.fold(seed, typ.compose);
         r0 = mod.compose(r0, typ2mod.apply(result));
       }
+      List<Name> deriving = def.$4;
       Name r3 = deriving.fold(name.empty, name.compose);
       r0 = mod.compose(r0, name2mod.apply(r3));
     }

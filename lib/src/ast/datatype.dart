@@ -19,6 +19,7 @@ abstract class TypeDescriptor implements Identifiable {
   List<Quantifier> parameters;
   int get arity;
   int get ident => binder.ident;
+  Datatype get type;
 }
 
 enum TypeTag {

@@ -3,7 +3,7 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import '../errors/errors.dart' show LocatedError;
-import '../fp.dart' show Pair, Triple;
+import '../fp.dart' show Pair, Quadruple;
 import '../location.dart' show Location;
 
 abstract class ModuleAlgebra<Name, Mod, Exp, Pat, Typ> {
@@ -11,8 +11,8 @@ abstract class ModuleAlgebra<Name, Mod, Exp, Pat, Typ> {
   //     List<Pair<Name, List<Typ>>> constructors, List<Name> deriving,
   //     {Location location});
   Mod datatypes(
-      List<Triple<Name, List<Name>, List<Pair<Name, List<Typ>>>>> defs,
-      List<Name> deriving,
+      List<Quadruple<Name, List<Name>, List<Pair<Name, List<Typ>>>, List<Name>>>
+          defs,
       {Location location});
 
   Mod valueDef(Name name, Exp body, {Location location});
@@ -72,7 +72,8 @@ abstract class TypeAlgebra<Name, Typ> {
   Typ arrowType(List<Typ> domain, Typ codomain, {Location location});
   Typ typeConstr(Name name, List<Typ> arguments, {Location location});
   Typ tupleType(List<Typ> components, {Location location});
-  Typ constraintType(List<Pair<Name, Typ>> constraints, Typ body, {Location location});
+  Typ constraintType(List<Pair<Name, Typ>> constraints, Typ body,
+      {Location location});
 
   Typ errorType(LocatedError error, {Location location});
 }
