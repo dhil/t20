@@ -6,6 +6,7 @@ import '../ast/ast.dart'
     show
         Declaration,
         Datatype,
+        Identifiable,
         Skolem,
         TypeVariable,
         Quantifier,
@@ -174,6 +175,226 @@ class Existential extends ScopedEntry {
     }
   }
 }
+
+abstract class OrderedContext2 {
+  // Returns the number of elements present in the context.
+  int get size;
+
+  factory OrderedContext2.empty() = ListOrderedContext2.empty;
+
+  // Inserts [a] at the rear of the ordering.
+  OrderedContext2 insertLast(Identifiable a);
+
+  // Inserts [a] before [successor] in the context.
+  OrderedContext2 insertBefore(Identifiable a, Identifiable successor);
+
+  // Solves the existential [skolem] using [solution].
+  OrderedContext2 solve(Skolem skolem, Datatype solution);
+
+  // Returns the solution for [skolem]. Returns null if [skolem] is unsolved.
+  Datatype solution(Skolem skolem);
+
+  // Drops everything after and including [ident].
+  OrderedContext2 drop(Identifiable ident);
+
+  // Returns true if [a] precedes [b].
+  bool precedes(Identifiable a, Identifiable b);
+
+  // Returns true if [a] is present in [this] context, otherwise false.
+  bool contains(Identifiable a);
+
+  // Verifies that the context is well-formed.
+  bool verify();
+
+  // Applies [this] context as a substitution on [type].
+  Datatype apply(Datatype type);
+}
+
+class _Entry {
+  final Identifiable item;
+  int get ident => item.ident;
+  _Entry(this.item);
+
+  String toString() => item.toString();
+}
+
+class _SolvableEntry extends _Entry {
+  final Datatype type;
+
+  _SolvableEntry(Skolem skolem, [this.type = null]) : super(skolem);
+
+  String toString() {
+    if (type != null) {
+      return "$item = $type";
+    } else {
+      return super.toString();
+    }
+  }
+}
+
+// Naïve implementation. This implementation is intended as a "reference
+// implementation".
+class ListOrderedContext2 extends TransformDatatype implements OrderedContext2 {
+  final ImmutableList<_Entry> _entries;
+  ListOrderedContext2.empty() : this._(ImmutableList<_Entry>.empty());
+  ListOrderedContext2._(this._entries);
+
+  int get size => _entries.length;
+
+  OrderedContext2 insertLast(Identifiable a) {
+    _Entry entry = a is Skolem ? _SolvableEntry(a) : _Entry(a);
+    return ListOrderedContext2._(_entries.reverse().cons(entry).reverse());
+  }
+
+  OrderedContext2 insertBefore(Identifiable a, Identifiable successor) {
+    _Entry entry = a is Skolem ? _SolvableEntry(a) : _Entry(a);
+    ImmutableList<_Entry> entries0 = ImmutableList<_Entry>.empty();
+    ImmutableList<_Entry> entries = _entries;
+    while (!entries.isEmpty) {
+      if (entries.head.ident == successor.ident) {
+        entries = entries.cons(entry);
+        entries = entries0.reverse().concat(entries);
+        break;
+      } else {
+        entries0 = entries0.cons(entries.head);
+        entries = entries.tail;
+      }
+    }
+    return ListOrderedContext2._(entries);
+  }
+
+  OrderedContext2 solve(Skolem skolem, Datatype solution) {
+    ImmutableList<_Entry> entries = _entries;
+    ImmutableList<_Entry> entries0 = ImmutableList<_Entry>.empty();
+    while (!entries.isEmpty) {
+      if (entries.head.ident == skolem.ident) {
+        entries = entries.tail.cons(_SolvableEntry(skolem, solution));
+        break;
+      }
+      entries0 = entries0.cons(entries.head);
+      entries = entries.tail;
+    }
+    return ListOrderedContext2._(entries0.reverse().concat(entries));
+  }
+
+  Datatype solution(Skolem skolem) {
+    ImmutableList<_Entry> entries = _entries;
+    _Entry entry;
+    while (!entries.isEmpty) {
+      if (entries.head.ident == skolem.ident) {
+        entry = entries.head;
+        break;
+      } else {
+        entries = entries.tail;
+      }
+    }
+    return entry is _SolvableEntry ? entry.type : null;
+  }
+
+  OrderedContext2 drop(Identifiable a) {
+    ImmutableList<_Entry> entries = _entries;
+    ImmutableList<_Entry> entries0 = ImmutableList<_Entry>.empty();
+    _Entry entry;
+    while (!entries.isEmpty) {
+      if (entries.head.ident == a.ident) {
+        break;
+      }
+      entries0 = entries0.cons(entries.head);
+      entries = entries.tail;
+    }
+    return ListOrderedContext2._(entries0.reverse());
+  }
+
+  bool precedes(Identifiable a, Identifiable b) {
+    ImmutableList<_Entry> sublist = _entries;
+    while (!sublist.isEmpty) {
+      if (sublist.head.ident == a.ident) break;
+      sublist = sublist.tail;
+    }
+
+    while (!sublist.isEmpty) {
+      if (sublist.head.ident == b.ident) return true;
+      sublist = sublist.tail;
+    }
+    return false;
+  }
+
+  bool contains(Identifiable a) {
+    ImmutableList<_Entry> entries = _entries;
+    while (!entries.isEmpty) {
+      if (entries.head.ident == a.ident) return true;
+      entries = entries.tail;
+    }
+    return false;
+  }
+
+  bool verify() => false;
+
+  _Entry _lookup(Identifiable a) {
+    ImmutableList<_Entry> entries = _entries;
+    while (!entries.isEmpty) {
+      if (entries.head.ident == a.ident) return entries.head;
+      entries = entries.tail;
+    }
+    return null;
+  }
+
+  Datatype apply(Datatype type) {
+    return type.accept<Datatype>(this);
+  }
+
+  Datatype visitSkolem(Skolem skolem) {
+    if (skolem.painted) return skolem;
+
+    _Entry entry = _lookup(skolem);
+    if (entry == null) {
+      return skolem;
+    }
+
+    skolem.paint();
+    if (entry is _SolvableEntry) {
+      _SolvableEntry ex = entry;
+      Datatype result;
+      if (ex.type != null) {
+        result = ex.type.accept<Datatype>(this);
+      } else {
+        result = skolem;
+      }
+      skolem.reset();
+      return result;
+    } else {
+      throw "Logical error: _Entry instance for Skolem $skolem is not an instance of _SolvableEntry.";
+    }
+  }
+
+  String toString() {
+    if (_entries.isEmpty) {
+      return "{}";
+    }
+
+    // Roll back to the first entry.
+    ImmutableList<_Entry> entries = _entries;
+
+    // Build the string
+    StringBuffer buf = new StringBuffer();
+    buf.write("{");
+    while (!entries.isEmpty) {
+      _Entry entry = entries.head;
+      buf.write(entry.toString());
+      entries = entries.tail;
+      if (!entries.isEmpty) {
+        buf.write(", ");
+      }
+    }
+    buf.write("}");
+    return buf.toString();
+  }
+}
+
+// class MapOrderedContext extends OrderedContext2 {
+//   final ImmutableMap<int, Identifiable> entries;
+//   int get size => entries.length;
+// }
 
 abstract class OrderedContext extends TransformDatatype {
   int get size;
