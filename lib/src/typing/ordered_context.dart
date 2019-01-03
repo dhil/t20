@@ -13,6 +13,7 @@ import '../ast/ast.dart'
         ReduceDatatype,
         TransformDatatype;
 import '../ast/monoids.dart' show Monoid, LAndMonoid;
+import '../fp.dart' show Pair;
 import '../immutable_collections.dart' show ImmutableList;
 
 class DatatypeVerifier extends ReduceDatatype<bool> {
@@ -197,6 +198,9 @@ abstract class OrderedContext2 {
   // Drops everything after and including [ident].
   OrderedContext2 drop(Identifiable ident);
 
+  // Installs a marker before [a].
+  Pair<Identifiable, OrderedContext2> mark(Identifiable a);
+
   // Returns true if [a] precedes [b].
   bool precedes(Identifiable a, Identifiable b);
 
@@ -232,6 +236,14 @@ class _SolvableEntry extends _Entry {
   }
 }
 
+class _Marker implements Identifiable {
+  final Identifiable _item;
+  int get ident => -_item.ident;
+  _Marker(this._item);
+
+  String toString() => ">$_item";
+}
+
 // Naïve implementation. This implementation is intended as a "reference
 // implementation".
 class ListOrderedContext2 extends TransformDatatype implements OrderedContext2 {
@@ -260,7 +272,11 @@ class ListOrderedContext2 extends TransformDatatype implements OrderedContext2 {
         entries = entries.tail;
       }
     }
-    return ListOrderedContext2._(entries);
+
+    if (entries.isEmpty) {
+      throw "$successor is not present.";
+    }
+    return ListOrderedContext2._(entries0.reverse().concat(entries));
   }
 
   OrderedContext2 solve(Skolem skolem, Datatype solution) {
@@ -326,6 +342,11 @@ class ListOrderedContext2 extends TransformDatatype implements OrderedContext2 {
       entries = entries.tail;
     }
     return false;
+  }
+
+  Pair<Identifiable, OrderedContext2> mark(Identifiable a) {
+    Identifiable marker = _Marker(a);
+    return Pair<Identifiable, OrderedContext2>(marker, insertBefore(marker, a));
   }
 
   bool verify() => false;
