@@ -118,61 +118,61 @@ Set<int> freeTypeVariables(Datatype type) {
   return type.accept<Set<int>>(ftv);
 }
 
-class _Substitutor extends TransformDatatype {
-  Map<int, Datatype> substMap;
+// class _Substitutor extends TransformDatatype {
+//   Map<int, Datatype> substMap;
 
-  _Substitutor(this.substMap);
+//   _Substitutor(this.substMap);
 
-  Datatype visitForallType(ForallType forallType) {
-    Set<int> qs = new Set<int>();
-    for (int i = 0; i < forallType.quantifiers.length; i++) {
-      Quantifier q = forallType.quantifiers[i];
-      qs.add(q.ident);
-    }
+//   Datatype visitForallType(ForallType forallType) {
+//     Set<int> qs = new Set<int>();
+//     for (int i = 0; i < forallType.quantifiers.length; i++) {
+//       Quantifier q = forallType.quantifiers[i];
+//       qs.add(q.ident);
+//     }
 
-    Set<int> keys = Set.of(substMap.keys);
-    Set<int> common = keys.intersection(qs);
+//     Set<int> keys = Set.of(substMap.keys);
+//     Set<int> common = keys.intersection(qs);
 
-    if (common.length == 0) {
-      Datatype body0 = forallType.body.accept<Datatype>(this);
-      return ForallType.complete(forallType.quantifiers, body0);
-    } else if (common.length == forallType.quantifiers.length) {
-      return forallType.body.accept<Datatype>(this);
-    } else {
-      Datatype body0 = forallType.body.accept<Datatype>(this);
-      List<Quantifier> quantifiers0 = forallType.quantifiers
-          .where((Quantifier q) => !common.contains(q))
-          .toList();
-      return ForallType.complete(quantifiers0, body0);
-    }
-  }
+//     if (common.length == 0) {
+//       Datatype body0 = forallType.body.accept<Datatype>(this);
+//       return ForallType.complete(forallType.quantifiers, body0);
+//     } else if (common.length == forallType.quantifiers.length) {
+//       return forallType.body.accept<Datatype>(this);
+//     } else {
+//       Datatype body0 = forallType.body.accept<Datatype>(this);
+//       List<Quantifier> quantifiers0 = forallType.quantifiers
+//           .where((Quantifier q) => !common.contains(q))
+//           .toList();
+//       return ForallType.complete(quantifiers0, body0);
+//     }
+//   }
 
-  Datatype visitTypeVariable(TypeVariable variable) =>
-      substMap.containsKey(variable.ident)
-          ? substMap[variable.ident]
-          : variable;
+//   Datatype visitTypeVariable(TypeVariable variable) =>
+//       substMap.containsKey(variable.ident)
+//           ? substMap[variable.ident]
+//           : variable;
 
-  Datatype visitSkolem(Skolem skolem) {
-    Datatype type;
-    if (skolem.painted) {
-      type = skolem;
-    } else {
-      skolem.paint();
-      if (substMap.containsKey(skolem.ident)) {
-        type = substMap[skolem.ident];
-      } else {
-        type = skolem;
-      }
-      skolem.reset();
-    }
-    return type;
-  }
-}
+//   Datatype visitSkolem(Skolem skolem) {
+//     Datatype type;
+//     if (skolem.painted) {
+//       type = skolem;
+//     } else {
+//       skolem.paint();
+//       if (substMap.containsKey(skolem.ident)) {
+//         type = substMap[skolem.ident];
+//       } else {
+//         type = skolem;
+//       }
+//       skolem.reset();
+//     }
+//     return type;
+//   }
+// }
 
-Datatype substitute(Datatype type, Map<int, Datatype> substitutionMap) {
-  _Substitutor subst = _Substitutor(substitutionMap);
-  return type.accept<Datatype>(subst);
-}
+// Datatype substitute(Datatype type, Map<int, Datatype> substitutionMap) {
+//   _Substitutor subst = _Substitutor(substitutionMap);
+//   return type.accept<Datatype>(subst);
+// }
 
 class _MonoTypeVerifier extends ReduceDatatype<bool> {
   static _MonoTypeVerifier _instance;

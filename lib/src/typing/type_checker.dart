@@ -67,42 +67,6 @@ class _TypeChecker {
     return ErrorType(err, location);
   }
 
-  Pair<OrderedContext, Datatype> lift(Datatype type) {
-    return Pair<OrderedContext, Datatype>(OrderedContext.empty(), type);
-  }
-
-  // // Skolem management.
-  // // Current type level.
-  // int _currentLevel = 1;
-  // // Increases the type-level by one.
-  // void enter() {
-  //   if (trace) {
-  //     print("level incr: $_currentLevel --> ${_currentLevel+1}");
-  //   }
-  //   ++_currentLevel;
-  // }
-
-  // // Decreases the type level by one.
-  // void leave() {
-  //   if (trace) {
-  //     print("level decr: $_currentLevel --> ${_currentLevel-1}");
-  //   }
-  //   --_currentLevel;
-  // }
-
-  // // Updates the level of the provided [skolem].
-  // void update(Skolem skolem) {
-  //   if (trace) {
-  //     print("update: $skolem --> $_currentLevel");
-  //   }
-  //   skolem.level = _currentLevel;
-  // }
-
-  // // Factory method for skolems/existential variables.
-  // Skolem skolem() {
-  //   return Skolem();
-  // }
-
   // Main entry point.
   ModuleMember typeCheck(ModuleMember member) {
     InferenceResult result = inferModule(member, OrderedContext.empty());
@@ -660,16 +624,35 @@ class _TypeChecker {
     Datatype type = constr
         .type; // guaranteed to be compatible with `type_utils' function type api.
     // Arity check.
-    List<Datatype> domain = typeUtils.domain(type);
-    if (domain.length != constr.components.length) {
+    if (typeUtils.arity(type) != constr.arity) {
       TypeError err = ArityMismatchError(
-          domain.length, constr.components.length, constr.location);
+          typeUtils.arity(type), constr.arity, constr.location);
       return PatternInferenceResult(ctxt, error(err, constr.location), null);
     }
-    // Check the pattern against the induced type.
-    CheckPatternResult result = checkPattern(constr, type, ctxt);
+    // Check whether the induced type has any type parameters.
+    ScopedEntry marker;
+    if (type is ForallType) {
+      ForallType forallType = type;
+      Triple<Existential, OrderedContext, Datatype> result =
+          guessInstantiation(forallType.quantifiers, forallType.body, ctxt);
+      marker = result.fst;
+      ctxt = result.snd;
+      type = result.thd;
+    }
+    // Check each subpattern.
+    if (constr.arity > 0) {
+      List<Datatype> domain = typeUtils.domain(type);
+      for (int i = 0; i < constr.components.length; i++) {
+        Pattern component = constr.components[i];
+        if (!(component is VariablePattern || component is WildcardPattern)) {
+          throw "Deep pattern matching is not supported.";
+        }
+        CheckPatternResult result = checkPattern(component, domain[i], ctxt);
+        ctxt = result.context;
+      }
+    }
 
-    return PatternInferenceResult(result.context, type, result.marker);
+    return PatternInferenceResult(ctxt, typeUtils.codomain(type), marker);
   }
 
   // Implements the subsumption/subtyping relation <:.
@@ -894,7 +877,8 @@ class _TypeChecker {
         throw "$b has already been solved [$exB]!";
       }
 
-      ctxt = ctxt.update(exB.solve(a));
+      exB.equate(exA);
+      // ctxt = ctxt.update(exB.solve(a));
       return ctxt;
     }
 
@@ -1014,7 +998,8 @@ class _TypeChecker {
         throw "$a has already been solved!";
       }
 
-      ctxt = ctxt.update(exA.solve(b));
+      //ctxt = ctxt.update(exA.solve(b));
+      exA.equate(exB);
       return ctxt;
     }
 

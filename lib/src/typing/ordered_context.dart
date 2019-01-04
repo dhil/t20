@@ -155,8 +155,11 @@ class Existential extends ScopedEntry {
   int get ident => skolem.ident;
   bool get isSolved => solution != null;
   // void solve(Datatype solution) => skolem.solve(solution);
-  Existential solve(Datatype solution) => Existential(skolem, solution);
-  // void equate(Existential ex) => skolem.equate(ex.skolem);
+  Existential solve(Datatype solution) {
+    skolem.solve(solution);
+    return Existential(skolem, solution);
+  }
+  void equate(Existential ex) => skolem.equate(ex.skolem);
 
   String toString() {
     if (isSolved) {

@@ -738,6 +738,7 @@ class ConstructorPattern extends Pattern {
   DataConstructor declarator;
   List<Pattern> components;
   Datatype get type => declarator.type;
+  int get arity => components == null ? 0 : components.length;
 
   ConstructorPattern(this.declarator, this.components, Location location)
       : super(PatternTag.CONSTR, location);
