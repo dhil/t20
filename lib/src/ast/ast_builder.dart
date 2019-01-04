@@ -204,6 +204,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   final BuildContext emptyContext = new BuildContext.empty();
   TopModule _thisModule;
   ModuleEnvironment _moduleEnv;
+  FunctionDeclaration mainCandidate;
 
   _ASTBuilder([this._moduleEnv, this._thisModule]);
 
@@ -522,6 +523,10 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         // Create the output context.
         ctxt = ctxt.putDeclaration(name, member);
 
+        // Determine whether this function is a main function.
+        if (member.binder.sourceName == "transform") {
+          mainCandidate = member;
+        }
         return Pair<BuildContext, ModuleMember>(ctxt, member);
       };
 
@@ -567,6 +572,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           }
         }
 
+        _thisModule.main = mainCandidate;
         return Pair<BuildContext, ModuleMember>(ctxt, _thisModule);
       };
 

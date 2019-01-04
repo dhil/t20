@@ -178,7 +178,8 @@ VirtualModule _build() {
     "&&": "(-> Bool Bool Bool)",
     "||": "(-> Bool Bool Bool)",
     // Auxiliary.
-    "error": "(forall 'a (-> String 'a))"
+    "error": "(forall 'a (-> String 'a))",
+    "print": "(-> String (*))"
   };
 
   for (MapEntry<String, String> entry in rawFunDeclarations.entries) {

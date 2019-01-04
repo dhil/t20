@@ -90,7 +90,7 @@ class ModuleEnvironment {
   }
 
   void store(TopModule module) {
-    modules.add(module);
+    _modules.add(module);
     summaries[module.name] = Summary(module);
   }
 

@@ -33,8 +33,11 @@ class KernelGenerator {
 
     Component component = platform.platform;
 
-    Procedure mainProcedure = main(Name("transform"));
-    procedures.add(mainProcedure);
+    Procedure mainProcedure;
+    if (module.hasMain) {
+      mainProcedure = main(module.main.kernelNode);
+      procedures.add(mainProcedure);
+    }
     Library library = Library(Uri(scheme: "file", path: "."),
         name: "t20app", procedures: procedures, fields: fields);
     library.parent = component;
@@ -45,7 +48,11 @@ class KernelGenerator {
 
     component.computeCanonicalNamesForLibrary(library);
     component.libraries.add(library);
-    component.mainMethodName = mainProcedure.reference;
+
+    if (mainProcedure != null) {
+      component.mainMethodName = mainProcedure.reference;
+    }
+
     return component;
   }
 
@@ -377,7 +384,7 @@ class KernelGenerator {
           [DartType staticType = const DynamicType()]) =>
       VariableDeclaration(binder.uniqueName, type: staticType);
 
-  Procedure main(Name entryPoint) {
+  Procedure main(Procedure mainProcedure) {
     // Generates:
     //   void main(List<String> args) async {
     //     String file = args[0];
@@ -430,7 +437,8 @@ class KernelGenerator {
 
     // c = entryPoint(c);
     Statement runTransformation =
-        ExpressionStatement(VariableSet(component, entryPoint));
+        ExpressionStatement(StaticInvocation(mainProcedure, Arguments.empty()));
+        //    ExpressionStatement(VariableSet(component, entryPoint));
 
     // Class ioSink = platform.getClass(
     //     PlatformPathBuilder.dart.library("io").target("IOSink").build());

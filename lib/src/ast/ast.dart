@@ -351,6 +351,9 @@ class TopModule extends ModuleMember {
   TopModule(this.members, this.name, Location location)
       : super(ModuleTag.TOP, location);
 
+  FunctionDeclaration main;
+  bool get hasMain => main != null;
+
   T accept<T>(ModuleVisitor<T> v) {
     return v.visitTopModule(this);
   }

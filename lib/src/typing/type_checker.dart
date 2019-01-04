@@ -75,6 +75,13 @@ class _TypeChecker {
     return member;
   }
 
+  OrderedContext checkMain(FunctionDeclaration main, OrderedContext ctxt) {
+    // Placeholder main type.
+    Datatype mainType =
+        ArrowType(<Datatype>[typeUtils.unitType], typeUtils.unitType);
+    return subsumes(main.type, mainType, ctxt);
+  }
+
   InferenceResult inferModule(ModuleMember member, OrderedContext ctxt) {
     if (trace) {
       print("infer module: $member");
@@ -90,6 +97,10 @@ class _TypeChecker {
         for (int i = 0; i < module.members.length; i++) {
           InferenceResult result = inferModule(module.members[i], ctxt);
           ctxt = result.context;
+        }
+        // Type check the main function, if one is present.
+        if (module.hasMain) {
+          ctxt = checkMain(module.main, ctxt);
         }
         return InferenceResult(ctxt, typeUtils.unitType);
         break;

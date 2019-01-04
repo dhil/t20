@@ -182,8 +182,8 @@ class IRAlgebra {
   }
 
   // Modules.
-  Module module(List<Binding> bindings, {Location location}) {
-    Module mod = Module(bindings);
+  Module module(List<Binding> bindings, {LetFun main, Location location}) {
+    Module mod = Module(bindings, main);
     _setUplinks(bindings, mod);
     return mod;
   }
@@ -251,7 +251,10 @@ class Module extends IRNode {
   Map<int, Object> datatypes;
   List<Binding> bindings;
 
-  Module(this.bindings) : super(MODULE);
+  Module(this.bindings, this.main) : super(MODULE);
+
+  LetFun main;
+  bool get hasMain => main != null;
 
   T accept<T>(IRVisitor<T> v) {
     return v.visitModule(this);

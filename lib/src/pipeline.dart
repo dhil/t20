@@ -90,8 +90,7 @@ Result<List<TopModule>, T20Error> frontend(
 
 Future<Result<void, T20Error>> backend(
     List<TopModule> modules, Settings settings) async {
-  TopModule module = modules.first; // TODO generalise.
-
+  TopModule module = modules.last; // TODO generalise.
   // Generate code.
   Result<ir.Module, T20Error> codeResult = new Desugarer(ir.IRAlgebra())
       .desugar(module, Map.of(builtins.getPrimitiveBinders()));

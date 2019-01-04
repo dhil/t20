@@ -30,10 +30,17 @@ class Desugarer {
   Result<Module, T20Error> desugar(
       ast.TopModule mod, Map<int, TypedBinder> binderContext) {
     List<Binding> bindings = new List<Binding>();
+    LetFun main;
     for (int i = 0; i < mod.members.length; i++) {
-      bindings = module(bindings, mod.members[i], binderContext);
+      ast.ModuleMember member = mod.members[i];
+      bindings = module(bindings, member, binderContext);
+      if (mod.hasMain) {
+        if (identical(mod.main, member)) {
+          main = bindings.last as LetFun;
+        }
+      }
     }
-    return Result<Module, T20Error>.success(alg.module(bindings));
+    return Result<Module, T20Error>.success(alg.module(bindings, main: main));
   }
 
   // TypedBinder freshBinder(Datatype type, Map<int, TypedBinder> binderContext) {
