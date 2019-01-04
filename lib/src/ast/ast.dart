@@ -749,7 +749,8 @@ class ConstructorPattern extends Pattern {
   }
 
   String toString() {
-    return "[${declarator.binder.sourceName} $components]";
+    String subpatterns = ListUtils.stringify(" ", components);
+    return "[${declarator.binder.sourceName} $subpatterns]";
   }
 }
 
