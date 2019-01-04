@@ -1,0 +1,24 @@
+;; SKIP
+;; Typing the Y-combinator
+
+(define-datatype (Fix 'a)
+  [Fix (-> (Fix 'a) 'a)])
+
+(: fix (-> [-> (Fix 'a) 'a] [Fix 'a]))
+(define (fix f) (Fix f))
+
+(: unfix (-> (Fix 'a) [-> (Fix 'a) 'a]))
+(define (unfix [Fix x]) x)
+
+;; let y f = (fun x a -> f (out x x) a) (In (fun x a -> f (out x x) a))
+;; (-> (-> (-> (-> 'a 'b) (-> 'a 'b)) 'a) 'b)
+
+;; (: Y (-> (-> (-> [-> 'a 'b] [-> 'a 'b]) 'a) 'b))
+;; (define (Y f)
+;;   [(lambda (x)
+;;     (lambda (a)
+;;       [(f [(unfix x) x]) a]))
+;;    (fix
+;;     (lambda (x)
+;;       (lambda (a)
+;;         [(f [(unfix x) x]) a])))])
