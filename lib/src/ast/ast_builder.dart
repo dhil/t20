@@ -969,10 +969,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
       };
 
   Build<Expression> errorExp(LocatedError error, {Location location}) =>
-      (BuildContext ctxt) {
-        return Pair<BuildContext, Expression>(
-            ctxt, new ErrorExpression(error, location));
-      };
+      (BuildContext ctxt) => expressionError(error, location);
 
   Build<Pattern> hasTypePattern(Build<Pattern> pattern, Build<Datatype> type,
           {Location location}) =>
@@ -1285,6 +1282,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
       identSuffix.writeCharCode(name.codeUnitAt(i));
     }
 
-    return Pair<String, String>(modulePrefix.toString(), identSuffix.toString());
+    return Pair<String, String>(
+        modulePrefix.toString(), identSuffix.toString());
   }
 }
