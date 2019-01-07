@@ -356,7 +356,7 @@ class _TypeChecker {
       InferenceResult result0 = inferExpression(binding.expression, ctxt);
       ctxt = result0.context;
       Datatype expType = result0.type;
-      // Check the pattern (left hand side) against the inferd type.
+      // Check the pattern (left hand side) against the inferred type.
       CheckPatternResult result1 = checkPattern(binding.pattern, expType, ctxt);
       ctxt = result1.context;
     }
@@ -384,9 +384,9 @@ class _TypeChecker {
     ctxt = checkExpression(lambda.body, codomain, ctxt);
 
     // Drop the scope.
-    if (scopeMarker != null) {
-      ctxt = ctxt.drop(scopeMarker);
-    }
+    // if (scopeMarker != null) {
+    //   ctxt = ctxt.drop(scopeMarker);
+    // }
 
     // Construct the arrow type.
     ArrowType ft = ArrowType(domain, codomain);
