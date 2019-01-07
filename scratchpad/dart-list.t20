@@ -15,3 +15,6 @@
 
 (: length (-> (Dart-List 'a) Int))
 (define (length _) (error "Dart-List length stub"))
+
+(: map! (=> ([Ground 'a]) (-> [-> 'a 'b] (Dart-List 'a) (Dart-List 'b))))
+(define (map! _) (error "Dart-List map! stub"))
