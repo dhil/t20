@@ -11,6 +11,21 @@ abstract class Substitution {
   // Construct an empty subsitution.
   factory Substitution.empty() = ImmutableSubstitution.empty;
 
+  factory Substitution.fromPairs(
+      Iterable<Quantifier> quantifiers, Iterable<Datatype> types) {
+
+    Substitution sigma = Substitution.empty();
+
+    Iterator<Quantifier> qs = quantifiers.iterator;
+    Iterator<Datatype> tys  = types.iterator;
+
+    while (qs.moveNext() && tys.moveNext()) {
+      sigma = sigma.bind(TypeVariable.bound(qs.current), tys.current);
+    }
+
+    return sigma;
+  }
+
   // Applies this substitution to the [type].
   Datatype apply(Datatype type);
 
@@ -83,8 +98,10 @@ class ImmutableSubstitution extends TransformDatatype implements Substitution {
 
   Datatype visitSkolem(Skolem skolem) {
     Datatype type = skolem.type;
-    if (type == null) return skolem;
-    else return type.accept(this);
+    if (type == null)
+      return skolem;
+    else
+      return type.accept(this);
   }
 }
 

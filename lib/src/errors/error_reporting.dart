@@ -28,6 +28,11 @@ void report(List<T20Error> errors) {
   }
 }
 
+void bootstrapReport(List<T20Error> errors) {
+  stderr.writeln("fatal error: bootstrapping failed.");
+  report(errors);
+}
+
 // Naïve implementation of error reporting.
 class _ErrorReporter {
   _ErrorReporter();
@@ -59,7 +64,7 @@ class _ErrorReporter {
       } else {
         bytes.add(0x2500);
       }
-        //bytes.add(symbol);
+      //bytes.add(symbol);
     }
     stderr.writeln("\u001B[1m${String.fromCharCodes(bytes)} This.\u001B[0m");
   }
@@ -103,7 +108,8 @@ class _ErrorReporter {
 
       // Open the stream.
       if (source.scheme == "data") {
-        stream = ByteStream.fromString(source.data.contentAsString(encoding: new Utf8Codec()));
+        stream = ByteStream.fromString(
+            source.data.contentAsString(encoding: new Utf8Codec()));
       } else {
         file = new File(source.toString()).openSync(mode: FileMode.read);
         stream = ByteStream.fromFile(file);

@@ -162,6 +162,11 @@ abstract class Catamorphism<Name, Mod, Exp, Pat, Typ>
     return r0;
   }
 
+  Mod stub(Name name, List<Pat> parameters, {Location location}) =>
+      parameters == null
+          ? name2mod.apply(name)
+          : pat2mod.apply(parameters.fold(name2pat.apply(name), pat.compose));
+
   Mod valueDef(Name name, Exp body, {Location location}) =>
       exp2mod.apply(exp.compose(name2exp.apply(name), body));
 

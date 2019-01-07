@@ -116,7 +116,7 @@ class Settings {
   final List<String> sourceFiles;
   final String outputFile;
 
-  factory Settings.fromCLI(List<String> args) {
+  factory Settings.fromCLI(List<String> args, {bool allowNoSources = false}) {
     ArgResults results = _parse(args);
     bool dumpAst = results[NamedOptions.dump_ast] as bool;
     bool dumpDast = results[NamedOptions.dump_dast] as bool;
@@ -127,7 +127,8 @@ class Settings {
     bool showVersion = results[NamedOptions.version] as bool;
     bool verbose = results[NamedOptions.verbose] as bool;
     String platformDill = results[NamedOptions.platform] as String;
-    MultiOption trace = new MultiOption(results[NamedOptions.trace] as List<String>, verbose ?? false);
+    MultiOption trace = new MultiOption(
+        results[NamedOptions.trace] as List<String>, verbose ?? false);
     bool typeCheck = results[NamedOptions.type_check] as bool;
 
     if (!_validateExitAfter(exitAfter)) {
@@ -142,13 +143,15 @@ class Settings {
     List<String> sourceFiles;
     if (results.rest.length > 0) {
       sourceFiles = results.rest;
-    } else if (!showHelp && !showVersion) {
+    } else if (!allowNoSources && !showHelp && !showVersion) {
       throw new UsageError();
     }
 
     return Settings._(dumpAst, dumpDast, exitAfter, O, outputFile, showHelp,
         showVersion, sourceFiles, trace, typeCheck, verbose, platformDill);
   }
+
+  factory Settings() => Settings.fromCLI(<String>[], allowNoSources: true);
 
   const Settings._(
       this.dumpAst,

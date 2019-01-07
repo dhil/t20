@@ -153,6 +153,7 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
     for (int i = 1; i < name.length; i++) {
       c = name.codeUnitAt(i);
       if (!unicode.isAsciiLetter(c) &&
+          c != unicode.DASH &&
           !(name.codeUnitAt(i - 1) == unicode.DOT && c == unicode.DOT))
         return false;
     }
@@ -196,7 +197,8 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
     if (name.length == 0) return false;
     if (!unicode.isAsciiUpper(name.codeUnitAt(0))) return false;
     for (int i = 1; i < name.length; i++) {
-      if (!unicode.isAsciiLetter(name.codeUnitAt(i))) return false;
+      int c = name.codeUnitAt(i);
+      if (!unicode.isAsciiLetter(c) && c != unicode.DASH) return false;
     }
 
     return true;
@@ -292,6 +294,9 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
                 sexp.location, const <String>["identifier and quantifiers"])),
             <Name>[]);
       }
+    } else if (sexp is Atom) {
+      Atom atom = sexp;
+      return Pair<Name, List<Name>>(typeName(atom), <Name>[]);
     } else {
       return Pair<Name, List<Name>>(
           alg.errorName(BadSyntaxError(
@@ -340,6 +345,8 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
               return datatypeDefinition(atom, list);
             case "define-datatypes":
               return datatypesDefinition(atom, list);
+            case "define-stub":
+              return stub(atom, list);
             case "define-typename":
               return typename(atom, list);
             case "open":
@@ -398,6 +405,49 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
         Exp body = expression(list[2]);
         return alg.functionDef(ident, parameters, body,
             location: list.location);
+      } else {
+        return alg.errorModule(BadSyntaxError(
+            list0.location, <String>["identifier and parameter list"]));
+      }
+    } else {
+      return alg.errorModule(BadSyntaxError(list[1].location,
+          <String>["identifier", "identifier and parameter list"]));
+    }
+  }
+
+  Mod stub(Atom head, SList list) {
+    assert(head.value == "define-stub");
+
+    if (list.length < 2) {
+      return alg.errorModule(
+          BadSyntaxError(list.location.end, <String>["stub definition"]));
+    }
+
+    if (list[1] is Atom) {
+      // (define name E).
+      if (list.length > 2) {
+        return alg.errorModule(
+            BadSyntaxError(list[2].location, <String>[list.closingBracket()]),
+            location: list.location);
+      }
+      Atom atom = list[1];
+      Name ident = termName(atom);
+      return alg.stub(ident, null, location: list.location);
+    } else if (list[1] is SList) {
+      // (define (name P*) E).
+      SList list0 = list[1]; // TODO find a better name than 'list0'.
+      if (list0.length > 0 && list0[0] is Atom) {
+        Atom atom = list0[0] as Atom;
+        Name ident = termName(atom);
+        List<Pat> parameters = expectMany<Sexp, Pat>(pattern, list0, start: 1);
+        if (list.length > 3) {
+          return alg.errorModule(
+              BadSyntaxError(list[3].location, <String>[
+                "end of stub definition '${list.closingBracket()}'"
+              ]),
+              location: list.location);
+        }
+        return alg.stub(ident, parameters, location: list.location);
       } else {
         return alg.errorModule(BadSyntaxError(
             list0.location, <String>["identifier and parameter list"]));
@@ -488,23 +538,17 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
             deriving = <Name>[];
           }
         }
+      } else {
+        deriving = <Name>[];
       }
+    } else {
+      deriving = <Name>[];
     }
 
-    Name name;
-    List<Name> typeParameters;
-    if (list[start] is Atom) {
-      Pair<Name, List<Name>> result =
-          Pair<Name, List<Name>>(typeName(list[start]), <Name>[]);
-      name = result.$1;
-      typeParameters = result.$2;
-    } else if (list[start] is SList) {
-      Pair<Name, List<Name>> result = parameterisedTypeName(list[start]);
-      name = result.$1;
-      typeParameters = result.$2;
-    } else {
-      return Either.left(BadSyntaxError(list[start].location));
-    }
+
+    Pair<Name, List<Name>> result = parameterisedTypeName(list[start]);
+    Name name = result.fst;
+    List<Name> typeParameters = result.snd;
 
     // Parse any constructors.
     List<Pair<Name, List<Typ>>> constructors =
@@ -534,11 +578,11 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
     }
 
     Quadruple<Name, List<Name>, List<Pair<Name, List<Typ>>>, List<Name>>
-        result =
+        result0 =
         Quadruple<Name, List<Name>, List<Pair<Name, List<Typ>>>, List<Name>>(
             name, typeParameters, constructors, deriving);
 
-    return Either.right(result);
+    return Either.right(result0);
   }
 
   Mod typename(Atom head, SList list) {

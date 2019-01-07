@@ -5,6 +5,7 @@
 //import 'ast/binder.dart' show Binder;
 import 'ast/ast.dart'
     show
+        DatatypeDeclarations,
         Declaration,
         ModuleMember,
         ModuleTag,
@@ -26,20 +27,20 @@ class Summary {
       TypeDescriptor descriptor;
       switch (member.tag) {
         case ModuleTag.DATATYPE_DEFS:
-          descriptor = member as TypeDescriptor;
+          DatatypeDeclarations datatypes = member as DatatypeDeclarations;
+          for (int j = 0; j < datatypes.declarations.length; j++) {
+            TypeDescriptor descriptor = datatypes.declarations[j];
+            int key = useInternAsKey ? descriptor.binder.sourceName.hashCode : descriptor.ident;
+            typeDescriptors[key] = descriptor;
+          }
           break;
         case ModuleTag.TYPENAME:
-          descriptor = member as TypeDescriptor;
+          TypeDescriptor descriptor = member as TypeDescriptor;
+          int key = useInternAsKey ? descriptor.binder.sourceName.hashCode : descriptor.ident;
+          typeDescriptors[key] = descriptor;
           break;
         default:
         // Do nothing.
-      }
-
-      if (descriptor != null) {
-        int key = useInternAsKey
-            ? descriptor.binder.sourceName.hashCode
-            : descriptor.ident;
-        typeDescriptors[key] = descriptor;
       }
     }
 

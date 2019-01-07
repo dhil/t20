@@ -149,6 +149,23 @@ class ValueDeclaration extends ModuleMember implements Declaration {
   }
 }
 
+class VirtualValueDeclaration extends ValueDeclaration {
+  bool get isVirtual => true;
+
+  VirtualValueDeclaration.stub(Signature signature, Binder binder)
+      : super(signature, binder, null, signature.location);
+  factory VirtualValueDeclaration(
+      TopModule origin, String name, Datatype type) {
+    Location location = Location.primitive();
+    Binder binder = Binder.primitive(origin, name);
+    Signature signature = new Signature(binder, type, location);
+    VirtualValueDeclaration valDecl =
+        new VirtualValueDeclaration.stub(signature, binder);
+    signature.addDefinition(valDecl);
+    return valDecl;
+  }
+}
+
 class FunctionDeclaration extends ModuleMember implements Declaration {
   Binder binder;
   Signature signature;
@@ -176,7 +193,7 @@ class FunctionDeclaration extends ModuleMember implements Declaration {
 class VirtualFunctionDeclaration extends FunctionDeclaration {
   bool get isVirtual => true;
 
-  VirtualFunctionDeclaration._(Signature signature, Binder binder)
+  VirtualFunctionDeclaration.stub(Signature signature, Binder binder)
       : super(signature, binder, null, null, signature.location);
   factory VirtualFunctionDeclaration(
       TopModule origin, String name, Datatype type) {
@@ -184,7 +201,7 @@ class VirtualFunctionDeclaration extends FunctionDeclaration {
     Binder binder = Binder.primitive(origin, name);
     Signature signature = new Signature(binder, type, location);
     VirtualFunctionDeclaration funDecl =
-        new VirtualFunctionDeclaration._(signature, binder);
+        new VirtualFunctionDeclaration.stub(signature, binder);
     signature.addDefinition(funDecl);
     return funDecl;
   }
@@ -367,8 +384,9 @@ class TopModule extends ModuleMember {
 }
 
 class VirtualModule extends TopModule {
-  VirtualModule(String name)
-      : super(<ModuleMember>[], name, Location.primitive());
+  VirtualModule(String name, {List<ModuleMember> members, Location location})
+      : super(members == null ? new List<ModuleMember>() : members, name,
+            location == null ? Location.primitive() : location);
   bool get isVirtual => true;
 
   String toString() => "(virtual-module ...)";

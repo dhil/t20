@@ -9,116 +9,65 @@ import 'dart:io';
 import 'package:kernel/ast.dart' as kernel;
 
 import '../settings.dart';
-import 'ast/ast.dart';
-import 'ast/ast_builder.dart';
+import 'ast/ast.dart' show TopModule;
+import 'bootstrap.dart';
 import 'builtins.dart' as builtins;
-import 'compilation_unit.dart';
+import 'compilation_unit.dart' show FileSource;
 import 'errors/error_reporting.dart';
 import 'errors/errors.dart';
 import 'module_environment.dart' show ModuleEnvironment;
 import 'result.dart';
-import 'syntax/parse_sexp.dart';
 
-import 'typing/type_checker.dart';
-
-import 'codegen/desugar.dart';
-import 'codegen/ir.dart' as ir;
-import 'codegen/kernel_emitter.dart';
-import 'codegen/kernel_generator.dart';
-import 'codegen/platform.dart';
-
-Result<List<TopModule>, T20Error> frontendResult(
-        Result<Object, T20Error> result, ModuleEnvironment moduleEnv) =>
-    result == null
-        ? Result<List<TopModule>, T20Error>.success(moduleEnv.modules)
-        : result.map<List<TopModule>>((Object _) => moduleEnv.modules);
+import 'frontend_compiler.dart';
+import 'backend_compiler.dart';
 
 Result<List<TopModule>, T20Error> frontend(
     ModuleEnvironment moduleEnv, List<String> filePaths, Settings settings) {
   RandomAccessFile currentFile;
+  FrontendCompiler frontend = FrontendCompiler(moduleEnv, settings);
   try {
     for (String path in filePaths) {
+      // Open the source file.
       File file = new File(path);
       currentFile = file.openSync(mode: FileMode.read);
 
-      // Parse source.
-      Result<Sexp, SyntaxError> parseResult = Parser.sexp()
-          .parse(new FileSource(currentFile), trace: settings.trace["parser"]);
+      // Run the frontend compiler.
+      List<T20Error> errors = frontend.compile(new FileSource(currentFile));
 
-      // Close file.
+      // Close the file.
       currentFile.closeSync();
       currentFile = null;
 
-      // Exit now, if requested or the input was erroneous.
-      if (!parseResult.wasSuccessful || settings.exitAfter == "parser") {
-        return frontendResult(parseResult, moduleEnv);
+      // Abort if there are any errors.
+      if (errors != null) {
+        return Result<List<TopModule>, T20Error>.failure(errors);
       }
-
-      // Elaborate.
-      Result<ModuleMember, LocatedError> elabResult =
-          new ASTBuilder().build(parseResult.result, moduleEnv);
-
-      // Exit now, if requested or the input was erroneous.
-      if (!elabResult.wasSuccessful || settings.exitAfter == "elaborator") {
-        return frontendResult(elabResult, moduleEnv);
-      }
-
-      // Type check.
-      Result<ModuleMember, TypeError> typeResult;
-      if (settings.typeCheck) {
-        typeResult = new TypeChecker(settings.trace["typechecker"])
-            .typeCheck(elabResult.result);
-      }
-
-      // Exit now, if requested or the input was erroneous.
-      if (typeResult != null && !typeResult.wasSuccessful ||
-          settings.exitAfter == "typechecker") {
-        return frontendResult(typeResult, moduleEnv);
-      }
-
-      // Save the module.
-      TopModule typedModule = typeResult.result;
-      moduleEnv.store(typedModule);
     }
   } catch (err) {
     if (currentFile != null) currentFile.closeSync();
     rethrow;
   }
 
-  return Result<List<TopModule>, T20Error>.success(moduleEnv.modules);
+  return Result<List<TopModule>, T20Error>.success(frontend.modules);
 }
 
 Future<Result<void, T20Error>> backend(
     List<TopModule> modules, Settings settings) async {
-  TopModule module = modules.last; // TODO generalise.
-  // Generate code.
-  Result<ir.Module, T20Error> codeResult = new Desugarer(ir.IRAlgebra())
-      .desugar(module, Map.of(builtins.getPrimitiveBinders()));
-
-  if (!codeResult.wasSuccessful || settings.exitAfter == "desugar") {
-    return codeResult;
-  }
-
-  kernel.Component kernelResult =
-      new KernelGenerator(new Platform(settings.platformDill))
-          .compile(codeResult.result);
-
-  // Exit now, if requested.
-  if (kernelResult == null || settings.exitAfter == "codegen") {
-    return kernelResult == null
-        ? Result<void, T20Error>.success(null)
-        : Result<void, T20Error>.failure(<T20Error>[CodeGenerationError()]);
-  }
-
-  // Emit DILL.
-  await KernelEmitter().emit(kernelResult, settings.outputFile);
-
-  return Result<void, T20Error>.success(true);
+  BackendCompiler compiler = BackendCompiler(settings);
+  List<T20Error> errors = await compiler.compile(modules);
+  return errors == null
+      ? Result<void, T20Error>.success(null)
+      : Result<void, T20Error>.failure(errors);
 }
 
 Future<bool> compile(List<String> filePaths, Settings settings) async {
   // Prepare compilation.
-  ModuleEnvironment moduleEnv = ModuleEnvironment();
+  Result<ModuleEnvironment, T20Error> bootstrapResult = bootstrap();
+  if (!bootstrapResult.wasSuccessful) {
+    bootstrapReport(bootstrapResult.errors);
+    return false;
+  }
+  ModuleEnvironment moduleEnv = bootstrapResult.result;
   moduleEnv.builtins = builtins.module;
 
   // Run the frontend.
@@ -139,8 +88,8 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
   }
 
   // Run the backend.
-  List<TopModule> modules = frontResult.result;
-  Result<void, T20Error> backResult = await backend(modules, settings);
+  Result<void, T20Error> backResult =
+      await backend(frontResult.result, settings);
 
   // Report errors, if any.
   if (!backResult.wasSuccessful) {

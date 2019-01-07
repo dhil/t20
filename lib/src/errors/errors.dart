@@ -351,9 +351,17 @@ class UnboundModuleError extends UnboundNameError {
 }
 
 class UnsupportedDerivableError extends UnboundNameError {
-  UnsupportedDerivableError(String name, Location location) : super(name, location);
+  UnsupportedDerivableError(String name, Location location)
+      : super(name, location);
 
   String toString() => "Cannot derive '$name'";
+}
+
+class StubInNonVirtualModuleError extends UnboundNameError {
+  StubInNonVirtualModuleError(String name, Location location)
+      : super(name, location);
+
+  String toString() => "Stubs cannot occur in non-virtual modules";
 }
 
 // Type errors.

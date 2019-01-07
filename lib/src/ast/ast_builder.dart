@@ -148,7 +148,7 @@ class OutputBuildContext extends BuildContext {
 
 class ASTBuilder {
   Result<ModuleMember, LocatedError> build(
-      Sexp program, ModuleEnvironment moduleEnv,
+      Sexp program, ModuleEnvironment moduleEnv, bool isVirtual,
       [BuildContext context]) {
     if (context == null) {
       context = BuildContext.empty();
@@ -158,7 +158,8 @@ class ASTBuilder {
       context = context.include(builtins);
     }
 
-    _ASTBuilder builder = new _ASTBuilder(moduleEnv);
+    _ASTBuilder builder =
+        new _ASTBuilder(initialEnv: moduleEnv, isVirtual: isVirtual);
 
     ModuleMember module =
         new ModuleElaborator(builder).elaborate(program)(context).snd;
@@ -173,14 +174,18 @@ class ASTBuilder {
   }
 
   Result<Datatype, LocatedError> buildDatatype(Sexp type,
-      {ModuleEnvironment moduleEnv, TopModule origin, BuildContext context}) {
+      {ModuleEnvironment moduleEnv,
+      TopModule origin,
+      bool isVirtual = false,
+      BuildContext context}) {
     if (context == null) {
       context = BuildContext.empty();
     }
     if (origin == null) {
       throw ArgumentError.notNull("origin");
     }
-    _ASTBuilder builder = new _ASTBuilder(moduleEnv, origin);
+    _ASTBuilder builder = new _ASTBuilder(
+        initialEnv: moduleEnv, origin: origin, isVirtual: isVirtual);
     Datatype datatype =
         new TypeElaborator(builder).elaborate(type)(context).snd;
     Result<Datatype, LocatedError> result;
@@ -202,11 +207,16 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   final List<LocatedError> errors = new List<LocatedError>();
   final List<Signature> lacksAccompanyingDefinition = new List<Signature>();
   final BuildContext emptyContext = new BuildContext.empty();
+  final bool _isVirtual;
   TopModule _thisModule;
   ModuleEnvironment _moduleEnv;
   FunctionDeclaration mainCandidate;
 
-  _ASTBuilder([this._moduleEnv, this._thisModule]);
+  _ASTBuilder(
+      {ModuleEnvironment initialEnv, TopModule origin, bool isVirtual = false})
+      : _moduleEnv = initialEnv,
+        _thisModule = origin,
+        _isVirtual = isVirtual;
 
   Pair<BuildContext, T> trivial<T>(Build<T> builder) {
     return builder(emptyContext);
@@ -452,6 +462,40 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
             sharedContext, datatypeDeclarations);
       };
 
+  Build<ModuleMember> stub(Name name, List<Build<Pattern>> parameters,
+          {Location location}) =>
+      (BuildContext ctxt) {
+        if (!_isVirtual) {
+          // Stub definitions are only allowed in virtual modules.
+          LocatedError err =
+              StubInNonVirtualModuleError(name.sourceName, name.location);
+          return moduleError(err, location);
+        }
+
+        // Lookup the signature.
+        Signature sig = ctxt.getSignature(name);
+        if (sig == null) {
+          // Signal an error.
+          LocatedError err =
+              MissingAccompanyingSignatureError(name.sourceName, name.location);
+          return moduleError(err, location);
+        }
+
+        ModuleMember member;
+        if (parameters == null) {
+          // Value stub.
+          member = VirtualValueDeclaration.stub(sig, binderOf(name));
+        } else {
+          // Function stub.
+          member = VirtualFunctionDeclaration.stub(sig, binderOf(name));
+        }
+
+        // Register [member] as a consumer of [sig].
+        sig.addDefinition(member as Declaration);
+
+        return Pair<BuildContext, ModuleMember>(ctxt, member);
+      };
+
   Build<ModuleMember> valueDef(Name name, Build<Expression> body,
           {Location location}) =>
       (BuildContext ctxt) {
@@ -536,7 +580,9 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         assert(_thisModule == null);
         // Construct the module.
         List<ModuleMember> members0 = new List<ModuleMember>();
-        _thisModule = TopModule(members0, name, location);
+        _thisModule = _isVirtual
+            ? VirtualModule(name, members: members0, location: location)
+            : TopModule(members0, name, location);
 
         // Build each member.
         for (int i = 0; i < members.length; i++) {

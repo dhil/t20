@@ -67,6 +67,20 @@ class _TypeChecker {
     return ErrorType(err, location);
   }
 
+  Datatype tryUnrollAlias(Datatype type) {
+    Datatype result;
+    if (typeUtils.isTypeAlias(type)) {
+      result = typeUtils.unrollAlias(type as TypeConstructor);
+    } else {
+      result = type;
+    }
+
+    if (trace && !identical(type, result)) {
+      print("unrolled $type as $result");
+    }
+    return result;
+  }
+
   // Main entry point.
   ModuleMember typeCheck(ModuleMember member) {
     InferenceResult result = inferModule(member, OrderedContext.empty());
@@ -131,8 +145,8 @@ class _TypeChecker {
     List<Datatype> domain = typeUtils.domain(sig);
     List<Pattern> parameters = funDef.parameters;
     if (domain.length != parameters.length) {
-      TypeError err =
-          ArityMismatchError(domain.length, parameters.length, funDef.location);
+      TypeError err = ArityMismatchError(
+          domain.length, parameters.length, funDef.binder.location);
       return InferenceResult(ctxt, error(err, funDef.location));
     }
 
@@ -671,6 +685,11 @@ class _TypeChecker {
     if (trace) {
       print("subsumes: $lhs <: $rhs");
       print("$ctxt");
+    }
+
+    if (typeUtils.isTypeAlias(lhs) || typeUtils.isTypeAlias(rhs)) {
+      lhs = tryUnrollAlias(lhs);
+      rhs = tryUnrollAlias(rhs);
     }
 
     if (lhs is Skolem) {

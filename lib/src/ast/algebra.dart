@@ -18,6 +18,7 @@ abstract class ModuleAlgebra<Name, Mod, Exp, Pat, Typ> {
   Mod valueDef(Name name, Exp body, {Location location});
   Mod functionDef(Name name, List<Pat> parameters, Exp body,
       {Location location});
+  Mod stub(Name name, List<Pat> parameters, {Location location});
   Mod module(List<Mod> members, String name, {Location location});
   Mod typename(Name name, List<Name> typeParameters, Typ type,
       {Location location});

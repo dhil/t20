@@ -16,7 +16,7 @@ class KernelGenerator {
   KernelGenerator(this.platform);
 
   Component compile(Module module) {
-    print("${module.toString()}");
+    //print("${module.toString()}");
     List<Field> fields = new List<Field>(); // Top-level values.
     List<Procedure> procedures = new List<Procedure>(); // Top-level functions.
     // TODO include classes aswell.

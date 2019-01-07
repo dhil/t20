@@ -2,12 +2,14 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import '../ast/ast.dart' show TypeAliasDescriptor;
 import '../ast/binder.dart';
 import '../ast/datatype.dart';
 import '../ast/monoids.dart';
 import '../unicode.dart' as unicode;
 
 import 'ordered_context.dart' show OrderedContext;
+import 'substitution.dart' show Substitution;
 
 // A collection of convenient utility functions for inspecting / destructing
 // types.
@@ -209,8 +211,10 @@ List<Quantifier> freshenQuantifiers(List<Quantifier> qs) {
 
   for (int i = 0; i < qs.length; i++) {
     // Compute [next].
-    if (next == null) next = unicode.a;
-    else ++next;
+    if (next == null)
+      next = unicode.a;
+    else
+      ++next;
     if (next > unicode.z) {
       next = unicode.a;
       ++repetitions;
@@ -231,4 +235,27 @@ List<TypeVariable> typeVariables(List<Quantifier> qs) {
     variables.add(TypeVariable.bound(qs[i]));
   }
   return variables;
+}
+
+bool isTypeAlias(Datatype type) {
+  if (type is TypeConstructor) {
+    return type.declarator is TypeAliasDescriptor;
+  } else {
+    return false;
+  }
+}
+
+Datatype unrollAlias(TypeConstructor typeAlias) {
+  if (!isTypeAlias(typeAlias)) {
+    throw "Logical error: The declarator of $typeAlias is not a TypeAliasDescriptor.";
+  }
+
+  TypeAliasDescriptor descriptor = typeAlias.declarator;
+  Datatype unrolledType = descriptor.rhs;
+  List<Quantifier> parameters = descriptor.parameters;
+  List<Datatype> arguments = typeAlias.arguments;
+
+  Substitution sigma = Substitution.fromPairs(parameters, arguments);
+
+  return sigma.apply(unrolledType);
 }
