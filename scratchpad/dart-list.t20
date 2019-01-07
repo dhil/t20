@@ -1,0 +1,17 @@
+;; Dart-List is an "abstract" data type that is intended to map onto a
+;; dart.core::List object.
+(define-datatype (Dart-List 'a))
+
+(define-datatype Void)
+
+(: add! (=> ([Ground 'a]) [-> 'a (Dart-List 'a) Void]))
+(define (add! _ _) (error "Dart-List add! stub"))
+
+(: set! (=> ([Ground 'a]) [-> Int 'a (Dart-List 'a) Void]))
+(define (set! _ _ _) (error "Dart-List set! stub"))
+
+(: nth! (-> Int (Dart-List 'a) 'a))
+(define (nth! _ _) (error "Dart-List nth! stub"))
+
+(: length (-> (Dart-List 'a) Int))
+(define (length _) (error "Dart-List length stub"))

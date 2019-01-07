@@ -1,0 +1,63 @@
+;; Models a subset of Kernel.
+
+(open Dart-list)
+
+;; Dart type.
+(define-datatype Dart-Type
+  [DynamicType])
+
+;; A public or private name.
+(define-datatype Name [Name String])
+
+(define-datatypes
+  ;; Expressions.
+  {Expression
+   ;; Pure expressions without subexpressions
+   [BoolLiteral Bool]
+   [IntLiteral Int]
+   [NullLiteral]
+   [StringLiteral String]
+   [TypeLiteral Dart-Type]
+   [ThisExpression]
+   ;; Impure expressions without subexpressions
+   [InvalidExpression String]
+   ;; [SuperPropertyGet Name]
+   [StaticGet Name]
+   ;; Pure if final
+   [VariableGet Bool Name] ;; (is final, name)
+   ;; Unary expressions
+   [VariableSet Name Expression]
+   [PropertyGet Expression Name]
+   [StaticSet Name Expression]
+   [Not Expression]
+   [Throw Expression]
+   ;; Binary expressions
+   [PropertySet Expression Name Expression]
+   ;; Invocations
+   [MethodInvocation Expression Name Arguments]
+   ;; Others
+   [ConditionalExpression Expression Expression Expression]}
+  ;; Arguments structure.
+  {Arguments
+   [Arguments (Dart-List Expression) (Dart-List Dart-Type)]}
+  ;; Statements.
+  {Statement
+   [ExpressionStatement Expression]
+   [VariableDeclaration Name Expression]
+   [Block (Dart-List Statement)]
+   [IfStatement Expression Statement Statement]}
+  ;; Function nodes.
+  {FunctionNode
+   [FunctionNode Statement (Dart-List Dart-Type) (Dart-List Void) Dart-Type]} ;; TODO: the third argument should be a list of VariableDeclarations.
+  ;; Procedures.
+  {Procedure
+   [Procedure Name FunctionNode Bool Bool]} ;; (Name, FunctionNode, isAbstract, isStatic)
+  )
+
+;; Libraries.
+(define-datatype Library
+  [Library String (Dart-List Procedure)]) ;; TODO add (atleast) classes and fields.
+
+;; Components.
+(define-datatype Component
+  [Component (Dart-List Library)])
