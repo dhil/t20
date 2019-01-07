@@ -93,7 +93,7 @@ class _TypeChecker {
     // Placeholder main type.
     Datatype mainType =
         ArrowType(<Datatype>[typeUtils.unitType], typeUtils.unitType);
-    return subsumes(main.type, mainType, ctxt);
+    return safeSubsumes(main.location, main.type, mainType, ctxt);
   }
 
   InferenceResult inferModule(ModuleMember member, OrderedContext ctxt) {
@@ -337,7 +337,8 @@ class _TypeChecker {
           ctxt = result.context;
           Datatype otherBranchType = result.type;
           // Check that [otherBranchType] <: [branchType].
-          ctxt = subsumes(otherBranchType, branchType, ctxt);
+          ctxt = safeSubsumes(
+              case0.expression.location, otherBranchType, branchType, ctxt);
         }
         // Drop the scope.
         if (entry != null) {
@@ -406,7 +407,7 @@ class _TypeChecker {
     Datatype ff = falseBranchResult.context.apply(falseBranchResult.type);
 
     // Check that types agree.
-    ctxt = subsumes(tt, ff, ctxt);
+    ctxt = safeSubsumes(ifthenelse.elseBranch.location, tt, ff, ctxt);
 
     return InferenceResult(ctxt, tt);
   }
@@ -497,11 +498,29 @@ class _TypeChecker {
       return ctxt;
     }
 
+    // if (type is TupleType && exp is Tuple) {
+    //   if (type.components.length != exp.components.length) {
+    //     TypeError err = CheckTuplePatternError(type.toString(), exp.location);
+    //     errors.add(err);
+    //     return ctxt;
+    //   }
+
+    //   if (exp.components.length == 0) {
+    //     return ctxt;
+    //   }
+
+    //   ctxt = checkMany<Expression>(checkExpression, exp.components, type.components, ctxt);
+    //   // Store the type.
+    //   exp.type = ctxt.apply(type);
+
+    //   return ctxt;
+    // }
+
     // check e t ctxt = subsumes e t' ctxt', where (t', ctxt') = infer e ctxt
     InferenceResult result = inferExpression(exp, ctxt);
     ctxt = result.context;
     Datatype left = result.type;
-    ctxt = subsumes(ctxt.apply(left), ctxt.apply(type), ctxt);
+    ctxt = safeSubsumes(exp.location, ctxt.apply(left), ctxt.apply(type), ctxt);
 
     exp.type = ctxt.apply(type);
     return ctxt;
@@ -564,11 +583,7 @@ class _TypeChecker {
     PatternInferenceResult result = inferPattern(pat, ctxt);
     ctxt = result.context;
 
-    try {
-      ctxt = subsumes(result.type, type, ctxt);
-    } on TypeError catch (e) {
-      errors.add(e);
-    }
+    ctxt = safeSubsumes(pat.location, result.type, type, ctxt);
     return CheckPatternResult(ctxt, result.marker);
   }
 
@@ -636,7 +651,7 @@ class _TypeChecker {
 
   PatternInferenceResult inferTuplePattern(
       TuplePattern tuplePattern, OrderedContext ctxt) {
-    List<TuplePattern> components = tuplePattern.components;
+    List<Pattern> components = tuplePattern.components;
     // Infer a type for each subpattern.
     PatternManyInferenceResult result = inferManyPatterns(components, ctxt);
     return PatternInferenceResult(
@@ -838,8 +853,17 @@ class _TypeChecker {
       }
     }
 
-    unhandled("subsumes", "$a <: $b");
-    return null;
+    throw SubsumptionError(a.toString(), b.toString());
+  }
+
+  OrderedContext safeSubsumes(
+      Location location, Datatype a, Datatype b, OrderedContext ctxt) {
+    try {
+      ctxt = subsumes(a, b, ctxt);
+    } on SubsumptionError catch (e) {
+      errors.add(LocatedSubsumptionError(e, location));
+    }
+    return ctxt;
   }
 
   // OrderedContext subsumesMany(

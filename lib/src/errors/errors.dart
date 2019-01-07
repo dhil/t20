@@ -447,14 +447,40 @@ class ArityMismatchError extends LocatedError implements TypeError {
   }
 }
 
-class CheckTuplePatternError extends LocatedError implements TypeError {
+class CheckTupleError extends LocatedError implements TypeError {
   final String type;
 
-  CheckTuplePatternError(this.type, Location location) : super(location);
+  CheckTupleError(this.type, Location location) : super(location);
+
+  String toString() {
+    return "The expression is expected to have type '$type'";
+  }
+}
+
+class CheckTuplePatternError extends CheckTupleError {
+  CheckTuplePatternError(String type, Location location)
+      : super(type, location);
 
   String toString() {
     return "The pattern is expected to have type '$type'";
   }
+}
+
+class SubsumptionError extends TypeError {
+  final String lhs;
+  final String rhs;
+
+  SubsumptionError(this.lhs, this.rhs);
+
+  String toString() => "$lhs is not a subtype of $rhs";
+}
+
+class LocatedSubsumptionError extends LocatedError implements TypeError {
+  final SubsumptionError error;
+
+  LocatedSubsumptionError(this.error, Location location) : super(location);
+
+  String toString() => error.toString();
 }
 
 class CodeGenerationError extends T20Error {
