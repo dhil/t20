@@ -1229,7 +1229,8 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   Name termName(String name, {Location location}) {
     // Might be a qualified name.
     if (isQualifiedName(name)) {
-      return QualifiedName(modulePrefix(name), name, location);
+      Pair<String, String> result = splitQualifiedName(name);
+      return QualifiedName(result.fst, result.snd, location);
     } else {
       return Name(name, location);
     }
@@ -1238,7 +1239,8 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   Name typeName(String name, {Location location}) {
     // Might be a qualified name.
     if (isQualifiedName(name)) {
-      return QualifiedName(modulePrefix(name), name, location);
+      Pair<String, String> result = splitQualifiedName(name);
+      return QualifiedName(result.fst, result.snd, location);
     } else {
       return Name(name, location);
     }
@@ -1265,13 +1267,24 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
     return hasDot;
   }
 
-  String modulePrefix(String name) {
-    StringBuffer buffer = StringBuffer();
-    for (int i = 0; i < name.length; i++) {
+  Pair<String, String> splitQualifiedName(String name) {
+    StringBuffer modulePrefix = StringBuffer();
+    StringBuffer identSuffix = StringBuffer();
+
+    int i = 0;
+    for (i = 0; i < name.length; i++) {
       int c = name.codeUnitAt(i);
-      if (c == unicode.DOT) break;
-      buffer.writeCharCode(c);
+      if (c == unicode.DOT) {
+        ++i;
+        break;
+      }
+      modulePrefix.writeCharCode(c);
     }
-    return buffer.toString();
+
+    for (i; i < name.length; i++) {
+      identSuffix.writeCharCode(name.codeUnitAt(i));
+    }
+
+    return Pair<String, String>(modulePrefix.toString(), identSuffix.toString());
   }
 }

@@ -92,6 +92,10 @@ class Prelude extends EmbeddedModule {
 
 (: print (-> String (*)))
 (define-stub (print _ _))
+
+;; Iteration.
+(: iterate (-> Int [-> 'a 'a] 'a 'a))
+(define-stub (iterate _ _ _))
 ''';
 }
 
