@@ -377,7 +377,7 @@ class TopModule extends ModuleMember {
 
   String toString() {
     //String members0 = ListUtils.stringify(" ", members);
-    return "(module ...)";
+    return "(module $name ...)";
   }
 
   bool get isVirtual => false;
@@ -389,7 +389,7 @@ class VirtualModule extends TopModule {
             location == null ? Location.primitive() : location);
   bool get isVirtual => true;
 
-  String toString() => "(virtual-module ...)";
+  String toString() => "(virtual-module $name ...)";
 }
 
 class TypeAliasDescriptor extends ModuleMember
