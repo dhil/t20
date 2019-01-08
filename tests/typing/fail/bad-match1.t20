@@ -1,0 +1,7 @@
+;; The pattern types in a match expression must be compatible with the scrutinee type.
+
+(: test Int)
+(define test
+  (match #t
+    [#f 42]
+    [(,) -42]))

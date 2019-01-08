@@ -1,0 +1,8 @@
+;; In a match expression the branch types must be compatible.
+
+(: test Bool)
+(define test
+  (match 42
+    [0 #f]
+    [1 #t]
+    [42 "Hello"]))
