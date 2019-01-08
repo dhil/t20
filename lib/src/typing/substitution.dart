@@ -13,11 +13,10 @@ abstract class Substitution {
 
   factory Substitution.fromPairs(
       Iterable<Quantifier> quantifiers, Iterable<Datatype> types) {
-
     Substitution sigma = Substitution.empty();
 
     Iterator<Quantifier> qs = quantifiers.iterator;
-    Iterator<Datatype> tys  = types.iterator;
+    Iterator<Datatype> tys = types.iterator;
 
     while (qs.moveNext() && tys.moveNext()) {
       sigma = sigma.bind(TypeVariable.bound(qs.current), tys.current);

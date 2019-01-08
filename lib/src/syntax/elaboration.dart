@@ -545,7 +545,6 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
       deriving = <Name>[];
     }
 
-
     Pair<Name, List<Name>> result = parameterisedTypeName(list[start]);
     Name name = result.fst;
     List<Name> typeParameters = result.snd;

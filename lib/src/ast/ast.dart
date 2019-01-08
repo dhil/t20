@@ -4,6 +4,9 @@
 
 library t20.ast;
 
+import 'package:kernel/ast.dart'
+    show FunctionExpression, Procedure, TreeNode, VariableDeclaration;
+
 // Abstract syntax (algebraic specification in EBNF notation).
 //
 // Module
@@ -64,6 +67,11 @@ export 'datatype.dart';
 import 'identifiable.dart';
 export 'identifiable.dart';
 
+//===== Common super node.
+abstract class T20Node {
+  T20Node parent;
+}
+
 //===== Declaration.
 abstract class Declaration implements Identifiable {
   Datatype get type;
@@ -79,6 +87,7 @@ abstract class ModuleVisitor<T> {
   T visitDatatypes(DatatypeDeclarations decls);
   T visitError(ErrorModule err);
   T visitFunction(FunctionDeclaration decl);
+  T visitLetFunction(LetFunction fun);
   T visitInclude(Include include);
   T visitSignature(Signature sig);
   T visitTopModule(TopModule mod);
@@ -99,7 +108,7 @@ enum ModuleTag {
   VALUE_DEF
 }
 
-abstract class ModuleMember {
+abstract class ModuleMember extends T20Node {
   final ModuleTag tag;
   Location location;
 
@@ -111,6 +120,7 @@ abstract class ModuleMember {
 class Signature extends ModuleMember implements Declaration {
   Binder binder;
   Datatype type;
+
   List<Declaration> definitions;
   bool get isVirtual => false;
   int get ident => binder.ident;
@@ -163,30 +173,38 @@ class VirtualValueDeclaration extends ValueDeclaration {
     signature.addDefinition(valDecl);
     return valDecl;
   }
+
+  String toString() => "(define-stub $binder)";
 }
 
-class FunctionDeclaration extends ModuleMember implements Declaration {
+abstract class AbstractFunctionDeclaration<Param, Body> extends ModuleMember
+    implements Declaration {
   Binder binder;
   Signature signature;
-  List<Pattern> parameters;
-  Expression body;
+  List<Param> parameters;
+  Body body;
 
   bool get isVirtual => false;
   Datatype get type => signature.type;
   int get ident => binder.ident;
 
-  FunctionDeclaration(this.signature, this.binder, this.parameters, this.body,
-      Location location)
+  AbstractFunctionDeclaration(this.signature, this.binder, this.parameters,
+      this.body, Location location)
       : super(ModuleTag.FUNC_DEF, location);
-
-  T accept<T>(ModuleVisitor<T> v) {
-    return v.visitFunction(this);
-  }
 
   String toString() {
     String parameters0 = ListUtils.stringify(" ", parameters);
     return "(define ($binder $parameters0) (...))";
   }
+}
+
+class FunctionDeclaration
+    extends AbstractFunctionDeclaration<Pattern, Expression> {
+  FunctionDeclaration(Signature signature, Binder binder,
+      List<Pattern> parameters, Expression body, Location location)
+      : super(signature, binder, parameters, body, location);
+
+  T accept<T>(ModuleVisitor<T> v) => v.visitFunction(this);
 }
 
 class VirtualFunctionDeclaration extends FunctionDeclaration {
@@ -203,6 +221,11 @@ class VirtualFunctionDeclaration extends FunctionDeclaration {
         new VirtualFunctionDeclaration.stub(signature, binder);
     signature.addDefinition(funDecl);
     return funDecl;
+  }
+
+  String toString() {
+    String parameters0 = ListUtils.stringify(" ", parameters);
+    return "(define-stub ($binder $parameters0))";
   }
 }
 
@@ -257,37 +280,6 @@ class DataConstructor extends ModuleMember implements Declaration {
     return v.visitDataConstructor(this);
   }
 }
-
-// class Derivable {
-//   final String name;
-//   Derivable(this.name);
-
-//   Datatype type(String name, List<Quantifier> parameters) {
-//     return null;
-//   }
-// }
-
-// class ClassDescriptor {
-//   final Binder binder;
-//   final List<VirtualFunctionDeclaration> members;
-
-//   int get ident => binder.ident;
-
-//   ClassDescriptor(this.binder, this.members);
-// }
-
-// class Derive {
-//   ClassDescriptor classDescriptor;
-//   DatatypeDescriptor descriptor;
-//   Derivable template;
-
-//   Derive(this.classDescriptor);
-
-//   Datatype _buildType() {
-//     Datatype type = template.type(descriptor.binder.sourceName, descriptor.parameters);
-//     return type;
-//   }
-// }
 
 class DatatypeDescriptor extends ModuleMember
     implements Declaration, TypeDescriptor {
@@ -415,7 +407,7 @@ class TypeAliasDescriptor extends ModuleMember
   int get arity => parameters.length;
 
   TypeAliasDescriptor(this.binder, this.parameters, this.rhs, Location location)
-      : super(ModuleTag.TYPENAME, location);
+  : super(ModuleTag.TYPENAME, location);
 
   T accept<T>(ModuleVisitor<T> v) {
     return v.visitTypename(this);
@@ -446,27 +438,36 @@ abstract class ExpressionVisitor<T> {
   T visitLambda(Lambda lambda);
   T visitLet(Let binding);
   T visitMatch(Match match);
-  // T visitProjection(Projection p);
   T visitTuple(Tuple tuple);
   T visitVariable(Variable v);
   T visitTypeAscription(TypeAscription ascription);
 
   T visitError(ErrorExpression e);
+
+  // Desugared nodes.
+  T visitGetVariable(GetMutableVariable v);
+  T visitSetVariable(SetMutableVariable v);
+  T visitDLambda(DLambda lambda);
+  T visitDLet(DLet let);
+  T visitProject(Project project);
 }
 
-abstract class Expression {
+abstract class Expression extends T20Node {
   final ExpTag tag;
   Datatype type;
   Location location;
 
-  Expression(this.tag, this.location);
+  Expression(this.tag, [Location location])
+      : this.location = location == null ? Location.dummy() : location;
 
   T accept<T>(ExpressionVisitor<T> v);
 }
 
 enum ExpTag {
+  BLOCK,
   BOOL,
   ERROR,
+  GET,
   INT,
   STRING,
   APPLY,
@@ -474,6 +475,8 @@ enum ExpTag {
   LAMBDA,
   LET,
   MATCH,
+  PROJECT,
+  SET,
   TUPLE,
   VAR,
   TYPE_ASCRIPTION
@@ -576,9 +579,11 @@ class If extends Expression {
   T accept<T>(ExpressionVisitor<T> v) {
     return v.visitIf(this);
   }
+
+  String toString() => "(if $condition (...) (...))";
 }
 
-class Binding {
+class Binding extends T20Node {
   Pattern pattern;
   Expression expression;
 
@@ -589,16 +594,12 @@ class Binding {
   }
 }
 
-class Let extends Expression {
-  List<Binding> valueBindings;
+abstract class AbstractLet<TBinding> extends Expression {
+  List<TBinding> valueBindings;
   Expression body;
 
-  Let(this.valueBindings, this.body, Location location)
+  AbstractLet(this.valueBindings, this.body, Location location)
       : super(ExpTag.LET, location);
-
-  T accept<T>(ExpressionVisitor<T> v) {
-    return v.visitLet(this);
-  }
 
   String toString() {
     String valueBindings0 = ListUtils.stringify(" ", valueBindings);
@@ -606,18 +607,23 @@ class Let extends Expression {
   }
 }
 
-class Lambda extends Expression {
-  List<Pattern> parameters;
-  Expression body;
+class Let extends AbstractLet<Binding> {
+  Let(List<Binding> valueBindings, Expression body, Location location)
+      : super(valueBindings, body, location);
+
+  T accept<T>(ExpressionVisitor<T> v) {
+    return v.visitLet(this);
+  }
+}
+
+abstract class LambdaAbstraction<Param, Body> extends Expression {
+  List<Param> parameters;
+  Body body;
 
   int get arity => parameters.length;
 
-  Lambda(this.parameters, this.body, Location location)
+  LambdaAbstraction(this.parameters, this.body, Location location)
       : super(ExpTag.LAMBDA, location);
-
-  T accept<T>(ExpressionVisitor<T> v) {
-    return v.visitLambda(this);
-  }
 
   String toString() {
     String parameters0 = ListUtils.stringify(" ", parameters);
@@ -625,7 +631,16 @@ class Lambda extends Expression {
   }
 }
 
-class Case {
+class Lambda extends LambdaAbstraction<Pattern, Expression> {
+  Lambda(List<Pattern> parameters, Expression body, Location location)
+      : super(parameters, body, location);
+
+  T accept<T>(ExpressionVisitor<T> v) {
+    return v.visitLambda(this);
+  }
+}
+
+class Case extends T20Node {
   Pattern pattern;
   Expression expression;
 
@@ -715,7 +730,7 @@ abstract class PatternVisitor<T> {
   T visitWildcard(WildcardPattern w);
 }
 
-abstract class Pattern {
+abstract class Pattern extends T20Node {
   Datatype type;
   Location location;
   final PatternTag tag;
@@ -877,4 +892,150 @@ class WildcardPattern extends Pattern {
   String toString() {
     return "_";
   }
+}
+
+//===== Desugared AST nodes.
+abstract class KernelNode {
+  TreeNode get asKernelNode;
+}
+
+class FormalParameter extends T20Node implements Declaration, KernelNode {
+  Binder binder;
+  int get ident => binder.ident;
+  Datatype get type => binder.type;
+  bool get isVirtual => false;
+
+  FormalParameter(this.binder);
+
+  VariableDeclaration get asKernelNode => null; // TODO.
+}
+
+class DLambda extends LambdaAbstraction<FormalParameter, Frame> {
+  DLambda(List<FormalParameter> parameters, Frame body, [Location location])
+      : super(parameters, body, location) {
+    // Set parent pointers.
+    body.parent = this;
+    for (int i = 0; i < parameters.length; i++) {
+      parameters[i].parent = this;
+    }
+  }
+
+  T accept<T>(ExpressionVisitor<T> v) => v.visitDLambda(this);
+}
+
+class SimpleBinding extends T20Node {
+  Binder binder;
+  Expression expression;
+
+  SimpleBinding(this.binder, this.expression);
+
+  String toString() => "[$binder $expression]";
+}
+
+class DLet extends AbstractLet<SimpleBinding> {
+  DLet(List<SimpleBinding> valueBindings, Expression body, [Location location])
+      : super(valueBindings, body, location) {
+    for (int i = 0; i < valueBindings.length; i++) {
+      valueBindings[i].parent = this;
+    }
+  }
+
+  T accept<T>(ExpressionVisitor<T> v) => v.visitDLet(this);
+}
+
+class LetFunction extends AbstractFunctionDeclaration<FormalParameter, Frame>
+    implements KernelNode {
+  Procedure asKernelNode;
+
+  LetFunction(Signature signature, Binder binder,
+      List<FormalParameter> parameters, Frame body, Location location)
+      : super(signature, binder, parameters, body, location) {
+    body.parent = this;
+    if (parameters != null) {
+      for (int i = 0; i < parameters.length; i++) {
+        parameters[i].parent = this;
+      }
+    }
+  }
+
+  T accept<T>(ModuleVisitor<T> v) => v.visitLetFunction(this);
+}
+
+class LetVirtualFunction extends LetFunction {
+  bool get isVirtual => true;
+
+  LetVirtualFunction(Signature signature, Binder binder, Location location)
+      : super(signature, binder, null, null, location);
+}
+
+// abstract class LetValue extends ModuleMember
+//     implements Declaration, KernelNode {
+//   LetValue() : super(null, null);
+// }
+
+class MutableVariableDeclaration extends T20Node
+    implements Declaration, KernelNode {
+  Binder binder;
+
+  bool get isVirtual => false;
+  int get ident => binder.ident;
+  Datatype get type => null;
+
+  Expression initialiser; // May be null.
+
+  MutableVariableDeclaration(this.binder);
+
+  VariableDeclaration get asKernelNode => null;
+
+  String toString() => "(var $binder)";
+}
+
+abstract class SetMutableVariable extends Expression {
+  MutableVariableDeclaration variable;
+  Expression expression;
+
+  SetMutableVariable(this.variable, this.expression) : super(ExpTag.SET);
+
+  T accept<T>(ExpressionVisitor<T> v) => v.visitSetVariable(this);
+
+  String toString() => "(set! ${variable.binder} $expression)";
+}
+
+abstract class GetMutableVariable extends Expression {
+  MutableVariableDeclaration variable;
+
+  GetMutableVariable(this.variable) : super(ExpTag.GET);
+
+  T accept<T>(ExpressionVisitor<T> v) => v.visitGetVariable(this);
+
+  String toString() => "(get! ${variable.binder})";
+}
+
+class Frame extends T20Node {
+  // Local heap.
+  List<MutableVariableDeclaration> scratchSpace;
+  // The [preamble] contains side-effecting expressions, those expressions may
+  // contain references to the block-local heap.
+  List<Expression> preamble;
+  // The [expression] may contain references to the block-local heap.
+  Expression expression;
+
+  Frame(this.expression);
+
+  String toString() {
+    String heap0 = ListUtils.stringify(" ", scratchSpace);
+    String preamble0 = ListUtils.stringify(" ", preamble);
+    return "(frame [$heap0] [$preamble0] $expression)";
+  }
+}
+
+class Project extends Expression {
+  Expression receiver;
+  String label;
+
+  Project(this.receiver, this.label) : super(ExpTag.PROJECT);
+
+  T accept<T>(ExpressionVisitor<T> v) => v.visitProject(this);
+
+  String toString() => "(\$$label $receiver)";
 }
