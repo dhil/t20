@@ -4,7 +4,6 @@
 
 library t20.ast;
 
-// TODO: specify domain-specific constructs such as define-transform, etc.
 // Abstract syntax (algebraic specification in EBNF notation).
 //
 // Module

@@ -153,9 +153,9 @@ class ASTBuilder {
     if (context == null) {
       context = BuildContext.empty();
     }
-    Summary builtins = moduleEnv.builtinsSummary;
-    if (builtins != null) {
-      context = context.include(builtins);
+    Summary prelude = moduleEnv.summaryOf(moduleEnv.prelude);
+    if (prelude != null) {
+      context = context.include(prelude);
     }
 
     _ASTBuilder builder =

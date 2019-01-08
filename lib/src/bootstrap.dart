@@ -3,7 +3,9 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import '../settings.dart' show Settings;
-import 'builtins.dart' as builtins;
+
+import 'ast/ast.dart' show TopModule;
+import 'compiler_constants.dart' show ModuleConstants;
 import 'compilation_unit.dart' show StringSource;
 import 'errors/errors.dart' show T20Error;
 import 'frontend_compiler.dart';
@@ -19,7 +21,7 @@ abstract class EmbeddedModule {
 
 // Prelude module.
 class Prelude extends EmbeddedModule {
-  String get name => "Prelude";
+  String get name => ModuleConstants.PRELUDE;
   String get asTextual => '''
 ;; Arithmetics.
 (: + (-> Int Int Int))
@@ -101,7 +103,7 @@ class Prelude extends EmbeddedModule {
 
 // Dart list module.
 class DartList extends EmbeddedModule {
-  String get name => "Dart-List";
+  String get name => ModuleConstants.DART_LIST;
   String get asTextual => '''
 ;; Dart-List is an "abstract" data type that is intended to map onto a
 ;; dart.core::List object.
@@ -128,7 +130,7 @@ class DartList extends EmbeddedModule {
 
 // Kernel module.
 class Kernel extends EmbeddedModule {
-  String get name => "Kernel";
+  String get name => ModuleConstants.KERNEL;
   String get asTextual => '''
 ;; Models a subset of Kernel.
 
@@ -204,7 +206,11 @@ Result<ModuleEnvironment, T20Error> bootstrap(
   settings ??= Settings();
 
   // Prepare the modules.
-  List<EmbeddedModule> modules = <EmbeddedModule>[Prelude(), DartList(), Kernel()];
+  List<EmbeddedModule> modules = <EmbeddedModule>[
+    Prelude(),
+    DartList(),
+    Kernel()
+  ];
 
   // Initialise a frontend compiler.
   FrontendCompiler compiler = FrontendCompiler(initialEnv, settings);
@@ -212,8 +218,8 @@ Result<ModuleEnvironment, T20Error> bootstrap(
   // Compile each module.
   List<T20Error> errors;
   for (int i = 0; i < modules.length; i++) {
-    List<T20Error> result =
-        compiler.compile(modules[i].asSource, isVirtual: true);
+    EmbeddedModule module = modules[i];
+    List<T20Error> result = compiler.compile(module.asSource, isVirtual: true);
     if (result != null) {
       errors ??= new List<T20Error>();
       errors.addAll(result);

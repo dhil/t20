@@ -38,6 +38,7 @@ enum TypeTag {
   VAR,
 
   // Misc.
+  DYNAMIC,
   ERROR
 }
 
@@ -56,6 +57,8 @@ abstract class TypeVisitor<T> {
   T visitSkolem(Skolem skolem);
 
   T visitError(ErrorType error);
+
+  T visitDynamicType(DynamicType type);
 }
 
 abstract class ReduceDatatype<T> extends TypeVisitor<T> {
@@ -91,6 +94,8 @@ abstract class ReduceDatatype<T> extends TypeVisitor<T> {
   T visitTypeVariable(TypeVariable _) => m.empty;
   T visitSkolem(Skolem _) => m.empty;
   T visitError(ErrorType error) => m.empty;
+
+  T visitDynamicType(DynamicType _) => m.empty;
 }
 
 class StringifyDatatype extends ReduceDatatype<String> {
@@ -163,6 +168,8 @@ class StringifyDatatype extends ReduceDatatype<String> {
       return type.accept(this);
     }
   }
+
+  String visitDynamicType(DynamicType _) => "@Dynamic";
 }
 
 abstract class TransformDatatype extends TypeVisitor<Datatype> {
@@ -203,6 +210,8 @@ abstract class TransformDatatype extends TypeVisitor<Datatype> {
   Datatype visitTypeVariable(TypeVariable variable) => variable;
   Datatype visitSkolem(Skolem skolem) => skolem;
   Datatype visitError(ErrorType error) => error;
+
+  Datatype visitDynamicType(DynamicType type) => type;
 }
 
 abstract class Datatype {
@@ -390,6 +399,12 @@ class ErrorType extends Datatype {
   T accept<T>(TypeVisitor<T> v) {
     return v.visitError(this);
   }
+}
+
+class DynamicType extends Datatype {
+  const DynamicType() : super(TypeTag.DYNAMIC);
+
+  T accept<T>(TypeVisitor<T> v) => v.visitDynamicType(this);
 }
 
 // Kinds

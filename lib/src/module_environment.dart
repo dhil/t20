@@ -2,6 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'dart:collection' show LinkedHashMap;
+
 //import 'ast/binder.dart' show Binder;
 import 'ast/ast.dart'
     show
@@ -12,6 +14,8 @@ import 'ast/ast.dart'
         TopModule,
         VirtualModule,
         TypeDescriptor;
+
+import 'compiler_constants.dart' show ModuleConstants;
 
 class Summary {
   // Reference to the module.
@@ -30,13 +34,17 @@ class Summary {
           DatatypeDeclarations datatypes = member as DatatypeDeclarations;
           for (int j = 0; j < datatypes.declarations.length; j++) {
             TypeDescriptor descriptor = datatypes.declarations[j];
-            int key = useInternAsKey ? descriptor.binder.sourceName.hashCode : descriptor.ident;
+            int key = useInternAsKey
+                ? descriptor.binder.sourceName.hashCode
+                : descriptor.ident;
             typeDescriptors[key] = descriptor;
           }
           break;
         case ModuleTag.TYPENAME:
           TypeDescriptor descriptor = member as TypeDescriptor;
-          int key = useInternAsKey ? descriptor.binder.sourceName.hashCode : descriptor.ident;
+          int key = useInternAsKey
+              ? descriptor.binder.sourceName.hashCode
+              : descriptor.ident;
           typeDescriptors[key] = descriptor;
           break;
         default:
@@ -48,42 +56,26 @@ class Summary {
   }
 
   Map<int, Declaration> getDeclarations([bool useInternAsKey = false]) {
-    Map<int, Declaration> declarations = Map<int, Declaration>();
-
-    for (int i = 0; i < module.members.length; i++) {
-      ModuleMember member = module.members[i];
-      Declaration decl;
-      switch (member.tag) {
-        case ModuleTag.VALUE_DEF:
-          decl = member as Declaration;
-          break;
-        case ModuleTag.FUNC_DEF:
-          decl = member as Declaration;
-          break;
-        case ModuleTag.CONSTR:
-          decl = member as Declaration;
-          break;
-        default:
-        // Do nothing.
-      }
-
-      if (decl != null) {
-        int key = useInternAsKey ? decl.binder.sourceName.hashCode : decl.ident;
-        declarations[key] = decl;
-      }
-    }
-
+    Map<int, Declaration> declarations = Map.fromIterable(
+        module.members.where((ModuleMember member) => member is Declaration),
+        key: (dynamic decl) => useInternAsKey
+            ? (decl as Declaration).binder.intern
+            : (decl as Declaration).binder.ident,
+        value: (dynamic decl) => decl as Declaration);
     return declarations;
   }
 }
 
 class ModuleEnvironment {
-  VirtualModule _builtinsModule;
+  // VirtualModule _builtinsModule;
+  LinkedHashMap<String, VirtualModule> _virtualModules;
+
   List<TopModule> _modules;
   Map<String, Summary> summaries;
 
   ModuleEnvironment()
       : _modules = new List<TopModule>(),
+        _virtualModules = new LinkedHashMap<String, VirtualModule>(),
         summaries = new Map<String, Summary>();
 
   Summary find(String name) {
@@ -91,27 +83,33 @@ class ModuleEnvironment {
   }
 
   void store(TopModule module) {
-    _modules.add(module);
+    if (module is VirtualModule) {
+      _virtualModules[module.name] = module;
+    } else {
+      _modules.add(module);
+    }
     summaries[module.name] = Summary(module);
   }
 
-  void set builtins(VirtualModule builtinsModule) {
-    summaries[builtinsModule.name] = Summary(builtinsModule);
-    _builtinsModule = builtinsModule;
-  }
+  VirtualModule get dartList => _virtualModules[ModuleConstants.DART_LIST];
+  VirtualModule get kernel => _virtualModules[ModuleConstants.KERNEL];
+  VirtualModule get prelude => _virtualModules[ModuleConstants.PRELUDE];
 
-  VirtualModule get builtins => _builtinsModule;
-  Summary get builtinsSummary {
-    if (builtins == null) return null;
-    return summaries[builtins.name];
+  Summary summaryOf(TopModule module) {
+    if (module == null) return null;
+
+    Summary summary = find(module.name);
+    if (summary != null && identical(module, summary.module)) {
+      return summary;
+    } else {
+      return Summary(module);
+    }
   }
 
   List<TopModule> get modules {
-    List<TopModule> allModules = new List<TopModule>();
-    if (builtins != null) {
-      allModules.add(builtins);
-    }
-    allModules.addAll(_modules);
+    List<TopModule> allModules = new List<TopModule>()
+      ..addAll(_virtualModules.values)
+      ..addAll(_modules);
     return allModules;
   }
 }

@@ -14,6 +14,7 @@ class Binder implements Identifiable {
   final Location _location;
   final int _ident;
   int get ident => _ident;
+  int get intern => _sourceName?.hashCode ?? 0;
 
   Location get location => _location ?? Location.dummy();
   String get sourceName => _sourceName ?? "<synthetic>";

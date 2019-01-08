@@ -68,7 +68,6 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
     return false;
   }
   ModuleEnvironment moduleEnv = bootstrapResult.result;
-  moduleEnv.builtins = builtins.module;
 
   // Run the frontend.
   Result<List<TopModule>, T20Error> frontResult =
