@@ -320,11 +320,12 @@ class _TypeChecker {
       return InferenceResult(ctxt, skolem);
     } else {
       Datatype branchType;
+      //ScopedEntry marker = Marker(Skolem());
       for (int i = 0; i < match.cases.length; i++) {
         Case case0 = match.cases[i];
         CheckPatternResult result =
             checkPattern(case0.pattern, scrutineeType, ctxt);
-        ScopedEntry entry = result.marker;
+        //ctxt = result.context.insertLast(marker);
         ctxt = result.context;
         if (branchType == null) {
           // First case.
@@ -341,9 +342,10 @@ class _TypeChecker {
               case0.expression.location, otherBranchType, branchType, ctxt);
         }
         // Drop the scope.
-        if (entry != null) {
-          ctxt = ctxt.drop(entry);
-        }
+        // TODO: only drop ascription. Existentials must survive.
+        // if (entry != null) {
+        //  ctxt = ctxt.drop(marker);
+        // }
       }
       return InferenceResult(ctxt, branchType);
     }

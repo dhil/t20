@@ -163,7 +163,7 @@ class Existential extends ScopedEntry {
 
   String toString() {
     if (isSolved) {
-      return "$skolem = $solution";
+      return "?${skolem.ident} = $solution";
     } else {
       return "$skolem";
     }
