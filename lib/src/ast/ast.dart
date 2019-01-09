@@ -69,7 +69,18 @@ export 'identifiable.dart';
 
 //===== Common super node.
 abstract class T20Node {
-  T20Node parent;
+  T20Node _parent;
+  T20Node get parent => _parent;
+  void set parent(T20Node node) => _parent = node;
+}
+
+void _setParent(T20Node node, T20Node parent) => node?.parent = parent;
+void _setParentMany(List<T20Node> nodes, T20Node parent) {
+  if (nodes == null) return;
+
+  for (int i = 0; i < nodes.length; i++) {
+    nodes[i].parent = parent;
+  }
 }
 
 //===== Declaration.
@@ -77,7 +88,7 @@ abstract class Declaration implements Identifiable {
   Datatype get type;
   Binder get binder;
   bool get isVirtual;
-  int get ident => binder.ident;
+  int get ident;
 }
 
 //===== Module / top-level language.
@@ -125,9 +136,12 @@ class Signature extends ModuleMember implements Declaration {
   bool get isVirtual => false;
   int get ident => binder.ident;
 
-  Signature(this.binder, this.type, Location location)
-      : definitions = new List<Declaration>(),
-        super(ModuleTag.SIGNATURE, location);
+  Signature(Binder binder, this.type, Location location)
+      : this.binder = binder,
+        definitions = new List<Declaration>(),
+        super(ModuleTag.SIGNATURE, location) {
+    binder.bindingOccurrence = this;
+  }
 
   void addDefinition(Declaration decl) {
     definitions.add(decl);
@@ -147,11 +161,15 @@ class ValueDeclaration extends ModuleMember implements Declaration {
   Datatype get type => signature.type;
   int get ident => binder.ident;
 
-  ValueDeclaration(this.signature, this.binder, this.body, Location location)
-      : super(ModuleTag.VALUE_DEF, location);
-  T accept<T>(ModuleVisitor<T> v) {
-    return v.visitValue(this);
+  ValueDeclaration(
+      this.signature, Binder binder, Expression body, Location location)
+      : this.binder = binder,
+        this.body = body,
+        super(ModuleTag.VALUE_DEF, location) {
+    binder.bindingOccurrence = this;
+    _setParent(body, this);
   }
+  T accept<T>(ModuleVisitor<T> v) => v.visitValue(this);
 
   String toString() {
     return "(define $binder (...)))";
@@ -177,8 +195,8 @@ class VirtualValueDeclaration extends ValueDeclaration {
   String toString() => "(define-stub $binder)";
 }
 
-abstract class AbstractFunctionDeclaration<Param, Body> extends ModuleMember
-    implements Declaration {
+abstract class AbstractFunctionDeclaration<Param extends T20Node,
+    Body extends T20Node> extends ModuleMember implements Declaration {
   Binder binder;
   Signature signature;
   List<Param> parameters;
@@ -188,9 +206,16 @@ abstract class AbstractFunctionDeclaration<Param, Body> extends ModuleMember
   Datatype get type => signature.type;
   int get ident => binder.ident;
 
-  AbstractFunctionDeclaration(this.signature, this.binder, this.parameters,
-      this.body, Location location)
-      : super(ModuleTag.FUNC_DEF, location);
+  AbstractFunctionDeclaration(this.signature, Binder binder,
+      List<Param> parameters, Body body, Location location)
+      : this.binder = binder,
+        this.body = body,
+        this.parameters = parameters,
+        super(ModuleTag.FUNC_DEF, location) {
+    binder.bindingOccurrence = this;
+    _setParent(body, this);
+    _setParentMany(parameters, this);
+  }
 
   String toString() {
     String parameters0 = ListUtils.stringify(" ", parameters);
@@ -273,12 +298,13 @@ class DataConstructor extends ModuleMember implements Declaration {
     return _type;
   }
 
-  DataConstructor(this.binder, this.parameters, Location location)
-      : super(ModuleTag.CONSTR, location);
-
-  T accept<T>(ModuleVisitor<T> v) {
-    return v.visitDataConstructor(this);
+  DataConstructor(Binder binder, this.parameters, Location location)
+      : this.binder = binder,
+        super(ModuleTag.CONSTR, location) {
+    binder.bindingOccurrence = this;
   }
+
+  T accept<T>(ModuleVisitor<T> v) => v.visitDataConstructor(this);
 }
 
 class DatatypeDescriptor extends ModuleMember
@@ -305,15 +331,19 @@ class DatatypeDescriptor extends ModuleMember
 
   int get arity => parameters.length;
 
-  DatatypeDescriptor(this.binder, this.parameters, this.constructors,
-      this.deriving, Location location)
-      : super(ModuleTag.DATATYPE_DEF, location);
+  DatatypeDescriptor(Binder binder, this.parameters,
+      List<DataConstructor> constructors, this.deriving, Location location)
+      : this.binder = binder,
+        this.constructors = constructors,
+        super(ModuleTag.DATATYPE_DEF, location) {
+    binder.bindingOccurrence = this;
+    _setParentMany(constructors, this);
+  }
   DatatypeDescriptor.partial(
       Binder binder, List<Quantifier> parameters, Location location)
       : this(binder, parameters, null, null, location);
-  T accept<T>(ModuleVisitor<T> v) {
-    return v.visitDatatype(this);
-  }
+
+  T accept<T>(ModuleVisitor<T> v) => v.visitDatatype(this);
 
   String toString() {
     String parameterisedName;
@@ -330,8 +360,11 @@ class DatatypeDescriptor extends ModuleMember
 class DatatypeDeclarations extends ModuleMember {
   List<DatatypeDescriptor> declarations;
 
-  DatatypeDeclarations(this.declarations, Location location)
-      : super(ModuleTag.DATATYPE_DEFS, location);
+  DatatypeDeclarations(List<DatatypeDescriptor> declarations, Location location)
+      : this.declarations = declarations,
+        super(ModuleTag.DATATYPE_DEFS, location) {
+    _setParentMany(declarations, this);
+  }
 
   T accept<T>(ModuleVisitor<T> v) {
     return v.visitDatatypes(this);
@@ -356,15 +389,16 @@ class TopModule extends ModuleMember {
   List<ModuleMember> members;
   String name;
 
-  TopModule(this.members, this.name, Location location)
-      : super(ModuleTag.TOP, location);
+  TopModule(List<ModuleMember> members, this.name, Location location)
+      : this.members = members,
+        super(ModuleTag.TOP, location) {
+    _setParentMany(members, this);
+  }
 
   FunctionDeclaration main;
   bool get hasMain => main != null;
 
-  T accept<T>(ModuleVisitor<T> v) {
-    return v.visitTopModule(this);
-  }
+  T accept<T>(ModuleVisitor<T> v) => v.visitTopModule(this);
 
   String toString() {
     //String members0 = ListUtils.stringify(" ", members);
@@ -406,12 +440,14 @@ class TypeAliasDescriptor extends ModuleMember
 
   int get arity => parameters.length;
 
-  TypeAliasDescriptor(this.binder, this.parameters, this.rhs, Location location)
-  : super(ModuleTag.TYPENAME, location);
-
-  T accept<T>(ModuleVisitor<T> v) {
-    return v.visitTypename(this);
+  TypeAliasDescriptor(
+      Binder binder, this.parameters, this.rhs, Location location)
+      : this.binder = binder,
+        super(ModuleTag.TYPENAME, location) {
+    binder.bindingOccurrence = this;
   }
+
+  T accept<T>(ModuleVisitor<T> v) => v.visitTypename(this);
 }
 
 class ErrorModule extends ModuleMember {
@@ -535,12 +571,15 @@ class Apply extends Expression {
   Expression abstractor;
   List<Expression> arguments;
 
-  Apply(this.abstractor, this.arguments, Location location)
-      : super(ExpTag.APPLY, location);
-
-  T accept<T>(ExpressionVisitor<T> v) {
-    return v.visitApply(this);
+  Apply(Expression abstractor, List<Expression> arguments, Location location)
+      : this.abstractor = abstractor,
+        this.arguments = arguments,
+        super(ExpTag.APPLY, location) {
+    _setParent(abstractor, this);
+    _setParentMany(arguments, this);
   }
+
+  T accept<T>(ExpressionVisitor<T> v) => v.visitApply(this);
 
   String toString() {
     if (arguments.length == 0) {
@@ -559,13 +598,9 @@ class Variable extends Expression {
 
   Variable(this.declarator, Location location) : super(ExpTag.VAR, location);
 
-  T accept<T>(ExpressionVisitor<T> v) {
-    return v.visitVariable(this);
-  }
+  T accept<T>(ExpressionVisitor<T> v) => v.visitVariable(this);
 
-  String toString() {
-    return "${declarator.binder}";
-  }
+  String toString() => "${declarator.binder}";
 }
 
 class If extends Expression {
@@ -573,8 +608,16 @@ class If extends Expression {
   Expression thenBranch;
   Expression elseBranch;
 
-  If(this.condition, this.thenBranch, this.elseBranch, Location location)
-      : super(ExpTag.IF, location);
+  If(Expression condition, Expression thenBranch, Expression elseBranch,
+      Location location)
+      : this.condition = condition,
+        this.thenBranch = thenBranch,
+        this.elseBranch = elseBranch,
+        super(ExpTag.IF, location) {
+    _setParent(condition, this);
+    _setParent(thenBranch, this);
+    _setParent(elseBranch, this);
+  }
 
   T accept<T>(ExpressionVisitor<T> v) {
     return v.visitIf(this);
@@ -587,19 +630,29 @@ class Binding extends T20Node {
   Pattern pattern;
   Expression expression;
 
-  Binding(this.pattern, this.expression);
+  Binding(Pattern pattern, Expression expression)
+      : this.pattern = pattern,
+        this.expression = expression {
+    _setParent(pattern, this);
+    _setParent(expression, this);
+  }
 
   String toString() {
     return "($pattern ...)";
   }
 }
 
-abstract class AbstractLet<TBinding> extends Expression {
+abstract class AbstractLet<TBinding extends T20Node> extends Expression {
   List<TBinding> valueBindings;
   Expression body;
 
-  AbstractLet(this.valueBindings, this.body, Location location)
-      : super(ExpTag.LET, location);
+  AbstractLet(List<TBinding> valueBindings, Expression body, Location location)
+      : this.valueBindings = valueBindings,
+        this.body = body,
+        super(ExpTag.LET, location) {
+    _setParentMany(valueBindings, this);
+    _setParent(body, this);
+  }
 
   String toString() {
     String valueBindings0 = ListUtils.stringify(" ", valueBindings);
@@ -616,14 +669,20 @@ class Let extends AbstractLet<Binding> {
   }
 }
 
-abstract class LambdaAbstraction<Param, Body> extends Expression {
+abstract class LambdaAbstraction<Param extends T20Node, Body extends T20Node>
+    extends Expression {
   List<Param> parameters;
   Body body;
 
   int get arity => parameters.length;
 
-  LambdaAbstraction(this.parameters, this.body, Location location)
-      : super(ExpTag.LAMBDA, location);
+  LambdaAbstraction(List<Param> parameters, Body body, Location location)
+      : this.body = body,
+        this.parameters = parameters,
+        super(ExpTag.LAMBDA, location) {
+    _setParentMany(parameters, this);
+    _setParent(body, this);
+  }
 
   String toString() {
     String parameters0 = ListUtils.stringify(" ", parameters);
@@ -644,7 +703,14 @@ class Case extends T20Node {
   Pattern pattern;
   Expression expression;
 
-  Case(this.pattern, this.expression);
+  Case(Pattern pattern, Expression expression)
+      : this.pattern = pattern,
+        this.expression = expression {
+    _setParent(pattern, this);
+    _setParent(expression, this);
+  }
+
+  Match get enclosingMatch => parent as Match;
 
   String toString() {
     return "[$pattern $expression]";
@@ -655,8 +721,13 @@ class Match extends Expression {
   Expression scrutinee;
   List<Case> cases;
 
-  Match(this.scrutinee, this.cases, Location location)
-      : super(ExpTag.MATCH, location);
+  Match(Expression scrutinee, List<Case> cases, Location location)
+      : this.scrutinee = scrutinee,
+        this.cases = cases,
+        super(ExpTag.MATCH, location) {
+    _setParent(scrutinee, this);
+    _setParentMany(cases, this);
+  }
 
   T accept<T>(ExpressionVisitor<T> v) {
     return v.visitMatch(this);
@@ -671,7 +742,11 @@ class Match extends Expression {
 class Tuple extends Expression {
   List<Expression> components;
 
-  Tuple(this.components, Location location) : super(ExpTag.TUPLE, location);
+  Tuple(List<Expression> components, Location location)
+      : this.components = components,
+        super(ExpTag.TUPLE, location) {
+    _setParentMany(components, this);
+  }
 
   T accept<T>(ExpressionVisitor<T> v) {
     return v.visitTuple(this);
@@ -692,13 +767,11 @@ class Tuple extends Expression {
 class TypeAscription extends Expression {
   Expression exp;
 
-  TypeAscription._(this.exp, Location location)
-      : super(ExpTag.TYPE_ASCRIPTION, location);
-
-  factory TypeAscription(Expression exp, Datatype type, Location location) {
-    TypeAscription typeAs = new TypeAscription._(exp, location);
-    typeAs.type = type;
-    return typeAs;
+  TypeAscription(Expression exp, Datatype type, Location location)
+      : this.exp = exp,
+        super(ExpTag.TYPE_ASCRIPTION, location) {
+    _setParent(exp, this);
+    this.type = type;
   }
 
   T accept<T>(ExpressionVisitor<T> v) {
@@ -775,8 +848,11 @@ class ConstructorPattern extends Pattern {
   Datatype get type => declarator.type;
   int get arity => components == null ? 0 : components.length;
 
-  ConstructorPattern(this.declarator, this.components, Location location)
-      : super(PatternTag.CONSTR, location);
+  ConstructorPattern(
+      this.declarator, List<Pattern> components, Location location)
+  : this.components = components, super(PatternTag.CONSTR, location) {
+    _setParentMany(components, this);
+  }
   ConstructorPattern.nullary(DataConstructor declarator, Location location)
       : this(declarator, const <VariablePattern>[], location);
 
@@ -804,8 +880,11 @@ class HasTypePattern extends Pattern {
   Pattern pattern;
   Datatype type;
 
-  HasTypePattern(this.pattern, this.type, Location location)
-      : super(PatternTag.HAS_TYPE, location);
+  HasTypePattern(Pattern pattern, this.type, Location location)
+      : this.pattern = pattern,
+        super(PatternTag.HAS_TYPE, location) {
+    _setParent(pattern, this);
+  }
 
   T accept<T>(PatternVisitor<T> v) {
     return v.visitHasType(this);
@@ -848,8 +927,11 @@ class StringPattern extends BaseValuePattern {
 class TuplePattern extends Pattern {
   List<Pattern> components;
 
-  TuplePattern(this.components, Location location)
-      : super(PatternTag.TUPLE, location);
+  TuplePattern(List<Pattern> components, Location location)
+      : this.components = components,
+        super(PatternTag.TUPLE, location) {
+    _setParentMany(components, this);
+  }
 
   T accept<T>(PatternVisitor<T> v) {
     return v.visitTuple(this);
@@ -857,9 +939,9 @@ class TuplePattern extends Pattern {
 
   String toString() {
     if (components.length == 0) {
-      return "(*)";
+      return "(,)";
     } else {
-      return "(* $components)";
+      return "(, $components)";
     }
   }
 }
@@ -870,8 +952,11 @@ class VariablePattern extends Pattern implements Declaration {
 
   int get ident => binder.ident;
 
-  VariablePattern(this.binder, Location location)
-      : super(PatternTag.VAR, location);
+  VariablePattern(Binder binder, Location location)
+      : this.binder = binder,
+        super(PatternTag.VAR, location) {
+    binder.bindingOccurrence = this;
+  }
 
   T accept<T>(PatternVisitor<T> v) {
     return v.visitVariable(this);
@@ -905,7 +990,10 @@ class FormalParameter extends T20Node implements Declaration, KernelNode {
   Datatype get type => binder.type;
   bool get isVirtual => false;
 
-  FormalParameter(this.binder);
+  FormalParameter(Binder binder) {
+    this.binder = binder;
+    binder.bindingOccurrence = this;
+  }
 
   VariableDeclaration get asKernelNode => null; // TODO.
 }
@@ -915,19 +1003,27 @@ class DLambda extends LambdaAbstraction<FormalParameter, Frame> {
       : super(parameters, body, location) {
     // Set parent pointers.
     body.parent = this;
-    for (int i = 0; i < parameters.length; i++) {
-      parameters[i].parent = this;
-    }
+    _setParentMany(parameters, this);
   }
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitDLambda(this);
 }
 
-class SimpleBinding extends T20Node {
+class SimpleBinding extends T20Node implements Declaration {
   Binder binder;
+
+  int get ident => binder.ident;
+  Datatype get type => binder.type;
+  bool get isVirtual => false;
+
   Expression expression;
 
-  SimpleBinding(this.binder, this.expression);
+  SimpleBinding(Binder binder, Expression expression)
+      : this.binder = binder,
+        this.expression = expression {
+    binder.bindingOccurrence = this;
+    _setParent(expression, this);
+  }
 
   String toString() => "[$binder $expression]";
 }
@@ -935,9 +1031,8 @@ class SimpleBinding extends T20Node {
 class DLet extends AbstractLet<SimpleBinding> {
   DLet(List<SimpleBinding> valueBindings, Expression body, [Location location])
       : super(valueBindings, body, location) {
-    for (int i = 0; i < valueBindings.length; i++) {
-      valueBindings[i].parent = this;
-    }
+    _setParent(body, this);
+    _setParentMany(valueBindings, this);
   }
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitDLet(this);
@@ -950,12 +1045,9 @@ class LetFunction extends AbstractFunctionDeclaration<FormalParameter, Frame>
   LetFunction(Signature signature, Binder binder,
       List<FormalParameter> parameters, Frame body, Location location)
       : super(signature, binder, parameters, body, location) {
-    body.parent = this;
-    if (parameters != null) {
-      for (int i = 0; i < parameters.length; i++) {
-        parameters[i].parent = this;
-      }
-    }
+    binder.bindingOccurrence = this;
+    _setParent(body, this);
+    _setParentMany(parameters, this);
   }
 
   T accept<T>(ModuleVisitor<T> v) => v.visitLetFunction(this);
@@ -983,9 +1075,15 @@ class MutableVariableDeclaration extends T20Node
 
   Expression initialiser; // May be null.
 
-  MutableVariableDeclaration(this.binder);
+  MutableVariableDeclaration(Binder binder, [Expression initialiser])
+      : this.binder = binder,
+        this.initialiser = initialiser {
+    binder.bindingOccurrence = this;
+  }
 
   VariableDeclaration get asKernelNode => null;
+
+  Frame get enclosingFrame => parent;
 
   String toString() => "(var $binder)";
 }
@@ -994,7 +1092,11 @@ abstract class SetMutableVariable extends Expression {
   MutableVariableDeclaration variable;
   Expression expression;
 
-  SetMutableVariable(this.variable, this.expression) : super(ExpTag.SET);
+  SetMutableVariable(this.variable, Expression expression)
+      : this.expression = expression,
+        super(ExpTag.SET) {
+    _setParent(expression, this);
+  }
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitSetVariable(this);
 
@@ -1013,10 +1115,34 @@ abstract class GetMutableVariable extends Expression {
 
 class Frame extends T20Node {
   // Local heap.
-  List<MutableVariableDeclaration> scratchSpace;
+  List<MutableVariableDeclaration> _scratchSpace;
+  List<MutableVariableDeclaration> get scratchSpace => _scratchSpace;
+  void set scratchSpace(List<MutableVariableDeclaration> decls) {
+    _setParentMany(decls, this);
+    _scratchSpace = decls;
+  }
+
+  void allocate(MutableVariableDeclaration variable) {
+    _setParent(variable, this);
+    _scratchSpace ??= new List<MutableVariableDeclaration>();
+    _scratchSpace.add(variable);
+  }
+
   // The [preamble] contains side-effecting expressions, those expressions may
   // contain references to the block-local heap.
-  List<Expression> preamble;
+  List<Expression> _preamble;
+  List<Expression> get preamble => _preamble;
+  void set preamble(List<Expression> expressions) {
+    _setParentMany(expressions, this);
+    _preamble = expressions;
+  }
+
+  void addStatement(Expression expression) {
+    _setParent(expression, this);
+    _preamble ??= new List<Expression>();
+    _preamble.add(expression);
+  }
+
   // The [expression] may contain references to the block-local heap.
   Expression expression;
 
@@ -1033,7 +1159,11 @@ class Project extends Expression {
   Expression receiver;
   String label;
 
-  Project(this.receiver, this.label) : super(ExpTag.PROJECT);
+  Project(Expression receiver, this.label)
+      : this.receiver = receiver,
+        super(ExpTag.PROJECT) {
+    _setParent(receiver, this);
+  }
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitProject(this);
 

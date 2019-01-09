@@ -13,18 +13,22 @@ class Binder implements Identifiable {
   Declaration bindingOccurrence;
   final String _sourceName;
   final Location _location;
+
   final int _ident;
   int get ident => _ident;
   int get intern => _sourceName?.hashCode ?? 0;
-  Datatype get type => bindingOccurrence?.type;
+
+  // TODO introduce a subclass for typed binders.
+  Datatype _type;
+  void set type(Datatype type) => _type = type;
+  Datatype get type => _type ?? bindingOccurrence?.type;
 
   Location get location => _location ?? Location.dummy();
   String get sourceName => _sourceName ?? "<synthetic>";
 
   Binder.fromSource(TopModule origin, String sourceName, Location location)
       : this.raw(origin, null, Gensym.freshInt(), sourceName, location);
-  Binder.fresh(TopModule origin)
-      : this.fromSource(origin, null, null);
+  Binder.fresh(TopModule origin) : this.fromSource(origin, null, null);
   Binder.primitive(TopModule origin, String name)
       : this.fromSource(origin, name, null);
   Binder.raw(this.origin, this.bindingOccurrence, this._ident, this._sourceName,

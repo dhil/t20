@@ -342,7 +342,6 @@ class _TypeChecker {
               case0.expression.location, otherBranchType, branchType, ctxt);
         }
         // Drop the scope.
-        // TODO: only drop ascription. Existentials must survive.
         // if (entry != null) {
         //  ctxt = ctxt.drop(marker);
         // }
@@ -365,7 +364,6 @@ class _TypeChecker {
     }
     // Infer a type for the continuation (body).
     return inferExpression(let.body, ctxt);
-    // TODO drop the scope?
   }
 
   InferenceResult inferLambda(Lambda lambda, OrderedContext ctxt) {
