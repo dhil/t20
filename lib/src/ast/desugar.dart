@@ -29,13 +29,27 @@ import 'ast.dart';
 //   T desugar(S node, ScratchSpace space);
 // }
 
+List<FormalParameter> desugarParameters(
+    PatternDesugarer pattern, List<Pattern> parameters, ScratchSpace space) {
+  List<FormalParameter> parameters0 = new List<FormalParameter>();
+  for (int i = 0; i < parameters.length; i++) {
+    Pattern pat = parameters[i];
+    Binder xb = Binder.fresh(pat.origin)..type = pat.type;
+    FormalParameter parameter = FormalParameter(xb);
+    pattern.desugar(parameter, pat, space);
+    parameters0.add(parameter);
+  }
+  return parameters0;
+}
+
 class ModuleDesugarer {
   PatternDesugarer pattern;
   ExpressionDesugarer expression;
 
   Desugarer(ModuleEnvironment environment) {
-    expression = ExpressionDesugarer();
+    expression = ExpressionDesugarer(environment);
     pattern = PatternDesugarer(environment, expression);
+    expression.pattern = pattern;
   }
 
   List<T20Error> desugar(TopModule module) {
@@ -88,13 +102,11 @@ class ModuleDesugarer {
     Frame frame = Frame.empty();
 
     // Desugar parameters.
-    List<FormalParameter> parameters0 = new List<FormalParameter>();
-    for (int i = 0; i < decl.parameters.length; i++) {
-      Pattern parameter = decl.parameters[i];
-    }
+    List<FormalParameter> parameters0 =
+        desugarParameters(pattern, decl.parameters, frame);
 
     // Desugar the body.
-    frame.expression = decl.body;
+    frame.expression = expression.desugar(decl.body, frame);
 
     return LetFunction(
         decl.signature, decl.binder, parameters0, frame, decl.location);
@@ -102,10 +114,10 @@ class ModuleDesugarer {
 }
 
 class PatternDesugarer {
-  final ExpressionDesugarer expression;
-  final ModuleEnvironment environment;
+  ExpressionDesugarer expression; // Lazily instantiated.
+  ModuleEnvironment environment;
 
-  PatternDesugarer(this.environment, this.expression);
+  PatternDesugarer(this.environment, [this.expression]);
 
   Binder freshBinder(TopModule origin, Datatype type) {
     Binder xb = Binder.fresh(origin);
@@ -117,22 +129,28 @@ class PatternDesugarer {
     return freshBinder(pattern.origin, pattern.type);
   }
 
-  Binder desugar(Pattern pattern, ScratchSpace space) {
-    Binder xb = freshBinderFor(pattern);
-
+  void desugar(Declaration source, Pattern pattern, ScratchSpace space) {
     switch (pattern.tag) {
       // Literal patterns.
       case PatternTag.BOOL:
       case PatternTag.INT:
       case PatternTag.STRING:
-        basePattern(xb, pattern, space);
+        basePattern(source, pattern, space);
         break;
       // Variable patterns.
       case PatternTag.WILDCARD:
+        // Do nothing.
+        break;
       case PatternTag.VAR:
+        // Micro-optimisation: Avoid introducing an intermediate trivial binding
+        // by replacing the binder of the [source] by the binder of [pat].
+        VariablePattern pat = pattern as VariablePattern;
+        source.binder = pat.binder;
+        source.binder.bindingOccurrence = source;
         break;
       // Compound patterns.
       case PatternTag.HAS_TYPE:
+        desugar(source, (pattern as HasTypePattern).pattern, space);
         break;
       case PatternTag.CONSTR:
         break;
@@ -141,11 +159,9 @@ class PatternDesugarer {
       default:
         unhandled("PatternDesugarer.desugar", pattern.tag);
     }
-
-    return xb;
   }
 
-  void basePattern(Binder xb, Pattern pattern, ScratchSpace space) {
+  void basePattern(Declaration source, Pattern pattern, ScratchSpace space) {
     Expression equals;
     Expression operand;
 
@@ -162,8 +178,9 @@ class PatternDesugarer {
       unhandled("PatternDesugarer.basePattern", pattern);
     }
 
-    //
-    Expression x = Variable(null /* TODO */);
+    // [|p|] = (if (eq? p.value d) d else fail)
+    //     where d is a declaration.
+    Expression x = Variable(source);
     Expression exp = If(Apply(equals, <Expression>[operand, x]), x,
         matchFailure(pattern.location));
     space.addStatement(exp);
@@ -180,5 +197,81 @@ class PatternDesugarer {
 }
 
 class ExpressionDesugarer {
-  const ExpressionDesugarer();
+  ModuleEnvironment environment;
+  PatternDesugarer pattern; // Lazily instantiated.
+  ExpressionDesugarer(this.environment, [this.pattern]);
+
+  Expression desugar(Expression expr, ScratchSpace space) {
+    Expression desugared;
+    switch (expr.tag) {
+      // Identity desugaring.
+      case ExpTag.BOOL:
+      case ExpTag.INT:
+      case ExpTag.STRING:
+      case ExpTag.VAR:
+        desugared = expr;
+        break;
+      // Homomorphisms.
+      case ExpTag.APPLY:
+        Apply apply = expr as Apply;
+        apply.abstractor = desugar(apply.abstractor, space);
+        List<Expression> arguments0 = new List<Expression>();
+        for (int i = 0; i < apply.arguments.length; i++) {
+          arguments0.add(desugar(apply.arguments[i], space));
+        }
+        desugared = apply;
+        break;
+      case ExpTag.IF:
+        If ifexpr = expr as If;
+        ifexpr.condition = desugar(ifexpr.condition, space);
+        ifexpr.thenBranch = desugar(ifexpr.thenBranch, space);
+        ifexpr.elseBranch = desugar(ifexpr.elseBranch, space);
+        desugared = ifexpr;
+        break;
+      case ExpTag.TUPLE:
+        Tuple tuple = expr as Tuple;
+        List<Expression> components0 = new List<Expression>();
+        for (int i = 0; i < tuple.components.length; i++) {
+          components0.add(desugar(tuple.components[i], space));
+        }
+        desugared = tuple;
+        break;
+      // Interesting desugarings.
+      case ExpTag.LAMBDA:
+        desugared = lambda(expr as Lambda, space);
+        break;
+      case ExpTag.LET:
+        desugared = let(expr as Let, space);
+        break;
+      case ExpTag.MATCH:
+        throw "Not yet implemented.";
+        break;
+      default:
+        unhandled("ExpressionDesugarer.desugar", expr.tag);
+    }
+    return expr;
+  }
+
+  DLambda lambda(Lambda lambda, ScratchSpace _) {
+    // Allocate an empty frame.
+    Frame frame = Frame.empty();
+
+    // Desugar each parameter.
+    List<FormalParameter> parameters =
+        desugarParameters(pattern, lambda.parameters, frame);
+
+    // Desugar the body.
+    frame.expression = desugar(lambda.body, frame);
+
+    return DLambda(parameters, frame, lambda.location);
+  }
+
+  DLet let(Let letexpr, ScratchSpace space) {
+    // Desugar each binding.
+
+    // Desugar the continuation.
+    Expression body = desugar(letexpr.body, space);
+    throw "Not yet implemented!";
+    return DLet(null, body, letexpr.location);
+  }
 }

@@ -91,6 +91,7 @@ void _setParentMany(List<T20Node> nodes, T20Node parent) {
 abstract class Declaration implements Identifiable {
   Datatype get type;
   Binder get binder;
+  void set binder(Binder _);
   bool get isVirtual;
   int get ident;
 }
@@ -964,7 +965,8 @@ class TuplePattern extends Pattern {
     if (components.length == 0) {
       return "(,)";
     } else {
-      return "(, $components)";
+      String components0 = ListUtils.stringify(" ", components);
+      return "(, $components0)";
     }
   }
 }

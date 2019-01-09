@@ -29,6 +29,8 @@ abstract class Derivable {
         return const FoldLeft();
       case "fold-right":
         return const FoldRight();
+      case "cata":
+        return const Catamorphism();
       default:
         return null;
     }
@@ -145,4 +147,31 @@ class FoldRight implements Derivable {
 
   bool operator ==(Object other) =>
       identical(this, other) || other != null && other is FoldRight;
+}
+
+class Catamorphism implements Derivable {
+  const Catamorphism();
+
+  Datatype computeType(TypeDescriptor desc) {
+    // (K acc -> acc) K acc -> acc
+    Quantifier acc = Quantifier.fresh(desc.binder.origin);
+    List<Quantifier> quantifiers = new List<Quantifier>()
+      ..addAll(desc.parameters)
+      ..add(acc);
+    Datatype accType = TypeVariable.bound(acc);
+    Datatype type = desc.type;
+
+    Datatype funType = ArrowType(<Datatype>[
+      ArrowType(<Datatype>[type, accType], accType),
+      type,
+      accType
+    ], accType);
+    return ForallType.complete(quantifiers, funType);
+  }
+
+  String surfaceName(String typeName) => _surfaceName("cata", typeName);
+
+  int get hashCode => super.hashCode * 11;
+  bool operator ==(Object other) =>
+    identical(this, other) || other != null && other is Catamorphism;
 }
