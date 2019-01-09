@@ -6,6 +6,7 @@ import '../settings.dart';
 
 import 'ast/ast.dart' show ModuleMember, TopModule;
 import 'ast/ast_builder.dart' show ASTBuilder;
+import 'ast/desugar.dart' show ModuleDesugarer;
 
 import 'compilation_unit.dart' show Source;
 

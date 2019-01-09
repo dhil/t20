@@ -23,6 +23,8 @@ class Location {
   String toString() {
     return "<$uri:$startOffset>";
   }
+
+  bool get isSynthetic => false;
 }
 
 class SpanLocation extends Location {
@@ -47,6 +49,8 @@ class DummyLocation extends Location {
   String toString() {
     return "<$sourceName:$startOffset>";
   }
+
+  bool get isSynthetic => true;
 }
 
 class PrimitiveLocation extends Location {
@@ -55,4 +59,6 @@ class PrimitiveLocation extends Location {
   String toString() {
     return "<primitive>";
   }
+
+  bool get isSynthetic => true;
 }

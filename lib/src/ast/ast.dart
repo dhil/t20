@@ -4,6 +4,8 @@
 
 library t20.ast;
 
+import 'dart:collection' show Map;
+
 import 'package:kernel/ast.dart'
     show FunctionExpression, Procedure, TreeNode, VariableDeclaration;
 
@@ -53,8 +55,8 @@ import 'package:kernel/ast.dart'
 //    | K T*                 (* type application *)
 //    | ∗ T*                 (* n-ary tuple types *)
 
-import '../deriving.dart';
-import '../location.dart';
+import '../deriving.dart' show Derivable;
+import '../location.dart' show Location;
 import '../errors/errors.dart' show LocatedError;
 import '../utils.dart' show ListUtils;
 
@@ -72,6 +74,8 @@ abstract class T20Node {
   T20Node _parent;
   T20Node get parent => _parent;
   void set parent(T20Node node) => _parent = node;
+
+  TopModule get origin => this is TopModule ? this : parent?.origin;
 }
 
 void _setParent(T20Node node, T20Node parent) => node?.parent = parent;
@@ -147,9 +151,7 @@ class Signature extends ModuleMember implements Declaration {
     definitions.add(decl);
   }
 
-  T accept<T>(ModuleVisitor<T> v) {
-    return v.visitSignature(this);
-  }
+  T accept<T>(ModuleVisitor<T> v) => v.visitSignature(this);
 }
 
 class ValueDeclaration extends ModuleMember implements Declaration {
@@ -366,9 +368,7 @@ class DatatypeDeclarations extends ModuleMember {
     _setParentMany(declarations, this);
   }
 
-  T accept<T>(ModuleVisitor<T> v) {
-    return v.visitDatatypes(this);
-  }
+  T accept<T>(ModuleVisitor<T> v) => v.visitDatatypes(this);
 
   String toString() {
     return "(define-datatypes $declarations)";
@@ -385,14 +385,36 @@ class Include extends ModuleMember {
   }
 }
 
+class Manifest {
+  final TopModule module;
+
+  Map<String, Declaration> _index;
+
+  Manifest(this.module);
+
+  Declaration findByName(String name) {
+    if (_index == null) compute();
+    return _index[name];
+  }
+
+  void compute() =>
+    _index = Map.fromIterable(
+        module.members.where((ModuleMember member) => member is Declaration),
+        key: (dynamic decl) => (decl as Declaration).binder.sourceName,
+        value: (dynamic decl) => decl as Declaration);
+}
+
 class TopModule extends ModuleMember {
+  Manifest manifest;
   List<ModuleMember> members;
   String name;
+  ScratchSpace space;
 
   TopModule(List<ModuleMember> members, this.name, Location location)
       : this.members = members,
         super(ModuleTag.TOP, location) {
     _setParentMany(members, this);
+    manifest = Manifest(this);
   }
 
   FunctionDeclaration main;
@@ -521,7 +543,7 @@ enum ExpTag {
 /** Constants. **/
 abstract class Constant<T> extends Expression {
   T value;
-  Constant(this.value, ExpTag tag, Location location) : super(tag, location);
+  Constant(this.value, ExpTag tag, [Location location]) : super(tag, location);
 
   String toString() {
     return "$value";
@@ -529,7 +551,7 @@ abstract class Constant<T> extends Expression {
 }
 
 class BoolLit extends Constant<bool> {
-  BoolLit(bool value, Location location) : super(value, ExpTag.BOOL, location);
+  BoolLit(bool value, [Location location]) : super(value, ExpTag.BOOL, location);
 
   T accept<T>(ExpressionVisitor<T> v) {
     return v.visitBool(this);
@@ -547,7 +569,7 @@ class BoolLit extends Constant<bool> {
 }
 
 class IntLit extends Constant<int> {
-  IntLit(int value, Location location) : super(value, ExpTag.INT, location);
+  IntLit(int value, [Location location]) : super(value, ExpTag.INT, location);
 
   T accept<T>(ExpressionVisitor<T> v) {
     return v.visitInt(this);
@@ -555,7 +577,7 @@ class IntLit extends Constant<int> {
 }
 
 class StringLit extends Constant<String> {
-  StringLit(String value, Location location)
+  StringLit(String value, [Location location])
       : super(value, ExpTag.STRING, location);
 
   T accept<T>(ExpressionVisitor<T> v) {
@@ -571,7 +593,7 @@ class Apply extends Expression {
   Expression abstractor;
   List<Expression> arguments;
 
-  Apply(Expression abstractor, List<Expression> arguments, Location location)
+  Apply(Expression abstractor, List<Expression> arguments, [Location location])
       : this.abstractor = abstractor,
         this.arguments = arguments,
         super(ExpTag.APPLY, location) {
@@ -596,7 +618,7 @@ class Variable extends Expression {
 
   int get ident => declarator.binder.ident;
 
-  Variable(this.declarator, Location location) : super(ExpTag.VAR, location);
+  Variable(this.declarator, [Location location]) : super(ExpTag.VAR, location);
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitVariable(this);
 
@@ -609,7 +631,7 @@ class If extends Expression {
   Expression elseBranch;
 
   If(Expression condition, Expression thenBranch, Expression elseBranch,
-      Location location)
+      [Location location])
       : this.condition = condition,
         this.thenBranch = thenBranch,
         this.elseBranch = elseBranch,
@@ -850,7 +872,8 @@ class ConstructorPattern extends Pattern {
 
   ConstructorPattern(
       this.declarator, List<Pattern> components, Location location)
-  : this.components = components, super(PatternTag.CONSTR, location) {
+      : this.components = components,
+        super(PatternTag.CONSTR, location) {
     _setParentMany(components, this);
   }
   ConstructorPattern.nullary(DataConstructor declarator, Location location)
@@ -970,9 +993,7 @@ class VariablePattern extends Pattern implements Declaration {
 class WildcardPattern extends Pattern {
   WildcardPattern(Location location) : super(PatternTag.WILDCARD, location);
 
-  T accept<T>(PatternVisitor<T> v) {
-    return v.visitWildcard(this);
-  }
+  T accept<T>(PatternVisitor<T> v) => v.visitWildcard(this);
 
   String toString() {
     return "_";
@@ -1083,7 +1104,9 @@ class MutableVariableDeclaration extends T20Node
 
   VariableDeclaration get asKernelNode => null;
 
-  Frame get enclosingFrame => parent;
+  ScratchSpace _residence;
+  ScratchSpace get residence => _residence;
+  void set residence(ScratchSpace space) => _residence = space;
 
   String toString() => "(var $binder)";
 }
@@ -1113,19 +1136,19 @@ abstract class GetMutableVariable extends Expression {
   String toString() => "(get! ${variable.binder})";
 }
 
-class Frame extends T20Node {
+abstract class ScratchSpace extends T20Node {
   // Local heap.
-  List<MutableVariableDeclaration> _scratchSpace;
-  List<MutableVariableDeclaration> get scratchSpace => _scratchSpace;
-  void set scratchSpace(List<MutableVariableDeclaration> decls) {
+  List<MutableVariableDeclaration> _memory;
+  List<MutableVariableDeclaration> get memory => _memory;
+  void set memory(List<MutableVariableDeclaration> decls) {
     _setParentMany(decls, this);
-    _scratchSpace = decls;
+    _memory = decls;
   }
 
   void allocate(MutableVariableDeclaration variable) {
     _setParent(variable, this);
-    _scratchSpace ??= new List<MutableVariableDeclaration>();
-    _scratchSpace.add(variable);
+    _memory ??= new List<MutableVariableDeclaration>();
+    memory.add(variable);
   }
 
   // The [preamble] contains side-effecting expressions, those expressions may
@@ -1143,16 +1166,47 @@ class Frame extends T20Node {
     _preamble.add(expression);
   }
 
-  // The [expression] may contain references to the block-local heap.
-  Expression expression;
+  bool get isGlobal;
+  bool get isLocal => !isGlobal;
 
-  Frame(this.expression);
+  ScratchSpace();
+}
+
+// Module-global heap-space.
+class GlobalSpace extends ScratchSpace {
+  GlobalSpace() : super();
 
   String toString() {
-    String heap0 = ListUtils.stringify(" ", scratchSpace);
+    String heap0 = ListUtils.stringify(" ", memory);
+    String preamble0 = ListUtils.stringify(" ", preamble);
+    return "(global-space [$heap0] [$preamble0])";
+  }
+
+  bool get isGlobal => true;
+}
+
+class Frame extends ScratchSpace {
+  // The [expression] may contain references to the block-local heap.
+  Expression _expression;
+  Expression get expression => _expression;
+  void set expression(Expression exp) {
+    _setParent(exp, this);
+    _expression = exp;
+  }
+
+  Frame(Expression expression) : super() {
+    this.expression = expression;
+  }
+
+  Frame.empty() : super();
+
+  String toString() {
+    String heap0 = ListUtils.stringify(" ", memory);
     String preamble0 = ListUtils.stringify(" ", preamble);
     return "(frame [$heap0] [$preamble0] $expression)";
   }
+
+  bool get isGlobal => false;
 }
 
 class Project extends Expression {
