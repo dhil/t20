@@ -1,0 +1,20 @@
+;; Type-safe head and tail operations on lists.
+(define-datatype (List 'a)
+  [cons 'a (List 'a)]
+  [nil])
+
+(define-datatype (Option 'a)
+  [some 'a]
+  [none])
+
+(: car (-> (List 'a) (Option 'a)))
+(define (car xs)
+  (match xs
+    [(cons x _) (some x)]
+    [nil none]))
+
+(: cdr (-> (List 'a) (List 'a)))
+(define (cdr xs)
+  (match xs
+    [(cons _ xs) xs]
+    [_ xs]))
