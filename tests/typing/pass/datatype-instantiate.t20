@@ -1,0 +1,13 @@
+;; Multiple instantiations of the same data type.
+
+(define-datatype (List 'a)
+  [nil]
+  [cons 'a (List 'a)])
+
+;; Silly function that denotes whether a list is nonempty as a boolean
+;; singleton list.
+(: nonempty? (-> [List 'a] [List Bool]))
+(define (nonempty? xs)
+  (match xs
+    [(nil) (cons #f nil)]
+    [(cons x xs) (cons #t nil)]))

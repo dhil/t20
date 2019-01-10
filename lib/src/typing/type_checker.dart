@@ -664,11 +664,12 @@ class _TypeChecker {
     Datatype type = constr
         .type; // guaranteed to be compatible with `type_utils' function type api.
     // Arity check.
-    if (typeUtils.arity(type) != constr.arity) {
+    if (typeUtils.isFunctionType(type) && typeUtils.arity(type) != constr.arity) {
       TypeError err = ArityMismatchError(
           typeUtils.arity(type), constr.arity, constr.location);
       return PatternInferenceResult(ctxt, error(err, constr.location), null);
     }
+
     // Check whether the induced type has any type parameters.
     ScopedEntry marker;
     if (type is ForallType) {
@@ -690,9 +691,10 @@ class _TypeChecker {
         CheckPatternResult result = checkPattern(component, domain[i], ctxt);
         ctxt = result.context;
       }
+      type = typeUtils.codomain(type);
     }
 
-    return PatternInferenceResult(ctxt, typeUtils.codomain(type), marker);
+    return PatternInferenceResult(ctxt, type, marker);
   }
 
   // Implements the subsumption/subtyping relation <:.
