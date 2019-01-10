@@ -34,7 +34,7 @@ class Name {
         sourceName = binder.sourceName;
 
   String toString() {
-    return "$fullName";//:$location";
+    return "$fullName"; //:$location";
   }
 
   static int computeIntern(String name) {
@@ -71,9 +71,9 @@ class BuildContext {
 
   factory BuildContext.fromSummary(Summary summary) {
     ImmutableMap<int, Declaration> decls =
-        ImmutableMap<int, Declaration>.of(summary.getDeclarations(true));
+        ImmutableMap<int, Declaration>.of(summary.valueBindings);
     ImmutableMap<int, TypeDescriptor> descriptors =
-        ImmutableMap<int, TypeDescriptor>.of(summary.getTypeDescriptors(true));
+        ImmutableMap<int, TypeDescriptor>.of(summary.typeDescriptors);
     return BuildContext(decls, ImmutableMap<int, Quantifier>.empty(),
         ImmutableMap<int, Signature>.empty(), descriptors);
   }
@@ -132,8 +132,8 @@ class BuildContext {
         typenames.union(other.typenames));
   }
 
-  BuildContext include(Summary summary) {
-    BuildContext other = BuildContext.fromSummary(summary);
+  BuildContext include(Manifest manifest) {
+    BuildContext other = BuildContext.fromSummary(manifest.summary);
     return this.union(other);
   }
 }
@@ -153,9 +153,8 @@ class ASTBuilder {
     if (context == null) {
       context = BuildContext.empty();
     }
-    Summary prelude = moduleEnv.summaryOf(moduleEnv.prelude);
-    if (prelude != null) {
-      context = context.include(prelude);
+    if (moduleEnv.prelude != null) {
+      context = context.include(moduleEnv.prelude.manifest);
     }
 
     _ASTBuilder builder =
@@ -699,9 +698,9 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   Build<ModuleMember> open(String moduleName, {Location location}) =>
       (BuildContext ctxt) {
         // Lookup [moduleName].
-        Summary summary = _moduleEnv.find(moduleName);
-        if (summary != null) {
-          ctxt = ctxt.include(summary);
+        TopModule module = _moduleEnv.find(moduleName);
+        if (module != null) {
+          ctxt = ctxt.include(module.manifest);
         } else {
           moduleError(UnboundModuleError(moduleName, location), location);
           return Pair<BuildContext, ModuleMember>(ctxt, null);
@@ -740,10 +739,9 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   Declaration findDeclaration(Name name, BuildContext ctxt) {
     if (name is QualifiedName) {
       QualifiedName qname = name;
-      Summary summary = _moduleEnv.find(qname.module);
-      if (summary == null) return null;
-      return summary
-          .getDeclarations(true)[name.intern]; // TODO somewhat expensive.
+      TopModule module = _moduleEnv.find(qname.module);
+      if (module == null) return null;
+      return module.manifest.findByName(name.sourceName);
     } else {
       return ctxt.getDeclaration(name);
     }

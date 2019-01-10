@@ -386,6 +386,53 @@ class Include extends ModuleMember {
   }
 }
 
+class Summary {
+  final TopModule module;
+  Map<int, Declaration> _valueBindings;
+  Map<int, TypeDescriptor> _typeDescriptors;
+
+  Summary(this.module);
+
+  Map<int, Declaration> get valueBindings {
+    if (_valueBindings == null) compute();
+    return _valueBindings;
+  }
+
+  Map<int, TypeDescriptor> get typeDescriptors {
+    if (_typeDescriptors == null) compute();
+    return _typeDescriptors;
+  }
+
+  void compute() {
+    _valueBindings = new Map<int, Declaration>();
+    _typeDescriptors = new Map<int, TypeDescriptor>();
+    for (int i = 0; i < module.members.length; i++) {
+      ModuleMember member = module.members[i];
+      switch (member.tag) {
+        case ModuleTag.DATATYPE_DEFS:
+          DatatypeDeclarations datatypes = member as DatatypeDeclarations;
+          for (int j = 0; j < datatypes.declarations.length; j++) {
+            TypeDescriptor descriptor = datatypes.declarations[j];
+            _typeDescriptors[descriptor.binder.intern] = descriptor;
+          }
+          break;
+        case ModuleTag.TYPENAME:
+          TypeDescriptor descriptor = member as TypeDescriptor;
+          _typeDescriptors[descriptor.binder.intern] = descriptor;
+          break;
+        case ModuleTag.CONSTR:
+        case ModuleTag.FUNC_DEF:
+        case ModuleTag.VALUE_DEF:
+          Declaration decl = member as Declaration;
+          _valueBindings[decl.binder.intern] = decl;
+          break;
+        default:
+        // Ignored.
+      }
+    }
+  }
+}
+
 class Manifest {
   final TopModule module;
 
@@ -398,11 +445,12 @@ class Manifest {
     return _index[name];
   }
 
-  void compute() =>
-    _index = Map.fromIterable(
-        module.members.where((ModuleMember member) => member is Declaration),
-        key: (dynamic decl) => (decl as Declaration).binder.sourceName,
-        value: (dynamic decl) => decl as Declaration);
+  void compute() => _index = Map.fromIterable(
+      module.members.where((ModuleMember member) => member is Declaration),
+      key: (dynamic decl) => (decl as Declaration).binder.sourceName,
+      value: (dynamic decl) => decl as Declaration);
+
+  Summary get summary => Summary(module);
 }
 
 class TopModule extends ModuleMember {
@@ -552,7 +600,8 @@ abstract class Constant<T> extends Expression {
 }
 
 class BoolLit extends Constant<bool> {
-  BoolLit(bool value, [Location location]) : super(value, ExpTag.BOOL, location);
+  BoolLit(bool value, [Location location])
+      : super(value, ExpTag.BOOL, location);
 
   T accept<T>(ExpressionVisitor<T> v) {
     return v.visitBool(this);
