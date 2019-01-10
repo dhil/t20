@@ -72,15 +72,6 @@ class _Prelude extends _EmbeddedModule {
 (: int-greater? (-> Int Int Bool))
 (define-stub (int-greater? _ _))
 
-(: string-eq? (-> String String Bool))
-(define-stub (string-eq? _ _))
-
-(: string-less? (-> String String Bool))
-(define-stub (string-less? _ _))
-
-(: string-greater? (-> String String Bool))
-(define-stub (string-greater? _ _))
-
 ;; Logical operations.
 (: && (-> Bool Bool Bool))
 (define-stub (&& _ _))
@@ -111,6 +102,15 @@ class _String extends _EmbeddedModule {
 
 (: concat (-> String String String))
 (define-stub (concat _ _))
+
+(: eq? (-> String String Bool))
+(define-stub (eq? _ _))
+
+(: less? (-> String String Bool))
+(define-stub (less? _ _))
+
+(: greater? (-> String String Bool))
+(define-stub (greater? _ _))
 ''';
 }
 

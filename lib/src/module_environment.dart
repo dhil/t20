@@ -75,7 +75,7 @@ class ModuleEnvironment {
 
   ModuleEnvironment()
       : _modules = new List<TopModule>(),
-        _virtualModules = new LinkedHashMap<String, VirtualModule>(),
+        _virtualModules = new Map<String, VirtualModule>(),
         summaries = new Map<String, Summary>();
 
   Summary find(String name) {
@@ -94,6 +94,7 @@ class ModuleEnvironment {
   VirtualModule get dartList => _virtualModules[ModuleConstants.DART_LIST];
   VirtualModule get kernel => _virtualModules[ModuleConstants.KERNEL];
   VirtualModule get prelude => _virtualModules[ModuleConstants.PRELUDE];
+  VirtualModule get string => _virtualModules[ModuleConstants.STRING];
 
   Summary summaryOf(TopModule module) {
     if (module == null) return null;
