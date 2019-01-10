@@ -12,7 +12,7 @@ import 'frontend_compiler.dart';
 import 'module_environment.dart';
 import 'result.dart';
 
-abstract class EmbeddedModule {
+abstract class _EmbeddedModule {
   String get asTextual;
   String get name;
 
@@ -20,7 +20,7 @@ abstract class EmbeddedModule {
 }
 
 // Prelude module.
-class Prelude extends EmbeddedModule {
+class _Prelude extends _EmbeddedModule {
   String get name => ModuleConstants.PRELUDE;
   String get asTextual => '''
 ;; Arithmetics.
@@ -101,8 +101,21 @@ class Prelude extends EmbeddedModule {
 ''';
 }
 
+// String module.
+class _String extends _EmbeddedModule {
+  String get name => ModuleConstants.STRING;
+  String get asTextual => '''
+;; Operations on (Dart) strings.
+(: length (-> String Int))
+(define-stub (length _ _))
+
+(: concat (-> String String String))
+(define-stub (concat _ _))
+''';
+}
+
 // Dart list module.
-class DartList extends EmbeddedModule {
+class _DartList extends _EmbeddedModule {
   String get name => ModuleConstants.DART_LIST;
   String get asTextual => '''
 ;; Dart-List is an "abstract" data type that is intended to map onto a
@@ -129,7 +142,7 @@ class DartList extends EmbeddedModule {
 }
 
 // Kernel module.
-class Kernel extends EmbeddedModule {
+class _Kernel extends _EmbeddedModule {
   String get name => ModuleConstants.KERNEL;
   String get asTextual => '''
 ;; Models a subset of Kernel.
@@ -206,10 +219,11 @@ Result<ModuleEnvironment, T20Error> bootstrap(
   settings ??= Settings();
 
   // Prepare the modules.
-  List<EmbeddedModule> modules = <EmbeddedModule>[
-    Prelude(),
-    DartList(),
-    Kernel()
+  List<_EmbeddedModule> modules = <_EmbeddedModule>[
+      _Prelude(),
+      _String(),
+      _DartList(),
+      _Kernel()
   ];
 
   // Initialise a frontend compiler.
@@ -218,7 +232,7 @@ Result<ModuleEnvironment, T20Error> bootstrap(
   // Compile each module.
   List<T20Error> errors;
   for (int i = 0; i < modules.length; i++) {
-    EmbeddedModule module = modules[i];
+    _EmbeddedModule module = modules[i];
     List<T20Error> result = compiler.compile(module.asSource, isVirtual: true);
     if (result != null) {
       errors ??= new List<T20Error>();

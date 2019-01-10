@@ -1,0 +1,9 @@
+;; Shadowing the prelude.
+(open Prelude)
+
+(: + (-> String String String))
+(define (+ a b)
+  (String.concat a b))
+
+(: four Int)
+(define four (Prelude.+ 2 2))

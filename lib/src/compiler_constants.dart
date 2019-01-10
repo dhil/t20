@@ -5,5 +5,6 @@
 class ModuleConstants {
   static const String DART_LIST = "Dart-List";
   static const String KERNEL    = "Kernel";
+  static const String STRING    = "String";
   static const String PRELUDE   = "Prelude";
 }

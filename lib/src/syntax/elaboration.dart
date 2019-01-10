@@ -148,13 +148,14 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
     assert(name != null);
     if (name.length == 0) return false;
     int c = name.codeUnitAt(0);
-    if (!unicode.isAsciiUpper(c)) return false;
+    if (!unicode.isAsciiUpper(c) && !unicode.isDigit(c)) return false;
 
     for (int i = 1; i < name.length; i++) {
       c = name.codeUnitAt(i);
       if (!unicode.isAsciiLetter(c) &&
+          !unicode.isDigit(c) &&
           c != unicode.DASH &&
-          !(name.codeUnitAt(i - 1) == unicode.DOT && c == unicode.DOT))
+          c != unicode.DOT)
         return false;
     }
     return true;

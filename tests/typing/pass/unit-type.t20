@@ -1,0 +1,6 @@
+;; Unit type synonym.
+
+(define-typename 1 (*))
+
+(: thunk (-> 1 Int))
+(define (thunk _) 42)

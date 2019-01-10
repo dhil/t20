@@ -1,0 +1,6 @@
+;; Shadowing kernel.
+(open Kernel)
+
+(define-datatype Component)
+(define-typename Component Component)
+(define-typename KernelComponent Kernel.Component)

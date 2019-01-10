@@ -34,7 +34,7 @@ class Name {
         sourceName = binder.sourceName;
 
   String toString() {
-    return "$fullName:$location";
+    return "$fullName";//:$location";
   }
 
   static int computeIntern(String name) {
@@ -271,8 +271,11 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
     Set<int> uniqueNames = new Set<int>();
     List<Name> dups = new List<Name>();
     for (int i = 0; i < names.length; i++) {
-      if (uniqueNames.contains(names[i].intern)) {
+      Name name = names[i];
+      if (uniqueNames.contains(name.intern)) {
         dups.add(names[i]);
+      } else {
+        uniqueNames.add(name.intern);
       }
     }
     return dups;
@@ -369,7 +372,6 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
             quantifiers.add(q);
           }
           // Create a partial type descriptor.
-          // TODO add location information per descriptor.
           DatatypeDescriptor desc =
               DatatypeDescriptor.partial(binder, quantifiers, location);
           // Bind the (partial) descriptor in the context.
@@ -452,6 +454,12 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           }
           // Attach derivables to the descriptor.
           desc.deriving = deriving0;
+        }
+
+        // Check for duplicate data constructors names.
+        dups = checkDuplicates(declaredNames);
+        if (dups.length > 0) {
+          return reportDuplicates(dups, moduleError);
         }
 
         // Construct the datatypes node.
