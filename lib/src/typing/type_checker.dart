@@ -67,7 +67,7 @@ class _TypeChecker {
     return ErrorType(err, location);
   }
 
-  Datatype tryUnrollAlias(Datatype type) {
+  Datatype tryUnrollAlias(Datatype type, OrderedContext ctxt) {
     Datatype result;
     if (typeUtils.isTypeAlias(type)) {
       result = typeUtils.unrollAlias(type as TypeConstructor);
@@ -705,8 +705,8 @@ class _TypeChecker {
     }
 
     if (typeUtils.isTypeAlias(lhs) || typeUtils.isTypeAlias(rhs)) {
-      lhs = tryUnrollAlias(lhs);
-      rhs = tryUnrollAlias(rhs);
+      lhs = tryUnrollAlias(lhs, ctxt);
+      rhs = tryUnrollAlias(rhs, ctxt);
     }
 
     if (lhs is Skolem) {

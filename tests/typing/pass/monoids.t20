@@ -1,0 +1,40 @@
+;; SKIP
+
+;; Monoids.
+(define-typename (Monoid 'a)
+  (* 'a [-> 'a 'a 'a]))
+
+(: make (-> 'a [-> 'a 'a 'a] [Monoid 'a]))
+(define (make z <>) (, z <>))
+
+(: m-plus (Monoid Int))
+(define m-plus (make 0 +))
+
+(: m-times (Monoid Int))
+(define m-times (make 1 *))
+
+(: m-string (Monoid String))
+(define m-string (make "" String.concat))
+
+(: m-and (Monoid Bool))
+(define m-and (make #t &&))
+
+(: m-or (Monoid Bool))
+(define m-or (make #f ||))
+
+(define-datatype (Option 'a)
+  [none]
+  [some 'a])
+
+(: m-option [-> (Monoid 'a) (Monoid (Option 'a))])
+(define (m-option (, z <>))
+  (make
+   none
+   (lambda (x y)
+     (match x
+       [(none) (match y
+                 [(none) none]
+                 [(some _) y])]
+       [(some x') (match y
+                    [(none) x]
+                    [(some y') (some (<> x' y'))])]))))
