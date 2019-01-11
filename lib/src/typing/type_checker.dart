@@ -820,7 +820,6 @@ class _TypeChecker {
 
     // a <: \/qs.b, if a <: b
     if (b is ForallType) {
-      print(">> $b");
       // QuantifiedVariable scopeMarker;
       // // Bring the quantifiers into scope.
       // for (int i = 0; i < b.quantifiers.length; i++) {
@@ -883,11 +882,14 @@ class _TypeChecker {
 
   OrderedContext safeSubsumes(
       Location location, Datatype a, Datatype b, OrderedContext ctxt) {
-    //try {
+    try {
     ctxt = subsumes(a, b, ctxt);
-    /*} on SubsumptionError catch (e) {
-        errors.add(LocatedSubsumptionError(e, location));*/
-    //}
+    } on SubsumptionError catch (e) {
+      errors.add(LocatedSubsumptionError(e, location));
+      if (trace) {
+        rethrow;
+      }
+    }
     return ctxt;
   }
 
