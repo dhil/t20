@@ -1,5 +1,3 @@
-;; SKIP
-
 ;; Monoids.
 (define-typename (Monoid 'a)
   (* 'a [-> 'a 'a 'a]))
@@ -31,10 +29,31 @@
   (make
    none
    (lambda (x y)
-     (match x
+     (some (match x
        [(none) (match y
-                 [(none) none]
-                 [(some _) y])]
+                 [(none) z]
+                 [(some y') y'])]
        [(some x') (match y
-                    [(none) x]
-                    [(some y') (some (<> x' y'))])]))))
+                    [(none) x']
+                    [(some y') (<> x' y')])])))))
+
+(: option-test (Option Int))
+(define option-test
+  (let ([(, _ <>) (m-option m-plus)])
+    (<> (some 2) (<> none (some 40)))))
+
+(: option-map (forall ('a 'b) (-> [-> 'a 'b] [Option 'a] [Option 'b])))
+(define (option-map f x?)
+  (match x?
+    [(none) none]
+    [(some x) (some (f x))]))
+
+(: int-of-bool (-> Bool Int))
+(define (int-of-bool b)
+  (if b 1 0))
+
+(: option-test2 (Option Int))
+(define option-test2
+  (let ([(, _ <>) (m-option m-times)]
+        [one (option-map int-of-bool (some #t))])
+    (<> (some 2) (<> (<> none one) (some 40)))))

@@ -934,8 +934,12 @@ class ConstructorPattern extends Pattern {
   }
 
   String toString() {
-    String subpatterns = ListUtils.stringify(" ", components);
-    return "[${declarator.binder.sourceName} $subpatterns]";
+    if (arity == 0) {
+      return "[${declarator.binder.sourceName}]";
+    } else {
+      String subpatterns = ListUtils.stringify(" ", components);
+      return "[${declarator.binder.sourceName} $subpatterns]";
+    }
   }
 }
 

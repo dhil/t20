@@ -141,6 +141,19 @@ class QuantifiedVariable extends ScopedEntry {
   }
 }
 
+// class MetaExistential extends ScopedEntry {
+//   final Existential existential;
+//   final Quantifier quantifier;
+
+//   int get ident => quantifier.ident;
+
+//   MetaExistential(this.quantifier, this.existential);
+
+//   String toString() {
+//     return "$quantifier := ?${existential.skolem.ident}";
+//   }
+// }
+
 class Existential extends ScopedEntry {
   final Skolem skolem;
   Datatype solution;

@@ -664,7 +664,8 @@ class _TypeChecker {
     Datatype type = constr
         .type; // guaranteed to be compatible with `type_utils' function type api.
     // Arity check.
-    if (typeUtils.isFunctionType(type) && typeUtils.arity(type) != constr.arity) {
+    if (typeUtils.isFunctionType(type) &&
+        typeUtils.arity(type) != constr.arity) {
       TypeError err = ArityMismatchError(
           typeUtils.arity(type), constr.arity, constr.location);
       return PatternInferenceResult(ctxt, error(err, constr.location), null);
@@ -819,20 +820,36 @@ class _TypeChecker {
 
     // a <: \/qs.b, if a <: b
     if (b is ForallType) {
-      QuantifiedVariable scopeMarker;
-      // Bring the quantifiers into scope.
-      for (int i = 0; i < b.quantifiers.length; i++) {
-        Quantifier q = b.quantifiers[i];
-        QuantifiedVariable q0 = QuantifiedVariable(q);
-        ctxt.insertLast(q0);
-        scopeMarker ??= q0;
-      }
+      print(">> $b");
+      // QuantifiedVariable scopeMarker;
+      // // Bring the quantifiers into scope.
+      // for (int i = 0; i < b.quantifiers.length; i++) {
+      //   Quantifier q = b.quantifiers[i];
+      //   QuantifiedVariable q0 = QuantifiedVariable(q);
+      //   ctxt = ctxt.insertLast(q0);
+      //   scopeMarker ??= q0;
+      // }
 
-      ctxt = subsumes(a, b.body, ctxt);
+      // ctxt = subsumes(a, b.body, ctxt);
 
-      // Drop [scopeMarker].
-      if (scopeMarker != null) {
-        ctxt = ctxt.drop(scopeMarker);
+      // // Drop [scopeMarker].
+      // if (scopeMarker != null) {
+      //   ctxt = ctxt.drop(scopeMarker);
+      // }
+      Triple<Existential, OrderedContext, Datatype> result =
+          guessInstantiation(b.quantifiers, b.body, ctxt);
+      Existential first = result.fst;
+      ctxt = result.snd;
+      Datatype type = result.thd;
+
+      Marker marker = Marker(first.skolem);
+      ctxt = ctxt.insertBefore(marker, first);
+
+      ctxt = subsumes(a, type, ctxt);
+
+      // Drop [marker].
+      if (marker != null) {
+        ctxt = ctxt.drop(marker);
       }
       return ctxt;
     }
@@ -855,16 +872,22 @@ class _TypeChecker {
       }
     }
 
+    if (a is TypeVariable && b is TypeVariable) {
+      if (a.ident == b.ident) {
+        return ctxt;
+      }
+    }
+
     throw SubsumptionError(a.toString(), b.toString());
   }
 
   OrderedContext safeSubsumes(
       Location location, Datatype a, Datatype b, OrderedContext ctxt) {
-    try {
-      ctxt = subsumes(a, b, ctxt);
-    } on SubsumptionError catch (e) {
-      errors.add(LocatedSubsumptionError(e, location));
-    }
+    //try {
+    ctxt = subsumes(a, b, ctxt);
+    /*} on SubsumptionError catch (e) {
+        errors.add(LocatedSubsumptionError(e, location));*/
+    //}
     return ctxt;
   }
 
@@ -892,7 +915,9 @@ class _TypeChecker {
       Skolem skolem = Skolem();
       sigma = sigma.bind(TypeVariable.bound(q), skolem);
       Existential ex = Existential(skolem);
+      // MetaExistential mex = MetaExistential(q, ex);
       ctxt = ctxt.insertLast(ex);
+      // ctxt = ctxt.insertLast(mex);
       scopeMarker ??= ex;
     }
     return Triple<Existential, OrderedContext, Datatype>(
