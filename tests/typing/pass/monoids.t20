@@ -28,12 +28,12 @@
 (define (m-option (, z <>))
   (make
    none
-   (lambda (x y)
-     (some (match x
-       [(none) (match y
+   (lambda (x? y?)
+     (some (match x?
+       [(none) (match y?
                  [(none) z]
                  [(some y') y'])]
-       [(some x') (match y
+       [(some x') (match y?
                     [(none) x']
                     [(some y') (<> x' y')])])))))
 
