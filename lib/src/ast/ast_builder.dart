@@ -653,7 +653,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           quantifiers.add(quantifier);
 
           // Expose the quantifier.
-          ctxt0.putQuantifier(typeParam, quantifier);
+          ctxt0 = ctxt0.putQuantifier(typeParam, quantifier);
         }
 
         // Build the body.
