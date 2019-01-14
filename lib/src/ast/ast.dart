@@ -100,7 +100,7 @@ abstract class Declaration implements Identifiable {
 }
 
 abstract class DeclarationMixin implements Declaration {
-  Datatype get type => binder.type;
+  Datatype get type;
   int get ident => binder.ident;
 
   List<Variable> _uses;
@@ -588,11 +588,11 @@ abstract class ExpressionVisitor<T> {
   T visitError(ErrorExpression e);
 
   // Desugared nodes.
-  T visitSetVariable(SetVariable v);
+  // T visitSetVariable(SetVariable v);
   T visitDLambda(DLambda lambda);
   T visitDLet(DLet let);
   T visitProject(Project project);
-  T visitBlock(Block block);
+  // T visitBlock(Block block);
 }
 
 abstract class Expression extends T20Node {
@@ -704,11 +704,12 @@ class Apply extends Expression {
 }
 
 class Variable extends Expression {
-  Declaration declarator;
+  Binder binder;
+  Declaration get declarator => binder.bindingOccurrence;
 
   int get ident => declarator.ident;
 
-  Variable(this.declarator, [Location location]) : super(ExpTag.VAR, location);
+  Variable(this.binder, [Location location]) : super(ExpTag.VAR, location);
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitVariable(this);
 
@@ -1093,22 +1094,25 @@ abstract class KernelNode {
   TreeNode get asKernelNode;
 }
 
-// class FormalParameter extends T20Node implements Declaration, KernelNode {
-//   Binder binder;
-//   int get ident => binder.ident;
-//   Datatype get type => binder.type;
-//   bool get isVirtual => false;
+class FormalParameter extends T20Node
+    with DeclarationMixin
+    implements Declaration, KernelNode {
+  Binder binder;
+  int get ident => binder.ident;
+  Datatype get type => binder.type;
+  bool get isVirtual => false;
 
-//   FormalParameter(Binder binder) {
-//     this.binder = binder;
-//     binder.bindingOccurrence = this;
-//   }
+  FormalParameter(Binder binder) {
+    this.binder = binder;
+    binder.bindingOccurrence = this;
+  }
 
-//   VariableDeclaration get asKernelNode => null; // TODO.
-// }
+  VariableDeclaration get asKernelNode => null; // TODO.
+}
 
-class DLambda extends LambdaAbstraction<Register, Block> {
-  DLambda(List<Register> parameters, Block body, [Location location])
+class DLambda extends LambdaAbstraction<FormalParameter, Expression> {
+  DLambda(List<FormalParameter> parameters, Expression body,
+      [Location location])
       : super(parameters, body, location) {
     // Set parent pointers.
     body.parent = this;
@@ -1139,27 +1143,34 @@ class DLambda extends LambdaAbstraction<Register, Block> {
 //   String toString() => "[$binder $expression]";
 // }
 
-class DLet extends Expression {
-  Register register;
-  Expression get body => register.initialiser;
+class DLet extends Expression with DeclarationMixin implements Declaration {
+  Binder binder;
+  Expression body;
   Expression continuation;
 
-  DLet(Register register, Expression continuation, [Location location])
-      : this.register = register,
+  bool get isVirtual => false;
+
+  DLet(Binder binder, Expression body, Expression continuation,
+      [Location location])
+      : this.binder = binder,
+        this.body = body,
         this.continuation = continuation,
         super(ExpTag.LET, location) {
+    binder.bindingOccurrence = this;
+    _setParent(body, this);
     _setParent(continuation, this);
   }
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitDLet(this);
 }
 
-class LetFunction extends AbstractFunctionDeclaration<Register, Block>
+class LetFunction
+    extends AbstractFunctionDeclaration<FormalParameter, Expression>
     implements KernelNode {
   Procedure asKernelNode;
 
-  LetFunction(Signature signature, Binder binder, List<Register> parameters,
-      Block body, Location location)
+  LetFunction(Signature signature, Binder binder,
+      List<FormalParameter> parameters, Expression body, Location location)
       : super(signature, binder, parameters, body, location) {
     binder.bindingOccurrence = this;
     _setParent(body, this);
@@ -1181,58 +1192,58 @@ class LetVirtualFunction extends LetFunction {
 //   LetValue() : super(null, null);
 // }
 
-class Register extends T20Node
-    with DeclarationMixin
-    implements Declaration, KernelNode {
-  Binder binder;
+// class Register extends T20Node
+//     with DeclarationMixin
+//     implements Declaration, KernelNode {
+//   Binder binder;
 
-  bool get isVirtual => false;
-  int get ident => binder.ident;
-  Datatype get type => const DynamicType(); // TODO.
+//   bool get isVirtual => false;
+//   int get ident => binder.ident;
+//   Datatype get type => const DynamicType(); // TODO.
 
-  Expression initialiser; // May be null.
+//   Expression initialiser; // May be null.
 
-  Register(Binder binder, [Expression initialiser])
-      : this.binder = binder,
-        this.initialiser = initialiser {
-    binder.bindingOccurrence = this;
-  }
+//   Register(Binder binder, [Expression initialiser])
+//       : this.binder = binder,
+//         this.initialiser = initialiser {
+//     binder.bindingOccurrence = this;
+//   }
 
-  VariableDeclaration get asKernelNode => null;
+//   VariableDeclaration get asKernelNode => null;
 
-  Block _residence;
-  Block get residence => _residence;
-  void set residence(Block block) => _residence = block;
+//   Block _residence;
+//   Block get residence => _residence;
+//   void set residence(Block block) => _residence = block;
 
-  String toString() => "(var $binder)";
+//   String toString() => "(var $binder)";
 
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other != null && other is Register && hashCode == other.hashCode;
+//   bool operator ==(Object other) =>
+//       identical(this, other) ||
+//       other != null && other is Register && hashCode == other.hashCode;
 
-  int get hashCode {
-    int hash = super.hashCode;
-    hash = hash * 13 + binder.hashCode;
-    hash = initialiser == null ? hash : hash * 17 + initialiser.hashCode;
-  }
-}
+//   int get hashCode {
+//     int hash = super.hashCode;
+//     hash = hash * 13 + binder.hashCode;
+//     hash = initialiser == null ? hash : hash * 17 + initialiser.hashCode;
+//   }
+// }
 
-class SetVariable extends Expression {
-  Variable variable;
-  Expression expression;
+// class SetVariable extends Expression {
+//   Variable variable;
+//   Expression expression;
 
-  SetVariable(Variable variable, Expression expression)
-      : this.variable = variable,
-        this.expression = expression,
-        super(ExpTag.SET) {
-    _setParent(variable, this);
-    _setParent(expression, this);
-  }
+//   SetVariable(Variable variable, Expression expression)
+//       : this.variable = variable,
+//         this.expression = expression,
+//         super(ExpTag.SET) {
+//     _setParent(variable, this);
+//     _setParent(expression, this);
+//   }
 
-  T accept<T>(ExpressionVisitor<T> v) => v.visitSetVariable(this);
+//   T accept<T>(ExpressionVisitor<T> v) => v.visitSetVariable(this);
 
-  String toString() => "(set! $variable $expression)";
-}
+//   String toString() => "(set! $variable $expression)";
+// }
 
 // abstract class GetRegister extends Expression {
 //   Register variable;
@@ -1293,113 +1304,113 @@ class SetVariable extends Expression {
 //   bool get isGlobal => true;
 // }
 
-class Block extends Expression {
-  // Track usage of mutable variables (indicatively named "registers"). A
-  // subsequent optimisation pass can use this information to minimise the
-  // number of live stack variables.
-  List<Register> _registers;
-  List<Register> get registers => _registers;
-  void set registers(List<Register> decls) {
-    if (_registers != null) {
-      _setResidenceMany(_registers, null);
-    }
-    _setResidenceMany(decls, this);
-    _registers = decls;
-  }
+// class Block extends Expression {
+//   // Track usage of mutable variables (indicatively named "registers"). A
+//   // subsequent optimisation pass can use this information to minimise the
+//   // number of live stack variables.
+//   List<Register> _registers;
+//   List<Register> get registers => _registers;
+//   void set registers(List<Register> decls) {
+//     if (_registers != null) {
+//       _setResidenceMany(_registers, null);
+//     }
+//     _setResidenceMany(decls, this);
+//     _registers = decls;
+//   }
 
-  Register allocate(Binder binder) {
-    Register register = Register(binder);
-    _setResidence(register, this);
-    _registers ??= new List<Register>();
-    registers.add(register);
-    return register;
-  }
+//   Register allocate(Binder binder) {
+//     Register register = Register(binder);
+//     _setResidence(register, this);
+//     _registers ??= new List<Register>();
+//     registers.add(register);
+//     return register;
+//   }
 
-  void allocateMany(List<Register> variables) {
-    _setResidenceMany(variables, this);
-    if (_registers == null) {
-      _registers ??= new List<Register>();
-    } else {
-      registers.addAll(variables);
-    }
-  }
+//   void allocateMany(List<Register> variables) {
+//     _setResidenceMany(variables, this);
+//     if (_registers == null) {
+//       _registers ??= new List<Register>();
+//     } else {
+//       registers.addAll(variables);
+//     }
+//   }
 
-  void _setResidence(Register variable, Block block) {
-    variable.residence = block;
-  }
+//   void _setResidence(Register variable, Block block) {
+//     variable.residence = block;
+//   }
 
-  void _setResidenceMany(List<Register> variables, Block block) {
-    if (variables == null) return;
-    for (int i = 0; i < variables.length; i++) {
-      variables[i].residence = block;
-    }
-  }
+//   void _setResidenceMany(List<Register> variables, Block block) {
+//     if (variables == null) return;
+//     for (int i = 0; i < variables.length; i++) {
+//       variables[i].residence = block;
+//     }
+//   }
 
-  // The [preamble] contains side-effecting expressions, those expressions may
-  // reference registers.
-  List<Expression> _preamble;
-  List<Expression> get preamble => _preamble;
-  void set preamble(List<Expression> expressions) {
-    _setParentMany(expressions, this);
-    _preamble = expressions;
-  }
+//   // The [preamble] contains side-effecting expressions, those expressions may
+//   // reference registers.
+//   List<Expression> _preamble;
+//   List<Expression> get preamble => _preamble;
+//   void set preamble(List<Expression> expressions) {
+//     _setParentMany(expressions, this);
+//     _preamble = expressions;
+//   }
 
-  void addStatement(Expression expression) {
-    _setParent(expression, this);
-    _preamble ??= new List<Expression>();
-    _preamble.add(expression);
-  }
+//   void addStatement(Expression expression) {
+//     _setParent(expression, this);
+//     _preamble ??= new List<Expression>();
+//     _preamble.add(expression);
+//   }
 
-  // The [expression] may not contain any unguarded blocks. A block is guarded
-  // if and only if it is the body of a function definition or lambda expression.
-  Expression _expression;
-  Expression get expression => _expression;
-  void set expression(Expression exp) {
-    _setParent(exp, this);
-    _expression = exp;
-  }
+//   // The [expression] may not contain any unguarded blocks. A block is guarded
+//   // if and only if it is the body of a function definition or lambda expression.
+//   Expression _expression;
+//   Expression get expression => _expression;
+//   void set expression(Expression exp) {
+//     _setParent(exp, this);
+//     _expression = exp;
+//   }
 
-  bool get isGuarded =>
-      parent != null && (parent is DLambda || parent is LetFunction);
+//   bool get isGuarded =>
+//       parent != null && (parent is DLambda || parent is LetFunction);
 
-  // void merge(Block other) {
-  //   assert(other != null);
-  //   if (other.registers != null) {
-  //     if (registers == null) {
-  //       registers = other.registers;
-  //     } else {
-  //       _setResidenceMany(other.registers, this);
-  //       registers.addAll(other.registers);
-  //     }
-  //     other.registers = null;
-  //   }
+//   // void merge(Block other) {
+//   //   assert(other != null);
+//   //   if (other.registers != null) {
+//   //     if (registers == null) {
+//   //       registers = other.registers;
+//   //     } else {
+//   //       _setResidenceMany(other.registers, this);
+//   //       registers.addAll(other.registers);
+//   //     }
+//   //     other.registers = null;
+//   //   }
 
-  //   if (other.preamble != null) {
-  //     if (preamble == null) {
-  //       preamble = other.preamble;
-  //     } else {
-  //       _setParentMany(other.preamble, this);
-  //       preamble.addAll(other.preamble);
-  //     }
-  //     other.preamble = null;
-  //   }
+//   //   if (other.preamble != null) {
+//   //     if (preamble == null) {
+//   //       preamble = other.preamble;
+//   //     } else {
+//   //       _setParentMany(other.preamble, this);
+//   //       preamble.addAll(other.preamble);
+//   //     }
+//   //     other.preamble = null;
+//   //   }
 
-  //   if (other.expression != null) {
-  //     addStatement(other.expression);
-  //   }
-  // }
+//   //   if (other.expression != null) {
+//   //     addStatement(other.expression);
+//   //   }
+//   // }
 
-  Block([Expression expression, Location location])
-      : super(ExpTag.BLOCK, location) {
-    this.expression = expression;
-  }
+//   Block([Expression expression, Location location])
+//       : super(ExpTag.BLOCK, location) {
+//     this.expression = expression;
+//   }
 
-  Block.empty([Location location]) : this(null, location);
+//   Block.empty([Location location]) : this(null, location);
 
-  T accept<T>(ExpressionVisitor<T> v) => v.visitBlock(this);
+//   T accept<T>(ExpressionVisitor<T> v) => v.visitBlock(this);
 
-  String toString() => "(block [...] [...] $expression)";
-}
+//   String toString() => "(block [...] [...] $expression)";
+// }
 
 class Project extends Expression {
   Expression receiver;

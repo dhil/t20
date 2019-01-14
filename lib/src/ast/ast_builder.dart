@@ -758,7 +758,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         }
 
         // Construct a variable node.
-        Variable v = new Variable(declarator, location);
+        Variable v = new Variable(declarator.binder, location);
 
         return Pair<BuildContext, Expression>(ctxt, v);
       };
