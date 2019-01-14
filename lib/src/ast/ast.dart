@@ -928,11 +928,12 @@ enum PatternTag {
   WILDCARD
 }
 
-abstract class BaseValuePattern extends Pattern {
+abstract class BaseValuePattern<T> extends Pattern {
+  T get value;
   BaseValuePattern(PatternTag tag, Location location) : super(tag, location);
 }
 
-class BoolPattern extends BaseValuePattern {
+class BoolPattern extends BaseValuePattern<bool> {
   final bool value;
 
   BoolPattern(this.value, Location location) : super(PatternTag.BOOL, location);
@@ -1004,7 +1005,7 @@ class HasTypePattern extends Pattern {
   }
 }
 
-class IntPattern extends BaseValuePattern {
+class IntPattern extends BaseValuePattern<int> {
   final int value;
 
   IntPattern(this.value, Location location) : super(PatternTag.INT, location);
@@ -1018,7 +1019,7 @@ class IntPattern extends BaseValuePattern {
   }
 }
 
-class StringPattern extends BaseValuePattern {
+class StringPattern extends BaseValuePattern<String> {
   final String value;
 
   StringPattern(this.value, Location location)

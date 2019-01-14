@@ -88,11 +88,19 @@ import 'ast.dart';
 // }
 
 class ScratchSpace {
+  // Parallel lists.
   List<Binder> _sources;
   List<Binder> get sources => _sources;
   void addSource(Binder binder) {
     _sources ??= new List<Binder>();
     sources.add(binder);
+  }
+
+  List<Expression> _initialisers;
+  List<Expression> get initialisers => _initialisers;
+  void addInitialiser(Expression init) {
+    _initialisers ??= new List<Expression>();
+    initialisers.add(init);
   }
 
   // Parallel lists.
@@ -114,14 +122,23 @@ class ScratchSpace {
 
   bool get isValid => binders == bodies || binders.length == bodies.length;
 
-  Expression build(Expression continuation) {
+  Expression build(Expression continuation, [bool buildSources = false]) {
     if (binders == null) return continuation;
 
     assert(binders.length == bodies.length);
+    assert(buildSources == false ||
+        binders.length == sources.length &&
+            sources.length == initialisers.length);
+    // Builds continuation bottom-up; starting with the provided continuation.
     for (int i = binders.length - 1; 0 <= i; i--) {
       Binder binder = binders[i];
       Expression body = bodies[i];
-      continuation = null; /* DLet(binder, body, continuation) */
+      continuation = DLet(binder, body, continuation);
+      if (buildSources) {
+        binder = sources[i];
+        body = initialisers[i];
+        continuation = DLet(binder, body, continuation);
+      }
     }
 
     return continuation;
@@ -236,6 +253,13 @@ class ExpressionDesugarer {
   ModuleEnvironment environment;
   PatternDesugarer pattern; // Lazily instantiated.
 
+  DecisionTreeCompiler _decisionTree;
+  DecisionTreeCompiler get decisionTree {
+    // Lazily instantiated.
+    _decisionTree ??= DecisionTreeCompiler(environment, this);
+    return _decisionTree;
+  }
+
   ExpressionDesugarer(this.environment, [this.pattern]);
 
   Expression desugar(Expression exp) {
@@ -249,30 +273,289 @@ class ExpressionDesugarer {
         break;
       // Homomorphism cases.
       case ExpTag.APPLY:
-        unhandled("ExpressionDesugarer.desugar", exp.tag);
+        Apply apply = exp as Apply;
+        apply.abstractor = desugar(apply.abstractor);
+        apply.arguments = apply.arguments.map(desugar).toList();
+        return apply;
         break;
       case ExpTag.IF:
-        unhandled("ExpressionDesugarer.desugar", exp.tag);
+        If ifexpr = exp as If;
+        ifexpr.condition = desugar(ifexpr.condition);
+        ifexpr.thenBranch = desugar(ifexpr.thenBranch);
+        ifexpr.elseBranch = desugar(ifexpr.elseBranch);
+        return ifexpr;
         break;
       case ExpTag.TUPLE:
-        unhandled("ExpressionDesugarer.desugar", exp.tag);
+        Tuple tuple = exp as Tuple;
+        tuple.components = tuple.components.map(desugar).toList();
+        return tuple;
         break;
       case ExpTag.TYPE_ASCRIPTION:
         unhandled("ExpressionDesugarer.desugar", exp.tag);
         break;
       // "Interesting" cases.
       case ExpTag.LAMBDA:
-        unhandled("ExpressionDesugarer.desugar", exp.tag);
+        return lambda(exp as Lambda);
         break;
       case ExpTag.LET:
-        unhandled("ExpressionDesugarer.desugar", exp.tag);
+        return let(exp as Let);
         break;
       case ExpTag.MATCH:
-        unhandled("ExpressionDesugarer.desugar", exp.tag);
+        return match(exp as Match);
         break;
       default:
         unhandled("ExpressionDesugarer.desugar", exp.tag);
     }
+  }
+
+  DLambda lambda(Lambda lambda) {
+    // Desugar the parameters.
+    ScratchSpace workSpace = desugarParameters(lambda.parameters, pattern);
+    List<FormalParameter> parameters = new List<FormalParameter>();
+    if (workSpace.sources != null) {
+      for (int i = 0; i < workSpace.sources.length; i++) {
+        Binder binder = workSpace.sources[i];
+        parameters.add(FormalParameter(binder));
+      }
+    }
+
+    // Desugar the body.
+    Expression body = desugar(lambda.body);
+    // Join with any bindings produced by the parameter desugaring.
+    body = workSpace.build(body);
+
+    DLambda target = DLambda(parameters, body, lambda.location);
+    target.type = lambda.type;
+
+    return target;
+  }
+
+  DLet let(Let letexpr) {
+    // Desugar each binding.
+    ScratchSpace workSpace = ScratchSpace();
+    for (int i = 0; i < letexpr.valueBindings.length; i++) {
+      Binding binding = letexpr.valueBindings[i];
+
+      // Desugar the body expression [e_i].
+      Expression body = desugar(binding.expression);
+
+      // Desugar the pattern [b_i].
+      Binder source = pattern.desugar(binding.pattern, workSpace);
+      if (source == null) {
+        source = Binder.fresh(binding.pattern.origin)
+          ..type = binding.pattern.type;
+      }
+      workSpace.addSource(source);
+      workSpace.addInitialiser(body);
+    }
+
+    // Desugar the continuation [e'].
+    Expression continuation = desugar(letexpr.body);
+    // Builds: let b_i = e_i in e'.
+    return workSpace.build(continuation);
+  }
+
+  Expression match(Match match) {
+    // Type-directed match compilation.
+    Datatype scrutineeType = match.scrutinee.type;
+    if (scrutineeType is BoolType ||
+        scrutineeType is IntType ||
+        scrutineeType is StringType) {
+      // Decision tree compilation.
+      Binder scrutinee = Binder.fresh(match.origin)..type = scrutineeType;
+      return decisionTree.desugar(
+          Variable(scrutinee), match.cases, match.location);
+    }
+
+    if (scrutineeType is TupleType) {
+      // Compile the first clause.
+    }
+
+    if (scrutineeType is TypeConstructor) {
+      throw "Not yet implemented.";
+    }
+
+    unhandled("ExpressionDesugarer.match", scrutineeType);
+  }
+}
+
+class DecisionTreeCompiler {
+  ExpressionDesugarer expression;
+  ModuleEnvironment environment;
+
+  DecisionTreeCompiler(this.environment, this.expression);
+
+  int boolCompare(bool x, bool y) {
+    if (x == y)
+      return 0;
+    else if (x)
+      return 1;
+    else
+      return -1;
+  }
+
+  int intCompare(int x, int y) {
+    if (x == y)
+      return 0;
+    else if (x < y)
+      return -1;
+    else
+      return 1;
+  }
+
+  int stringCompare(String x, String y) => x.compareTo(y);
+
+  Expression desugar(Variable scrutinee, List<Case> cases,
+      [Location location]) {
+    Datatype type = scrutinee.declarator.type;
+    if (type is BoolType) {
+      cases = normalise(cases, type, boolCompare, 2);
+    } else if (type is IntType) {
+      cases = normalise(cases, type, intCompare, null);
+    } else if (type is StringType) {
+      cases = normalise(cases, type, stringCompare, null);
+    } else {
+      unhandled("DecisionTreeCompiler.desugar", type);
+    }
+    return compile(scrutinee, cases, 0, cases.length,
+        expression.pattern.matchFailure(location));
+  }
+
+  List<Case> normalise<T>(List<Case> cases, Datatype type,
+      int Function(T, T) compare, int inhabitants) {
+    List<Case> result = new List<Case>();
+    Case catchAll;
+    bool exhaustive = false;
+
+    if (type is! BoolType && type is! IntType && type is! StringType) {
+      unhandled("DecisionTreeCompiler.normalise", type);
+    }
+
+    Set<T> seen = Set<T>();
+    for (int i = 0; i < cases.length; i++) {
+      Case c = cases[i];
+      if (c.pattern is WildcardPattern || c.pattern is VariablePattern) {
+        catchAll = c;
+        exhaustive = true;
+        break;
+      }
+
+      if (c.pattern is BaseValuePattern<T>) {
+        BaseValuePattern<T> pat = c.pattern as BaseValuePattern<T>;
+        if (!seen.contains(pat.value)) {
+          result.add(c);
+          seen.add(pat.value);
+        } else {
+          // TODO: Signal redundant pattern?
+        }
+        continue;
+      }
+
+      unhandled("DecisionTreeCompiler.normalise", c.pattern);
+    }
+
+    // Sort the cases.
+    result.sort((Case x, Case y) => compare(
+        ((x.pattern) as BaseValuePattern<T>).value,
+        ((y.pattern) as BaseValuePattern<T>).value));
+    // Add the catch all case, if any.
+    if (catchAll != null) {
+      result.add(catchAll);
+    }
+
+    // TODO emit incomplete pattern match warning?
+    if (!exhaustive && inhabitants != null) {
+      exhaustive = seen.length == inhabitants;
+    }
+
+    return result;
+  }
+
+  // Compiles a sorted list of base patterns into a well-balanced binary search
+  // tree.
+  Expression compile(Variable scrutinee, List<Case> cases, int start, int end,
+      Expression continuation) {
+    int length = end - start + 1;
+    // Two base cases:
+    // 1) compile _ [] continuation = continuation.
+    if (length == 0) return continuation;
+    // 2) compile scrutinee [case] continuation = if (eq? scrutinee w) desugar case.body else continuation.
+    //                                          where w = [|case.pattern.value|].
+    if (length == 1) {
+      int mid = length ~/ 2;
+      Case c = cases[mid];
+      Pattern pat = c.pattern;
+
+      // Immediate match.
+      if (pat is VariablePattern) {
+        // Bind the scrutinee.
+        Binder binder = pat.binder;
+        return DLet(binder, scrutinee, expression.desugar(c.expression));
+      } else if (pat is WildcardPattern) {
+        return expression.desugar(c.expression);
+      }
+
+      // Potential match.
+      Expression w;
+      Expression eq;
+      if (pat is IntPattern) {
+        w = IntLit(pat.value, pat.location);
+        eq =
+            Variable(environment.prelude.manifest.findByName("int-eq?").binder);
+      } else if (pat is StringPattern) {
+        w = StringLit(pat.value, pat.location);
+        eq = Variable(environment.string.manifest.findByName("eq?").binder);
+      } else {
+        unhandled("DecisionTreeCompiler.compile", pat);
+      }
+      Expression condition = Apply(eq, <Expression>[scrutinee, w]);
+
+      return If(condition, expression.desugar(c.expression), continuation);
+    }
+
+    // Inductive case:
+    // compile scrutinee cases = (if (= scrutinee w) (compile scrutinee [cmid]) else (if (< scrutinee w) (compile scrutinee left(cases)) else (compile scrutinee right(cases)))).
+    //                         where  cmid = cases[cases.length / 2]
+    //                                  w = [|cmid.pattern.value|];
+    //                         left cases = [ c | c <- cases, c.pattern.value < cmid.pattern.value ]
+    //                        right cases = [ c | c <- cases, c.pattern.value > cmid.pattern.value ]
+    int mid = length ~/ 2;
+    Case c = cases[mid];
+    Pattern pat = c.pattern;
+
+    // Immediate match.
+    if (pat is VariablePattern || pat is WildcardPattern) {
+      // Delegate to the base case.
+      return compile(scrutinee, cases, mid, mid, continuation);
+    }
+
+    // Potential match.
+    Expression w;
+    Expression less;
+    Expression eq;
+
+    if (pat is IntPattern) {
+      w = IntLit(pat.value, pat.location);
+      less =
+          Variable(environment.prelude.manifest.findByName("int-less?").binder);
+      eq = Variable(environment.prelude.manifest.findByName("int-eq?").binder);
+    } else if (pat is StringPattern) {
+      w = StringLit(pat.value, pat.location);
+      less = Variable(environment.string.manifest.findByName("less?").binder);
+      eq = Variable(environment.string.manifest.findByName("eq?").binder);
+    } else {
+      unhandled("DecisionTreeCompiler.compile", pat);
+    }
+
+    List<Expression> arguments = <Expression>[scrutinee, w];
+    If testExp = If(
+        Apply(eq, arguments),
+        expression.desugar(c.expression),
+        If(
+            Apply(less, arguments),
+            compile(scrutinee, cases, start, mid - 1, continuation),
+            compile(scrutinee, cases, mid + 1, end, continuation)));
+    return testExp;
   }
 }
 
@@ -337,12 +620,10 @@ class PatternDesugarer {
     }
 
     Binder binder = Binder.fresh(pat.origin)..type = pat.type;
-    space.addSource(binder);
-
     // [|p|] = (if (eq? p.value d) d else fail)
     //     where d is a declaration.
     Binder dummy = Binder.fresh(pat.origin)..type = pat.type;
-    Expression x = Variable(dummy); // TODO.
+    Expression x = Variable(binder);
     Expression exp = If(
         Apply(equals, <Expression>[operand, x]), x, matchFailure(pat.location));
     space.addBinder(dummy);
@@ -352,7 +633,17 @@ class PatternDesugarer {
   }
 
   Binder tuple(TuplePattern tuple, ScratchSpace space) {
-    return null;
+    Binder source = Binder.fresh(tuple.origin)..type = tuple.type;
+    for (int i = 0; i < tuple.components.length; i++) {
+      Pattern component = tuple.components[i];
+      assert(component is WildcardPattern || component is VariablePattern);
+      Binder binder = desugar(component, space);
+      if (binder != null) {
+        space.addBinder(binder);
+        space.addBody(Project(Variable(source), i));
+      }
+    }
+    return source;
   }
 
   Expression matchFailure([Location location]) {
