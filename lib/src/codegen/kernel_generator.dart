@@ -1,524 +1,379 @@
-// Copyright (c) 2018, the Dart project authors.  Please see the AUTHORS file
+// Copyright (c) 2019, the Dart project authors.  Please see the AUTHORS file
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'package:kernel/ast.dart';
+import 'package:kernel/ast.dart' hide DynamicType, Expression, Let;
+import 'package:kernel/ast.dart' as kernel show DynamicType, Expression, Let;
 import 'package:kernel/transformations/continuation.dart' as transform;
 
+import '../ast/ast.dart';
 import '../errors/errors.dart' show unhandled;
+import '../module_environment.dart';
 
-import 'ir.dart';
 import 'platform.dart';
+
+// Archivist is a helper class for querying the origin of binders.
+enum Origin { DART_LIST, KERNEL, PRELUDE, STRING, CUSTOM }
+
+class Archivist {
+  ModuleEnvironment environment;
+
+  Archivist(this.environment);
+
+  bool isKernelModule(TopModule module) =>
+      identical(module.origin, environment.kernel);
+
+  Origin originOf(Binder binder) {
+    if (binder.origin == null)
+      throw "Logical error: The binder ${binder} has no origin.";
+    if (identical(binder.origin, environment.prelude)) return Origin.PRELUDE;
+    if (identical(binder.origin, environment.kernel)) return Origin.KERNEL;
+    if (identical(binder.origin, environment.dartList)) return Origin.DART_LIST;
+    if (identical(binder.origin, environment.string)) return Origin.STRING;
+
+    return Origin.CUSTOM;
+  }
+
+  bool isPrimitive(Binder binder) => originOf(binder) != Origin.CUSTOM;
+
+  bool isGlobal(Binder binder) {
+    if (binder.bindingOccurrence is LetFunction) {
+      LetFunction fun = binder.bindingOccurrence;
+      return identical(fun.binder, binder);
+    }
+
+    return binder.bindingOccurrence is ModuleMember;
+  }
+
+  bool isLocal(Binder binder) => !isGlobal(binder);
+}
+
+VariableDeclaration translateBinder(Binder binder) {
+  VariableDeclaration v =
+      VariableDeclaration(binder.toString()); // TODO translate type.
+  binder.asKernelNode = v;
+  return v;
+}
+
+VariableDeclaration translateFormalParameter(FormalParameter parameter) {
+  return translateBinder(parameter.binder);
+}
 
 class KernelGenerator {
   final Platform platform;
+  final Archivist archivist;
+  ModuleKernelGenerator module;
 
-  KernelGenerator(this.platform);
+  KernelGenerator(this.platform, ModuleEnvironment environment)
+      : archivist = Archivist(environment) {
+    this.module = ModuleKernelGenerator(platform, archivist);
+  }
 
-  Component compile(Module module) {
-    //print("${module.toString()}");
-    List<Field> fields = new List<Field>(); // Top-level values.
-    List<Procedure> procedures = new List<Procedure>(); // Top-level functions.
-    // TODO include classes aswell.
-    for (int i = 0; i < module.bindings.length; i++) {
-      Member member = compileToplevelBinding(module.bindings[i]);
-      if (member is Procedure) {
-        procedures.add(member);
-      } else if (member is Field) {
-        fields.add(member);
-      } else {
-        unhandled("KernelGenerator.compile", module.bindings[i]);
+  Component compile(List<TopModule> modules) {
+    List<Library> libraries = new List<Library>();
+    Procedure main;
+    for (int i = 0; i < modules.length; i++) {
+      TopModule module0 = modules[i];
+      Library library = module.compile(module0);
+      if (library != null) {
+        libraries.add(library);
+
+        if (module0.hasMain) {
+          main = ((module0.main) as LetFunction).asKernelNode; // TODO.
+          // library.procedures.add(mainProcedure);
+        }
       }
     }
 
-    Component component = platform.platform;
-
-    Procedure mainProcedure;
-    if (module.hasMain) {
-      mainProcedure = main(module.main.kernelNode);
-      procedures.add(mainProcedure);
-    }
-    Library library = Library(Uri(scheme: "file", path: "."),
-        name: "t20app", procedures: procedures, fields: fields);
-    library.parent = component;
-    CanonicalName name = library.reference.canonicalName;
-    if (name != null && name.parent != component.root) {
-      component.root.adoptChild(name);
-    }
-
-    component.computeCanonicalNamesForLibrary(library);
-    component.libraries.add(library);
-
-    if (mainProcedure != null) {
-      component.mainMethodName = mainProcedure.reference;
-    }
-
+    Component component = compose(main, libraries, platform.platform);
     return component;
   }
 
-  // Compilation of bindings.
-  Member compileToplevelBinding(Binding binding) {
-    switch (binding.tag) {
-      case LET_FUN:
-        return compileLetFun(binding as LetFun);
-        break;
-      case LET_VAL:
-        return compileToplevelLetVal(binding as LetVal);
-        break;
-      default:
-        unhandled("KernelGenerator.compileToplevelBinding", binding.tag);
+  Component compose(
+      Procedure main, List<Library> libraries, Component platform) {
+    if (main != null) {
+      // TODO.
     }
 
-    return null; // Impossible!
-  }
+    for (int i = 0; i < libraries.length; i++) {
+      Library library = libraries[i];
+      CanonicalName name = library.reference.canonicalName;
+      if (name != null && name.parent != platform.root) {
+        platform.root.adoptChild(name);
+      } else {
+        // TODO error?
+      }
 
-  Statement compileBinding(Binding binding) {
-    switch (binding.tag) {
-      case LET_FUN:
-        throw "Function declaration below top-level.";
-        break;
-      case LET_VAL:
-        return compileLetVal(binding as LetVal);
-        break;
-      default:
-        unhandled("KernelGenerator.compileBinding", binding.tag);
+      platform.computeCanonicalNamesForLibrary(library);
+      platform.libraries.add(library);
     }
 
-    return null; // Impossible!
+    return platform;
+  }
+}
+
+class ModuleKernelGenerator {
+  Platform platform;
+  Archivist archivist;
+  ExpressionKernelGenerator expression;
+
+  ModuleKernelGenerator(Platform platform, Archivist archivist) {
+    this.archivist = archivist;
+    this.platform = platform;
+    expression = ExpressionKernelGenerator(platform, archivist);
   }
 
-  Procedure compileLetFun(LetFun letfun) {
-    ProcedureKind kind = ProcedureKind.Method;
-    Name name = Name(letfun.binder.uniqueName);
+  Library compile(TopModule module) {
+    // Do nothing for the (virtual) kernel module.
+    if (archivist.isKernelModule(module)) return null;
 
-    List<VariableDeclaration> parameters = new List<VariableDeclaration>();
-    for (int i = 0; i < letfun.parameters.length; i++) {
-      FormalParameter param = letfun.parameters[i];
-      VariableDeclaration varDecl =
-          localDeclaration(param.binder /* TODO: translate type. */);
-      param.kernelNode = varDecl;
-      parameters.add(varDecl);
-    }
-
-    Statement body = compileComputation(letfun.body);
-    FunctionNode funNode = FunctionNode(body, positionalParameters: parameters);
-
-    letfun.kernelNode = Procedure(name, kind, funNode, isStatic: true);
-    return letfun.kernelNode;
-  }
-
-  Field compileToplevelLetVal(LetVal letval) {
-    // Construct name.
-    Name name = Name(letval.binder.uniqueName);
-    // Compile the body.
-    Expression body = compileTailComputation(letval.tailComputation);
-    // Construct a field node.
-    Field field = Field(name,
-        initializer: body,
-        type: const DynamicType() /* TODO */,
-        isStatic: true);
-
-    letval.kernelNode = field;
-    return field;
-  }
-
-  VariableDeclaration compileLetVal(LetVal letval) {
-    // Construct a variable declaration.
-    VariableDeclaration varDecl =
-        localDeclaration(letval.binder /* TODO: translate type */
-            );
-    letval.kernelNode = varDecl;
-    // Compile the initialising expression.
-    varDecl.initializer = compileTailComputation(letval.tailComputation);
-    // Construct the initialiser.
-    return varDecl;
-  }
-
-  // Compilation of computations.
-  Block compileComputation(Computation comp) {
-    List<Statement> statements = new List<Statement>();
-    // Translate each binding.
-    if (comp.bindings != null) {
-      for (int i = 0; i < comp.bindings.length; i++) {
-        Statement stmt = compileBinding(comp.bindings[i]);
-        statements.add(stmt);
+    // Process each member.
+    Library library = emptyLibrary(module.name);
+    for (int i = 0; i < module.members.length; i++) {
+      ModuleMember member = module.members[i];
+      switch (member.tag) {
+        // No-ops.
+        case ModuleTag.CONSTR:
+        case ModuleTag.SIGNATURE:
+        case ModuleTag.TYPENAME:
+          // Ignore.
+          break;
+        case ModuleTag.DATATYPE_DEFS:
+          // TODO.
+          break;
+        case ModuleTag.FUNC_DEF:
+          Procedure procedure = function(member as LetFunction);
+          if (procedure != null) {
+            library.procedures.add(procedure);
+          }
+          break;
+        case ModuleTag.VALUE_DEF:
+          Field field = value(member as ValueDeclaration);
+          if (field != null) {
+            library.fields.add(field);
+          }
+          break;
+        default:
+          unhandled("ModuleKernelGenerator.compile", member.tag);
       }
     }
-
-    // Translate the tail computation.
-    Expression result = compileTailComputation(comp.tailComputation);
-    // Insert a return statement.
-    statements.add(ReturnStatement(result));
-
-    return Block(statements);
+    return library;
   }
 
-  // Compilation of tail computations.
-  Expression compileTailComputation(TailComputation tc) {
-    switch (tc.tag) {
-      case APPLY: // InvocationExpression
-        return compileApply(tc as Apply);
+  Library emptyLibrary(String name) {
+    return Library(Uri(scheme: "file", path: "."), name: name);
+  }
+
+  Procedure function(LetFunction fun) {
+    // TODO check whether [fun] is virtual.
+
+    // Build the function node.
+    FunctionNode node =
+        expression.functionNode(fun.parameters, fun.body, fun.type);
+    // Build the procedure node.
+    Name name = Name(fun.binder.toString());
+    Procedure procedure =
+        Procedure(name, ProcedureKind.Method, node, isStatic: true);
+    // Store the procedure node.
+    fun.asKernelNode = procedure;
+    return procedure;
+  }
+
+  Field value(ValueDeclaration val) {
+    // TODO check whether [val] is virtual.
+
+    // Build the [Field] node.
+    DartType type = const kernel.DynamicType(); // TODO.
+    Field node = Field(Name(val.binder.toString()),
+        initializer: expression.compile(val.body), type: type);
+
+    // Store the node.
+    val.asKernelNode = node;
+    return node;
+  }
+}
+
+class ExpressionKernelGenerator {
+  final Archivist archivist;
+  final Platform platform;
+  final InvocationKernelGenerator invoke;
+
+  ExpressionKernelGenerator(this.platform, this.archivist)
+      : this.invoke = InvocationKernelGenerator();
+
+  kernel.Expression compile(Expression exp) {
+    switch (exp.tag) {
+      // Literals.
+      case ExpTag.BOOL:
+        return BoolLiteral((exp as BoolLit).value);
         break;
-      case IF: // IfStatement
-        If ifexpr = tc;
-        return compileIf(ifexpr);
+      case ExpTag.INT:
+        return IntLiteral((exp as IntLit).value);
         break;
-      case RETURN:
-        Return ret = tc;
-        return compileValue(ret.value);
+      case ExpTag.STRING:
+        return StringLiteral((exp as StringLit).value);
+        break;
+      // Local and global variables.
+      case ExpTag.VAR:
+        return getVariable(exp as Variable);
+        break;
+      // Homomorphisms (more or less).
+      case ExpTag.IF:
+        If ifexp = exp as If;
+        return ConditionalExpression(
+            compile(ifexp.condition),
+            compile(ifexp.thenBranch),
+            compile(ifexp.elseBranch),
+            const kernel.DynamicType()); // TODO: translate type.
+        break;
+      case ExpTag.LET:
+        DLet letexp = exp as DLet;
+        VariableDeclaration v = translateBinder(letexp.binder);
+        v.initializer = compile(letexp.body);
+        return kernel.Let(v, compile(letexp.continuation));
+        break;
+      case ExpTag.LAMBDA:
+        return lambda(exp as DLambda);
+        break;
+      case ExpTag.PROJECT:
+        return project(exp as Project);
+        break;
+      case ExpTag.TUPLE:
+        return tuple(exp as Tuple);
+        break;
+      // Interesting cases.
+      case ExpTag.APPLY:
+        return apply(exp as Apply);
+        break;
+      case ExpTag.TYPE_ASCRIPTION:
+        throw "Not yet implemented.";
         break;
       default:
-        unhandled("KernelGenerator.compileTailComputation", tc.tag);
+        unhandled("ExpressionKernelGenerator.compile", exp.tag);
     }
+
     return null; // Impossible!
   }
 
-  Expression compileIf(If ifthenelse) {
-    // Decide whether to compile to expression form using the ternary operator ?
-    // or statement form using if-then-else.
-    Expression cond = compileValue(ifthenelse.condition);
-    if (ifthenelse.isSimple) {
-      // Construct a "conditional expression", i.e. "cond ? tt : ff".  Since the
-      // conditional is "simple", we know that neither subtree introduces any
-      // new bindings, therefore we can compile each branch as an expression.
-      Expression tt =
-          compileTailComputation(ifthenelse.thenBranch.tailComputation);
-      Expression ff =
-          compileTailComputation(ifthenelse.elseBranch.tailComputation);
-      return ConditionalExpression(
-          cond, tt, ff, const DynamicType() /* TODO proper typing. */);
-    } else {
-      // Since the conditional is complex (opposite of the vaguely defined
-      // notion of being "simple") either branch may introduce new bindings
-      // (i.e. statements) in the image of the translation. Therefore, we must
-      // compile each branch as a block.
-      Block tt = compileComputation(ifthenelse.thenBranch);
-      Block ff = compileComputation(ifthenelse.elseBranch);
+  kernel.Expression apply(Apply apply) {
+    // There are several different kinds of applications:
+    // 1) Constructor application.
+    // 2) Primitive application.
+    // 3) Static function application.
+    // 4) Dynamic function application (e.g. lambda application).
 
-      // Construct the if node.
-      IfStatement ifnode = IfStatement(cond, tt, ff);
-      // ... now we got a statement, but we need to return an expression. The
-      // standard way to "turn" a statement into an expression is to introduce
-      // an application, where the abstractor is a nullary abstraction, whose
-      // body is the statement.
-      return force(thunk(ifnode));
+    // Compile each argument.
+    List<kernel.Expression> arguments = List<kernel.Expression>();
+    for (int i = 0; i < apply.arguments.length; i++) {
+      kernel.Expression exp = compile(apply.arguments[i]);
+      arguments.add(exp);
     }
-  }
 
-  // Lifts a statement into the expression language.
-  FunctionExpression thunk(Statement body,
-      [DartType staticType = const DynamicType()]) {
-    FunctionNode fun = FunctionNode(body, returnType: staticType);
-    FunctionExpression abs = FunctionExpression(fun);
-    return abs;
-  }
-
-  // Applies a thunk.
-  InvocationExpression force(FunctionExpression thunk) {
-    return MethodInvocation(thunk, Name("call"), Arguments.empty());
-  }
-
-  InvocationExpression compileApply(Apply apply) {
-    // Determine what kind of invocation to perform.
+    // Determine which kind of application to perform, and delegate accordingly.
     if (apply.abstractor is Variable) {
       Variable v = apply.abstractor;
-      if (v.declarator.bindingSite is LetFun) {
-        LetFun fun = v.declarator.bindingSite;
-        return compileStaticApply(fun.kernelNode, apply.arguments);
-      } else if (v.declarator.bindingSite is PrimitiveFunction) {
-        return compileStaticApply(
-            primitiveFunction(v.declarator.sourceName), apply.arguments);
-      } else if (v.declarator.bindingSite is LetVal) {
-        // Must be a function expression.
-        LetVal letval = v.declarator.bindingSite;
-        Expression receiver;
-        if (letval.kernelNode is VariableDeclaration) {
-          receiver = VariableGet(letval.kernelNode);
-        } else if (letval.kernelNode is Field) {
-          receiver = StaticGet(letval.kernelNode);
-        } else {
-          unhandled("KernelGenerator.compileApply", letval.kernelNode);
-        }
-        return compileLambdaApply(receiver, apply.arguments);
+      if (v.declarator is DataConstructor) {
+        return invoke.constructor(v.declarator, arguments);
+      } else if (archivist.isPrimitive(v.binder)) {
+        return invoke.primitive(v.binder, arguments);
+      } else if (v.declarator is! LetFunction) {
+        return invoke.dynamic$(compile(v), arguments);
       } else {
-        unhandled("KernelGenerator.compileApply", apply);
-      }
-    } else if (apply.abstractor is PrimitiveFunction) {
-      PrimitiveFunction primitive = apply.abstractor;
-      return compileStaticApply(
-          primitiveFunction(primitive.binder.sourceName), apply.arguments);
-    } else {
-      unhandled("KernelGenerator.compileApply", apply);
-    }
-    return null; // Impossible!
-  }
-
-  MethodInvocation compileLambdaApply(
-      Expression lambda, List<Value> valueArguments) {
-    Arguments arguments = compileArguments(valueArguments);
-    return MethodInvocation(lambda, Name("call"), arguments);
-  }
-
-  Arguments compileArguments(List<Value> valueArguments) {
-    // Translate each argument.
-    List<Expression> arguments = new List<Expression>();
-    for (int i = 0; i < valueArguments.length; i++) {
-      arguments.add(compileValue(valueArguments[i]));
-    }
-    return Arguments(arguments);
-  }
-
-  StaticInvocation compilePrimitiveApply(
-      PrimitiveFunction primitive, List<Value> valueArguments) {
-    Arguments arguments = compileArguments(valueArguments);
-    return StaticInvocation(
-        primitiveFunction(primitive.binder.sourceName), arguments);
-  }
-
-  StaticInvocation compileStaticApply(
-          Procedure target, List<Value> valueArguments) =>
-      StaticInvocation(target, compileArguments(valueArguments));
-
-  // Compilation of values.
-  Expression compileValue(Value w) {
-    switch (w.tag) {
-      case BOOL:
-        BoolLit b = w;
-        return BoolLiteral(b.value);
-        break;
-      case INT:
-        IntLit n = w;
-        return IntLiteral(n.value);
-        break;
-      case STRING:
-        StringLit s = w;
-        return StringLiteral(s.value);
-        break;
-      case VAR:
-        return compileVariable(w as Variable);
-        break;
-      default:
-        unhandled("KernelGenerator.compileValue", w.tag);
-    }
-
-    return null; // Impossible!
-  }
-
-  Expression compileVariable(Variable v) {
-    // The variable may be either a reference to a 1) toplevel function, 2)
-    // primitive function, 3) toplevel let, 4) local let, or 5) a formal
-    // parameter.
-
-    if (v.declarator.bindingSite is LetFun) {
-      // 1) Function.
-      LetFun fun = v.declarator.bindingSite;
-      // [v] is a reference to the function.
-      return StaticGet(fun.kernelNode);
-    } else if (v.declarator.bindingSite is PrimitiveFunction) {
-      // 2) Primitive function.
-      return StaticGet(primitiveFunction(v.declarator.sourceName));
-    } else if (v.declarator.bindingSite is LetVal) {
-      // 3) or 4) let bound value.
-      LetVal let = v.declarator.bindingSite;
-      if (let.kernelNode is Field) {
-        // 3) Toplevel value.
-        Field field = let.kernelNode;
-        return StaticGet(field);
-      } else if (let.kernelNode is VariableDeclaration) {
-        // 4) Local value.
-        VariableDeclaration decl = let.kernelNode;
-        return VariableGet(decl);
-      } else {
-        unhandled("KernelGenerator.compileVariable", let.kernelNode);
-      }
-    } else if (v.declarator.bindingSite is FormalParameter) {
-      // 5) Formal parameter.
-      FormalParameter param = v.declarator.bindingSite;
-      return VariableGet(param.kernelNode);
-    } else {
-      unhandled("KernelGenerator.compileVariable", v.declarator.bindingSite);
-    }
-
-    return null; // Impossible!
-  }
-
-  Procedure primitiveFunction(String primitiveName) {
-    PlatformPathBuilder builder = PlatformPathBuilder.core;
-    Procedure proc;
-    switch (primitiveName) {
-      case "+":
-        PlatformPath path = builder.library("num").target("+").build();
-        Procedure plus = platform.getProcedure(path);
-        proc = plus;
-        break;
-      case "-":
-        PlatformPath path = builder.library("num").target("-").build();
-        Procedure minus = platform.getProcedure(path);
-        proc = minus;
-        break;
-      case "print":
-        PlatformPath path = builder.target("print").build();
-        proc = platform.getProcedure(path);
-        break;
-      case "int-eq?":
-        PlatformPath path = builder.library("num").target("==").build();
-        proc = platform.getProcedure(path);
-        break;
-      case "string-eq?":
-        PlatformPath path = builder.library("String").target("==").build();
-        proc = platform.getProcedure(path);
-        break;
-      case "bool-eq?":
-        PlatformPath path = builder.library("Object").target("==").build();
-        proc = platform.getProcedure(path);
-        break;
-      default:
-        unhandled("KernelGenerator.compilePrimitiveApply", primitiveName);
-    }
-
-    // TODO check for null?
-    return proc;
-  }
-
-  VariableDeclaration localDeclaration(TypedBinder binder,
-          [DartType staticType = const DynamicType()]) =>
-      VariableDeclaration(binder.uniqueName, type: staticType);
-
-  Procedure main(Procedure mainProcedure) {
-    // Generates:
-    //   void main(List<String> args) async {
-    //     String file = args[0];
-    //     Component c  = Component();
-    //     BinaryBuilder(File(file).readAsBytesSync()).readSingleFileComponent(c);
-    //     c = entryPoint(c);
-    //     IOSink sink = File("transformed.dill").openWrite();
-    //     BinaryPrinter(sink).writeComponentFile(c);
-    //     await sink.flush();
-    //     await sink.close();
-    //   }
-
-    Class fileCls = platform.getClass(
-        PlatformPathBuilder.dart.library("io").target("File").build());
-
-    VariableDeclaration args = VariableDeclaration("args",
-        type: InterfaceType(platform.coreTypes.listClass,
-            <DartType>[InterfaceType(platform.coreTypes.stringClass)]));
-    VariableDeclaration file = VariableDeclaration("file0",
-        initializer: subscript(VariableGet(args), 0),
-        type: InterfaceType(platform.coreTypes.stringClass));
-
-    Class componentCls = platform.getClass(
-        PlatformPathBuilder.kernel.library("ast").target("Component").build());
-    VariableDeclaration component = VariableDeclaration("component",
-        type: InterfaceType(componentCls),
-        initializer: construct(componentCls, Arguments.empty()));
-
-    Class binaryBuilder = platform.getClass(PlatformPathBuilder.kernel
-        .library("ast_from_binary")
-        .target("BinaryBuilder")
-        .build());
-    Expression readBytesAsSync = MethodInvocation(
-        construct(fileCls, Arguments(<Expression>[VariableGet(file)]),
-            isFactory: true),
-        Name("readAsBytesSync"),
-        Arguments.empty());
-    Statement readComponent = ExpressionStatement(MethodInvocation(
-        construct(binaryBuilder, Arguments(<Expression>[readBytesAsSync])),
-        Name("readSingleFileComponent"),
-        Arguments(<Expression>[VariableGet(component)])));
-
-    //VariableDeclaration componentArg = VariableDeclaration("componentArg");
-    Expression entryPoint = VariableGet(component); // MethodInvocation(
-    // FunctionExpression(FunctionNode(
-    //     ReturnStatement(VariableGet(componentArg)),
-    //     positionalParameters: <VariableDeclaration>[componentArg])),
-    // Name("call"),
-    // Arguments(<Expression>[VariableGet(componentArg)]));
-
-    // c = entryPoint(c);
-    Statement runTransformation =
-        ExpressionStatement(StaticInvocation(mainProcedure, Arguments.empty()));
-        //    ExpressionStatement(VariableSet(component, entryPoint));
-
-    // Class ioSink = platform.getClass(
-    //     PlatformPathBuilder.dart.library("io").target("IOSink").build());
-    VariableDeclaration sink = VariableDeclaration("sink",
-        initializer: MethodInvocation(
-            construct(fileCls,
-                Arguments(<Expression>[StringLiteral("transformed.dill")]),
-                isFactory: true),
-            Name("openWrite"),
-            Arguments.empty()));
-
-    Class binaryPrinter = platform.getClass(PlatformPathBuilder.kernel
-        .library("ast_to_binary")
-        .target("BinaryPrinter")
-        .build());
-    Statement writeComponent = ExpressionStatement(MethodInvocation(
-        construct(binaryPrinter, Arguments(<Expression>[VariableGet(sink)])),
-        Name("writeComponentFile"),
-        Arguments(<Expression>[VariableGet(component)])));
-
-    Statement flush = ExpressionStatement(AwaitExpression(
-        MethodInvocation(VariableGet(sink), Name("flush"), Arguments.empty())));
-    Statement close = ExpressionStatement(AwaitExpression(
-        MethodInvocation(VariableGet(sink), Name("close"), Arguments.empty())));
-
-    // Construct the main procedure.
-    Procedure main = Procedure(
-        Name("main"),
-        ProcedureKind.Method,
-        FunctionNode(
-            Block(<Statement>[
-              file,
-              component,
-              sink,
-              readComponent,
-              runTransformation,
-              writeComponent,
-              flush,
-              close
-            ]),
-            positionalParameters: <VariableDeclaration>[args],
-            returnType: const VoidType(),
-            asyncMarker: AsyncMarker.Async),
-        isStatic: true);
-    main = transform.transformProcedure(platform.coreTypes, main);
-
-    return main;
-  }
-
-  InvocationExpression subscript(Expression receiver, int index) =>
-      MethodInvocation(
-          receiver,
-          Name("[]"),
-          Arguments(<Expression>[IntLiteral(index)]));
-
-  InvocationExpression construct(Class cls, Arguments arguments,
-      {Name constructor, bool isFactory: false}) {
-    if (constructor == null) constructor = Name("");
-    // Lookup the constructor.
-    if (isFactory) {
-      for (int i = 0; i < cls.procedures.length; i++) {
-        Procedure target = cls.procedures[i];
-        if (target.kind == ProcedureKind.Factory &&
-            target.name.name == constructor.name) {
-          // Construct the invocation expression.
-          return StaticInvocation(target, arguments);
-        }
+        return invoke.static$(
+            (v.declarator as LetFunction).asKernelNode, arguments);
       }
     } else {
-      for (int i = 0; i < cls.constructors.length; i++) {
-        Constructor target = cls.constructors[i];
-        if (target.name.name == constructor.name) {
-          // Construct the invocation expression.
-          return ConstructorInvocation(target, arguments);
-        }
-      }
+      // Note: Higher-order functions make it hard to statically determine the
+      // application kind. Consider the following expression: `((f x) y)'. Here
+      // the result of `(f x)' subsequently determines the application kind for
+      // `(_ y)'. We cannot always know (statically) whether `(f x)' returns a
+      // top-level function, a primitive function, a data constructor, or a
+      // lambda abstraction. Therefore we conservatively treat it as a dynamic
+      // function expression. Consequently, every bare top-level function, data
+      // constructor, or primitive function must be eta expanded, i.e. wrapped
+      // in a lambda abstraction.
+      return invoke.dynamic$(compile(apply.abstractor), arguments);
+    }
+  }
+
+  FunctionExpression lambda(DLambda lambda) {
+    // Build the function node.
+    FunctionNode node =
+        functionNode(lambda.parameters, lambda.body, lambda.type);
+    return FunctionExpression(node);
+  }
+
+  FunctionNode functionNode(
+      List<FormalParameter> parameters, Expression body, Datatype fnType) {
+    // Translate each parameter.
+    List<VariableDeclaration> parameters0 =
+        parameters.map(translateFormalParameter).toList();
+
+    // Translate the [body].
+    Statement body0 = Block(<Statement>[ReturnStatement(compile(body))]);
+
+    // TODO translate [fnType] to extract return type and any type parameters.
+    DartType returnType = const kernel.DynamicType();
+    List<TypeParameter> typeParameters = <TypeParameter>[];
+
+    return FunctionNode(body0,
+        positionalParameters: parameters0,
+        returnType: returnType,
+        typeParameters: typeParameters);
+  }
+
+  kernel.Expression project(Project proj) {
+    return PropertyGet(compile(proj.receiver), Name("\$${proj.label}"));
+  }
+
+  kernel.Expression tuple(Tuple tuple) {
+    throw "Not yet implemented.";
+  }
+
+  kernel.Expression getVariable(Variable v) {
+    // TODO selectively eta expand [v] if it is a primitive.
+    if (archivist.isGlobal(v.binder)) {
+      Object d = v.declarator;
+      return d is KernelNode
+          ? StaticGet(d.asKernelNode)
+          : throw "Logical error: expected kernel node.";
+    } else {
+      return VariableGet(v.binder.asKernelNode);
+    }
+  }
+}
+
+class InvocationKernelGenerator {
+  // TODO include argument types as a parallel list?
+  kernel.Expression primitive(
+      Binder binder, List<kernel.Expression> arguments) {
+    // Determine which kind of primitive [binder] points to.
+    if (binder.bindingOccurrence is DataConstructor) {
+      // Delegate to [constructor].
+      return constructor(binder.bindingOccurrence, arguments);
     }
 
-    throw isFactory
-        ? "No such factory constructor '$constructor' in $cls."
-        : "No such factory constructor '$constructor' in $cls.";
+    return null;
+  }
+
+  InvocationExpression constructor(
+      DataConstructor constructor, List<kernel.Expression> arguments) {
+    return null;
+  }
+
+  // Expects [receiver] to evaluate to a FunctionExpression (i.e. a lambda abstraction).
+  MethodInvocation dynamic$(
+      kernel.Expression receiver, List<kernel.Expression> arguments) {
+    return MethodInvocation(receiver, Name("call"), Arguments(arguments));
+  }
+
+  StaticInvocation static$(
+      Procedure procedure, List<kernel.Expression> arguments) {
+    return StaticInvocation(procedure, Arguments(arguments));
+  }
+
+  // Eta expands a top-level function.
+  FunctionExpression eta(LetFunction fun) {
+    return null;
   }
 }

@@ -7,7 +7,7 @@ library t20.ast;
 import 'dart:collection' show Map;
 
 import 'package:kernel/ast.dart'
-    show FunctionExpression, Procedure, TreeNode, VariableDeclaration;
+    show Member, Procedure, TreeNode, VariableDeclaration;
 
 // Abstract syntax (algebraic specification in EBNF notation).
 //
@@ -186,7 +186,7 @@ class Signature extends ModuleMember
 
 class ValueDeclaration extends ModuleMember
     with DeclarationMixin
-    implements Declaration {
+implements Declaration, KernelNode {
   Binder binder;
   Signature signature;
   Expression body;
@@ -208,6 +208,8 @@ class ValueDeclaration extends ModuleMember
   String toString() {
     return "(define $binder (...)))";
   }
+
+  Member asKernelNode;
 }
 
 class VirtualValueDeclaration extends ValueDeclaration {
@@ -501,7 +503,7 @@ class TopModule extends ModuleMember {
     manifest = Manifest(this);
   }
 
-  FunctionDeclaration main;
+  Declaration main;
   bool get hasMain => main != null;
 
   T accept<T>(ModuleVisitor<T> v) => v.visitTopModule(this);
@@ -609,10 +611,10 @@ abstract class Expression extends T20Node {
 }
 
 enum ExpTag {
-  BLOCK,
+  // BLOCK,
   BOOL,
   ERROR,
-  GET,
+  // GET,
   INT,
   STRING,
   APPLY,
@@ -621,7 +623,7 @@ enum ExpTag {
   LET,
   MATCH,
   PROJECT,
-  SET,
+  // SET,
   TUPLE,
   VAR,
   TYPE_ASCRIPTION
@@ -1108,7 +1110,7 @@ class FormalParameter extends T20Node
     binder.bindingOccurrence = this;
   }
 
-  VariableDeclaration get asKernelNode => null; // TODO.
+  VariableDeclaration asKernelNode;
 }
 
 class DLambda extends LambdaAbstraction<FormalParameter, Expression> {

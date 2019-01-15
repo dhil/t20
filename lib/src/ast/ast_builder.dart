@@ -575,7 +575,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         ctxt = ctxt.putDeclaration(name, member);
 
         // Determine whether this function is a main function.
-        if (member.binder.sourceName == "transform") {
+        if (member.binder.sourceName == "main") {
           mainCandidate = member;
         }
         return Pair<BuildContext, ModuleMember>(ctxt, member);

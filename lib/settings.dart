@@ -173,6 +173,7 @@ class Settings {
   static bool _validateExitAfter(String value, [bool allowNull = true]) {
     switch (value) {
       case "codegen":
+      case "desugar":
       case "elaborator":
       case "parser":
       case "typechecker":

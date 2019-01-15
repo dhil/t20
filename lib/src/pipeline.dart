@@ -51,10 +51,10 @@ Result<List<TopModule>, T20Error> frontend(
   return Result<List<TopModule>, T20Error>.success(frontend.modules);
 }
 
-Future<Result<void, T20Error>> backend(
+Future<Result<void, T20Error>> backend(ModuleEnvironment environment,
     List<TopModule> modules, Settings settings) async {
   BackendCompiler compiler = BackendCompiler(settings);
-  List<T20Error> errors = await compiler.compile(modules);
+  List<T20Error> errors = await compiler.compile(environment, modules);
   return errors == null
       ? Result<void, T20Error>.success(null)
       : Result<void, T20Error>.failure(errors);
@@ -82,13 +82,14 @@ Future<bool> compile(List<String> filePaths, Settings settings) async {
   // Exit now, if requested.
   if (settings.exitAfter == "parser" ||
       settings.exitAfter == "elaborator" ||
-      settings.exitAfter == "typechecker") {
+      settings.exitAfter == "typechecker" ||
+      settings.exitAfter == "desugar") {
     return frontResult.wasSuccessful;
   }
 
   // Run the backend.
   Result<void, T20Error> backResult =
-      await backend(frontResult.result, settings);
+      await backend(moduleEnv, frontResult.result, settings);
 
   // Report errors, if any.
   if (!backResult.wasSuccessful) {

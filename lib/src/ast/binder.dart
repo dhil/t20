@@ -2,13 +2,15 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'package:kernel/ast.dart' show VariableDeclaration;
+
 import '../location.dart';
 import '../utils.dart' show Gensym;
 
-import 'ast.dart' show Datatype, Declaration, TopModule;
+import 'ast.dart' show Datatype, Declaration, TopModule, KernelNode;
 import 'identifiable.dart';
 
-class Binder implements Identifiable {
+class Binder implements Identifiable, KernelNode {
   TopModule origin;
   Declaration bindingOccurrence;
   final String _sourceName;
@@ -36,9 +38,9 @@ class Binder implements Identifiable {
 
   String toString() {
     if (_sourceName == null) {
-      return "syn$ident";
+      return "\$_$ident";
     } else {
-      return "$_sourceName$ident";
+      return "${_sourceName}_$ident";
     }
   }
 
@@ -49,4 +51,6 @@ class Binder implements Identifiable {
     hash = hash * 31 + (_sourceName == null ? 0 : _sourceName.hashCode);
     return hash;
   }
+
+  VariableDeclaration asKernelNode;
 }

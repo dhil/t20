@@ -24,6 +24,7 @@ import 'typing/type_checker.dart' show TypeChecker;
 class FrontendCompiler {
   ModuleEnvironment moduleEnv;
   Settings settings;
+  ModuleDesugarer moduleDesugarer;
 
   FrontendCompiler(ModuleEnvironment initialEnv, this.settings)
       : moduleEnv = initialEnv;
@@ -60,9 +61,17 @@ class FrontendCompiler {
       return typeResult.errors;
     }
 
-    // Save the module.
+    // Desugar the module.
     TopModule module =
-        typeResult.result == null ? elabResult.result : typeResult.result;
+        typeResult == null ? elabResult.result : typeResult.result;
+    moduleDesugarer ??= new ModuleDesugarer(moduleEnv);
+    module = moduleDesugarer.desugar(module);
+
+    if (settings.exitAfter == "desugar") {
+      return null;
+    }
+
+    // Save the module.
     moduleEnv.store(module);
 
     // Return [null] to signal successful compilation.
