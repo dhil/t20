@@ -9,7 +9,7 @@ import 'package:t20/t20_api.dart';
 
 // This constant must be updated in tandem with the corresponding constant in
 // the pubspec.yaml file.
-const String _VERSION = "0.1.1-alpha.1";
+const String _VERSION = "0.5.1-alpha.1";
 
 class _SourceDoesNotExistsError {
   final String sourceFile;
