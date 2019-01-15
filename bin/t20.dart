@@ -11,11 +11,6 @@ import 'package:t20/t20_api.dart';
 // the pubspec.yaml file.
 const String _VERSION = "0.2.1-alpha.19";
 
-class _SourceDoesNotExistsError {
-  final String sourceFile;
-  _SourceDoesNotExistsError(this.sourceFile);
-}
-
 void reportError(String errorMsg, {kind = null}) {
   String prefix = kind == null ? "error" : "$kind error";
   stderr.writeln("$prefix: $errorMsg");
@@ -53,9 +48,6 @@ void main(List<String> args) async {
     exitCode = 10;
   } on UnrecognisedOptionValue catch (err) {
     reportError(err.message);
-    exitCode = 10;
-  } on _SourceDoesNotExistsError catch (err) {
-    reportError("no such file ${err.sourceFile}.", kind: "i/o");
     exitCode = 10;
   } on IOException catch (err, stacktrace) {
     reportFatal("i/o exception $err", stacktrace, kind: "i/o");
