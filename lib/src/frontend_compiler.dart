@@ -2,11 +2,14 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'dart:io' show stderr;
+
 import '../settings.dart';
 
 import 'ast/ast.dart' show ModuleMember, TopModule;
 import 'ast/ast_builder.dart' show ASTBuilder;
 import 'ast/desugar.dart' show ModuleDesugarer;
+import 'ast/utils.dart' as astUtils show stringOfNode;
 
 import 'compilation_unit.dart' show Source;
 
@@ -43,6 +46,11 @@ class FrontendCompiler {
     Result<ModuleMember, LocatedError> elabResult =
         new ASTBuilder().build(parseResult.result, moduleEnv, isVirtual);
 
+    // Dump AST, if requested.
+    if (settings.dumpAst && elabResult.wasSuccessful) {
+      stderr.writeln(astUtils.stringOfNode(elabResult.result));
+    }
+
     // Exit now, if requested or the input was erroneous.
     if (!elabResult.wasSuccessful || settings.exitAfter == "elaborator") {
       return elabResult.errors;
@@ -67,6 +75,11 @@ class FrontendCompiler {
     moduleDesugarer ??= new ModuleDesugarer(moduleEnv);
     module = moduleDesugarer.desugar(module);
 
+    // Dump DAST, if requested.
+    if (settings.dumpAst) {
+      stderr.writeln(astUtils.stringOfNode(module));
+    }
+    
     if (settings.exitAfter == "desugar") {
       return null;
     }
