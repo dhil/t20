@@ -24,6 +24,10 @@
   [King]
   [Ace])
 
+(: <= (-> Int Int Bool))
+(define (<= x y)
+  (|| (int-less? x y) (int-eq? x y)))
+
 (: value-of-int (-> Int Value))
 (define (value-of-int n)
   (if (&& (<= 2 n) (<= n 10))
