@@ -41,8 +41,10 @@ abstract class BufferedWriter {
   BufferedWriter([StringBuffer buffer])
       : this.buffer = buffer == null ? StringBuffer() : buffer;
 
-  void lparen() => buffer.write("(");
-  void rparen() => buffer.write(")");
+  void lparen() => write("(");
+  void rparen() => write(")");
+  void lsquare() => write("[");
+  void rsquare() => write("]");
   void write(String contents) => buffer.write(contents);
   void space() => buffer.write(" ");
 
@@ -221,11 +223,11 @@ class StringifyExpression extends BufferedWriter
     StringifyPattern pattern = StringifyPattern(buffer);
     for (int i = 0; i < binding.valueBindings.length; i++) {
       Binding b = binding.valueBindings[i];
-      write("[");
+      lsquare();
       b.pattern.accept<void>(pattern);
       space();
       b.expression.accept<void>(this);
-      write("]");
+      rsquare();
     }
     rparen();
     binding.body.accept<void>(this);
@@ -242,11 +244,11 @@ class StringifyExpression extends BufferedWriter
       StringifyPattern pattern = StringifyPattern(buffer);
       for (int i = 0; i < match.cases.length; i++) {
         Case case0 = match.cases[i];
-        write("[");
+        lsquare();
         case0.pattern.accept<void>(pattern);
         space();
         case0.expression.accept<void>(this);
-        write("]");
+        rsquare();
       }
     }
     rparen();
