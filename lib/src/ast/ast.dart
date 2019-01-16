@@ -5,7 +5,7 @@
 library t20.ast;
 
 import 'package:kernel/ast.dart'
-    show Member, Procedure, TreeNode, VariableDeclaration;
+    show Class, Member, Procedure, TreeNode, VariableDeclaration;
 
 // Abstract syntax (algebraic specification in EBNF notation).
 //
@@ -184,7 +184,7 @@ class Signature extends ModuleMember
 
 class ValueDeclaration extends ModuleMember
     with DeclarationMixin
-implements Declaration, KernelNode {
+    implements Declaration, KernelNode {
   Binder binder;
   Signature signature;
   Expression body;
@@ -592,6 +592,7 @@ abstract class ExpressionVisitor<T> {
   T visitDLambda(DLambda lambda);
   T visitDLet(DLet let);
   T visitProject(Project project);
+  T visitMatchClosure(MatchClosure clo);
   // T visitBlock(Block block);
 }
 
@@ -1181,4 +1182,25 @@ class Project extends Expression {
   T accept<T>(ExpressionVisitor<T> v) => v.visitProject(this);
 
   String toString() => "(\$$label $receiver)";
+}
+
+class MatchClosure extends Expression {
+  Expression scrutinee;
+  List<Binder> context; // Binder for free variables.
+  List<LetFunction> cases;
+  LetFunction defaultCase;
+  Eliminator eliminator;
+
+  MatchClosure(this.scrutinee, this.cases, this.context) : super(ExpTag.MATCH);
+
+  T accept<T>(ExpressionVisitor<T> v) => v.visitMatchClosure(this);
+}
+
+class Eliminator extends T20Node implements KernelNode {
+  String name; // The name of the eliminator class.
+  DatatypeDescriptor descriptor; // The introduction form.
+
+  Eliminator(this.name, this.descriptor);
+
+  Class asKernelNode;
 }

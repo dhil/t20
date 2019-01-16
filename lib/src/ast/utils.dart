@@ -78,6 +78,7 @@ class StringifyModule extends BufferedWriter implements ModuleVisitor<void> {
     space();
     for (int i = 0; i < decl.constructors.length; i++) {
       decl.constructors[i].accept<void>(this);
+      if (i + 1 < decl.constructors.length) space();
     }
     rparen();
   }
@@ -88,6 +89,7 @@ class StringifyModule extends BufferedWriter implements ModuleVisitor<void> {
     space();
     for (int i = 0; i < decls.declarations.length; i++) {
       decls.declarations[i].accept<void>(this);
+      if (i + 1 < decls.declarations.length) space();
     }
     rparen();
   }
@@ -113,6 +115,7 @@ class StringifyModule extends BufferedWriter implements ModuleVisitor<void> {
       StringifyPattern pattern = StringifyPattern(buffer);
       for (int i = 0; i < decl.parameters.length; i++) {
         decl.parameters[i].accept<void>(pattern);
+        if (i + 1 < decl.parameters.length) space();
       }
     }
     rparen();
@@ -180,6 +183,7 @@ class StringifyExpression extends BufferedWriter
       space();
       for (int i = 0; i < apply.arguments.length; i++) {
         apply.arguments[i].accept<void>(this);
+        if (i + 1 < apply.arguments.length) space();
       }
     }
     rparen();
@@ -207,6 +211,7 @@ class StringifyExpression extends BufferedWriter
       StringifyPattern pattern = StringifyPattern(buffer);
       for (int i = 0; i < lambda.parameters.length; i++) {
         lambda.parameters[i].accept<void>(pattern);
+        if (i + 1 < lambda.parameters.length) space();
       }
     }
     rparen();
@@ -228,6 +233,7 @@ class StringifyExpression extends BufferedWriter
       space();
       b.expression.accept<void>(this);
       rsquare();
+      if (i + 1 < binding.valueBindings.length) space();
     }
     rparen();
     binding.body.accept<void>(this);
@@ -249,6 +255,7 @@ class StringifyExpression extends BufferedWriter
         space();
         case0.expression.accept<void>(this);
         rsquare();
+        if (i + 1 < match.cases.length) space();
       }
     }
     rparen();
@@ -261,6 +268,7 @@ class StringifyExpression extends BufferedWriter
       space();
       for (int i = 0; i < tuple.components.length; i++) {
         tuple.components[i].accept<void>(this);
+        if (i + 1 < tuple.components.length) space();
       }
     }
     rparen();
@@ -294,6 +302,7 @@ class StringifyExpression extends BufferedWriter
       for (int i = 0; i < lambda.parameters.length; i++) {
         FormalParameter parameter = lambda.parameters[i];
         write(stringOfBinder(parameter.binder));
+        if (i + 1 < lambda.parameters.length) space();
       }
     }
     rparen();
@@ -319,6 +328,29 @@ class StringifyExpression extends BufferedWriter
     write("\$${project.label}");
     space();
     project.receiver.accept<void>(this);
+    rparen();
+  }
+
+  void visitMatchClosure(MatchClosure clo) {
+    lparen();
+    write("match-closure");
+    space();
+    lparen();
+    for (int i = 0; i < clo.context.length; i++) {
+      write(stringOfBinder(clo.context[i]));
+      if (i + 1 < clo.context.length) space();
+    }
+    rparen();
+    space();
+    clo.scrutinee.accept<void>(this);
+    space();
+    lparen();
+    StringifyModule module = StringifyModule(buffer);
+    for (int i = 0; i < clo.cases.length; i++) {
+      clo.cases[i].accept<void>(module);
+      if (i + 1 < clo.cases.length) space();
+    }
+    rparen();
     rparen();
   }
 }

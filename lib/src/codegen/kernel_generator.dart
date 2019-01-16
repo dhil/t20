@@ -803,9 +803,8 @@ class InvocationKernelGenerator {
     for (int i = 0; i < domain.length; i++) {
       DartType argtype = type.compile(domain[i]);
       VariableDeclaration param = VariableDeclaration("x$i", type: argtype);
-      VariableGet arg = VariableGet(param);
       params.add(param);
-      args.add(arg);
+      args.add(VariableGet(param));
     }
 
     DartType returnType = type.compile(typeUtils.codomain(fnType));

@@ -40,23 +40,23 @@ class _Prelude extends _EmbeddedModule {
 (define-stub (mod _ _))
 
 ;; Polymorphic relational operators.
-// (: = (-> 'a 'a Bool))
-// (define-stub (= _ _))
+;; (: = (-> 'a 'a Bool))
+;; (define-stub (= _ _))
 
-// (: != (-> 'a 'a Bool))
-// (define-stub (!= _ _))
+;; (: != (-> 'a 'a Bool))
+;; (define-stub (!= _ _))
 
-// (: < (-> 'a 'a Bool))
-// (define-stub (< _ _))
+;; (: < (-> 'a 'a Bool))
+;; (define-stub (< _ _))
 
-// (: > (-> 'a 'a Bool))
-// (define-stub (> _ _))
+;; (: > (-> 'a 'a Bool))
+;; (define-stub (> _ _))
 
-// (: <= (-> 'a 'a Bool))
-// (define-stub (<= _ _))
+;; (: <= (-> 'a 'a Bool))
+;; (define-stub (<= _ _))
 
-// (: >= (-> 'a 'a Bool))
-// (define-stub (>= _ _))
+;; (: >= (-> 'a 'a Bool))
+;; (define-stub (>= _ _))
 
 ;; Type specific relational operators.
 
