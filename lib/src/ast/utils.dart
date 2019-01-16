@@ -6,6 +6,7 @@ import '../errors/errors.dart' show unhandled;
 import '../utils.dart' show ListUtils;
 
 import 'ast.dart';
+import 'monoids.dart';
 
 String stringOfNode(T20Node node) {
   if (node is ModuleMember) {
@@ -409,4 +410,168 @@ class StringifyPattern extends BufferedWriter implements PatternVisitor<void> {
 
   void visitVariable(VariablePattern v) => write(stringOfBinder(v.binder));
   void visitWildcard(WildcardPattern w) => write("_");
+}
+
+// Reductions.
+
+class ReduceModule<T> extends ModuleVisitor<T> {
+  Monoid<T> get m => null;
+
+  T visitDataConstructor(DataConstructor _) => m.empty;
+  T visitDatatype(DatatypeDescriptor _) => m.empty;
+  T visitDatatypes(DatatypeDeclarations _) => m.empty;
+  T visitError(ErrorModule err) => m.empty;
+
+  T visitFunction(FunctionDeclaration decl) {
+    T acc = m.empty;
+
+    if (decl.parameters != null) {
+      ReducePattern<T> pattern;
+      for (int i = 0; i < decl.parameters.length; i++) {
+        acc = m.compose(acc, decl.parameters[i].accept<T>(pattern));
+      }
+    }
+
+    if (!decl.isVirtual) {
+      ReduceExpression<T> expression;
+      acc = m.compose(acc, decl.body.accept<T>(expression));
+      return acc;
+    } else {
+      return acc;
+    }
+  }
+
+  T visitLetFunction(LetFunction fun) {
+    if (!fun.isVirtual) {
+      ReduceExpression<T> expression;
+      return fun.body.accept<T>(expression);
+    } else {
+      return m.empty;
+    }
+  }
+
+  T visitInclude(Include _) => m.empty;
+
+  T visitSignature(Signature _) => m.empty;
+
+  T visitTopModule(TopModule mod) {
+    T acc = m.empty;
+    for (int i = 0; i < mod.members.length; i++) {
+      T result = mod.accept<T>(this);
+      acc = m.compose(acc, result);
+    }
+    return acc;
+  }
+
+  T visitTypename(TypeAliasDescriptor decl) => m.empty;
+
+  T visitValue(ValueDeclaration decl) =>
+      decl.body.accept<T>(ReduceExpression<T>());
+}
+
+class ReduceExpression<T> extends ExpressionVisitor<T> {
+  Monoid<T> get m => null;
+
+  T many(List<Expression> exps) {
+    T acc = m.empty;
+    for (int i = 0; i < exps.length; i++) {
+      acc = m.compose(acc, exps[i].accept<T>(this));
+    }
+    return acc;
+  }
+
+  // Literals.
+  T visitBool(BoolLit boolean) => m.empty;
+  T visitInt(IntLit integer) => m.empty;
+  T visitString(StringLit string) => m.empty;
+
+  // Expressions.
+  T visitApply(Apply apply) {
+    T result = apply.abstractor.accept<T>(this);
+    return m.compose(result, many(apply.arguments));
+  }
+
+  T visitIf(If ifthenelse) => m.compose(
+      m.compose(ifthenelse.condition.accept<T>(this),
+          ifthenelse.thenBranch.accept<T>(this)),
+      ifthenelse.elseBranch.accept<T>(this));
+
+  T visitLambda(Lambda lambda) {
+    T acc = m.empty;
+    ReducePattern<T> pattern = ReducePattern<T>();
+    for (int i = 0; i < lambda.parameters.length; i++) {
+      acc = m.compose(acc, lambda.parameters[i].accept<T>(pattern));
+    }
+
+    return m.compose(acc, lambda.body.accept<T>(this));
+  }
+
+  T visitLet(Let binding) {
+    T acc = m.empty;
+    ReducePattern<T> pattern = ReducePattern<T>();
+    for (int i = 0; i < binding.valueBindings.length; i++) {
+      Binding b = binding.valueBindings[i];
+      acc = m.compose(acc, b.pattern.accept<T>(pattern));
+      acc = m.compose(acc, b.expression.accept<T>(this));
+    }
+    return m.compose(acc, binding.body.accept<T>(this));
+  }
+
+  T visitMatch(Match match) {
+    T acc = match.scrutinee.accept<T>(this);
+    ReducePattern<T> pattern = ReducePattern<T>();
+    for (int i = 0; i < match.cases.length; i++) {
+      Case case0 = match.cases[i];
+      acc = m.compose(acc, case0.pattern.accept<T>(pattern));
+      acc = m.compose(acc, case0.expression.accept<T>(this));
+    }
+    return acc;
+  }
+
+  T visitTuple(Tuple tuple) => many(tuple.components);
+
+  T visitVariable(Variable v) => m.empty;
+  T visitTypeAscription(TypeAscription ascription) =>
+      ascription.exp.accept<T>(this);
+
+  T visitError(ErrorExpression e) => m.empty;
+
+  // Desugared nodes.
+  T visitDLambda(DLambda lambda) => lambda.body.accept<T>(this);
+
+  T visitDLet(DLet let) {
+    T result = let.body.accept<T>(this);
+    return m.compose(result, let.continuation.accept<T>(this));
+  }
+
+  T visitProject(Project project) => project.receiver.accept<T>(this);
+
+  T visitMatchClosure(MatchClosure clo) => throw "Not yet implemented.";
+}
+
+class ReducePattern<T> extends PatternVisitor<T> {
+  Monoid<T> get m => null;
+
+  T many(List<Pattern> patterns) {
+    T acc = m.empty;
+    for (int i = 0; i < patterns.length; i++) {
+      acc = m.compose(acc, patterns[i].accept<T>(this));
+    }
+    return acc;
+  }
+
+  T visitBool(BoolPattern _) => m.empty;
+  T visitInt(IntPattern _) => m.empty;
+  T visitString(StringPattern _) => m.empty;
+
+  T visitConstructor(ConstructorPattern constr) => many(constr.components);
+
+  T visitError(ErrorPattern _) => m.empty;
+
+  T visitHasType(HasTypePattern t) => t.pattern.accept<T>(this);
+
+  T visitTuple(TuplePattern t) => many(t.components);
+
+  T visitVariable(VariablePattern _) => m.empty;
+  T visitWildcard(WildcardPattern _) => m.empty;
 }
