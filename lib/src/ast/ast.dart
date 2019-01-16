@@ -4,8 +4,6 @@
 
 library t20.ast;
 
-import 'dart:collection' show Map;
-
 import 'package:kernel/ast.dart'
     show Member, Procedure, TreeNode, VariableDeclaration;
 

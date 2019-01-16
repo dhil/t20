@@ -1220,7 +1220,9 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           List<Pair<Name, Build<Datatype>>> constraints, Build<Datatype> body,
           {Location location}) =>
       (BuildContext ctxt) {
-        return null; // TODO.
+        // TODO.
+        return Pair<BuildContext, Datatype>(
+            ctxt, forgetfulBuild<Datatype>(body, ctxt));
       };
 
   Build<Datatype> errorType(LocatedError error, {Location location}) =>
@@ -1250,7 +1252,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
 
   Name errorName(LocatedError error, {Location location}) {
     errors.add(error);
-    return null;
+    return Name("@error", location);
   }
 
   bool isQualifiedName(String name) {
