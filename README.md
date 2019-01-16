@@ -6,6 +6,8 @@
 ## References
 * **[The Racket Reference (version 7.1)](https://download.racket-lang.org/releases/7.1/pdf-doc/reference.pdf)**  
   by Matthew Flatt and PLT
+* **[The Definition of Standard ML](http://sml-family.org/sml97-defn.pdf)**  
+  by Robin Milner, Mads Tofte, Robert Harper, and David MacQueen
 * **[Complete and Easy Bidirectional Typechecking for Higher-Rank Polymorphism](http://doi.org/10.1145/2500365.2500582) (ICFP '13)**  
   by Joshua Dunfield and Neel Krishnaswami  
 * **[Type Inference in Context](https://dl.acm.org/citation.cfm?id=1863608) (MSFP '10)**  
