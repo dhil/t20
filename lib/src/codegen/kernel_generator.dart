@@ -514,17 +514,18 @@ class ExpressionKernelGenerator {
         return lambda(exp as DLambda);
         break;
       case ExpTag.PROJECT:
-        return project(exp as Project);
+        Project proj = exp as Project;
+        return PropertyGet(compile(proj.receiver), Name("\$${proj.label}"));
         break;
       case ExpTag.TUPLE:
         return tuple(exp as Tuple);
         break;
+      case ExpTag.TYPE_ASCRIPTION:
+        return compile((exp as TypeAscription).exp);
+        break;
       // Interesting cases.
       case ExpTag.APPLY:
         return apply(exp as Apply);
-        break;
-      case ExpTag.TYPE_ASCRIPTION:
-        throw "Not yet implemented.";
         break;
       default:
         unhandled("ExpressionKernelGenerator.compile", exp.tag);
@@ -597,10 +598,6 @@ class ExpressionKernelGenerator {
         positionalParameters: parameters0,
         returnType: returnType,
         typeParameters: typeParameters);
-  }
-
-  kernel.Expression project(Project proj) {
-    return PropertyGet(compile(proj.receiver), Name("\$${proj.label}"));
   }
 
   kernel.Expression tuple(Tuple tuple) {
