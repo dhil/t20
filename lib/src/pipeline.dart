@@ -11,7 +11,6 @@ import 'package:kernel/ast.dart' as kernel;
 import '../settings.dart';
 import 'ast/ast.dart' show TopModule;
 import 'bootstrap.dart';
-import 'builtins.dart' as builtins;
 import 'compilation_unit.dart' show FileSource;
 import 'errors/error_reporting.dart';
 import 'errors/errors.dart';

@@ -4,23 +4,17 @@
 
 import 'package:kernel/ast.dart' show Component;
 
-import 'ast/ast.dart' show TopModule;
-
 import '../settings.dart';
 
-import 'builtins.dart' as builtins;
+import 'ast/ast.dart' show TopModule;
+
+import 'codegen/kernel_emitter.dart';
+import 'codegen/kernel_generator.dart';
+import 'codegen/platform.dart';
 
 import 'errors/errors.dart';
 
 import 'module_environment.dart';
-
-import 'result.dart';
-
-// import 'codegen/desugar.dart';
-// import 'codegen/ir.dart';
-import 'codegen/kernel_emitter.dart';
-import 'codegen/kernel_generator.dart';
-import 'codegen/platform.dart';
 
 class BackendCompiler {
   Settings settings;
@@ -30,7 +24,7 @@ class BackendCompiler {
       ModuleEnvironment environment, List<TopModule> modules) async {
     // Generate code.
     Component component =
-    new KernelGenerator(new Platform(settings.platformDill), environment)
+        new KernelGenerator(new Platform(settings.platformDill), environment)
             .compile(modules);
 
     // Exit now, if requested.
