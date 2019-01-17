@@ -936,7 +936,7 @@ class _TypeChecker {
     }
 
     if (exA.isSolved) {
-      throw "$a has already been solved!";
+      throw "?${exA.skolem.ident} has already been solved!";
     }
 
     // TODO refactor.
@@ -957,7 +957,8 @@ class _TypeChecker {
       }
 
       if (exB.isSolved) {
-        throw "$b has already been solved [$exB]!";
+        print("$ctxt");
+        throw "?${b.ident} has already been solved [$exB]!";
       }
 
       exB.equate(exA);

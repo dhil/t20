@@ -141,4 +141,31 @@ class StringUtils {
     }
     return str;
   }
+
+  static String capitalise(String str) {
+    if (str == null) return null;
+    if (str.length == 0) return str;
+
+    int c = str.codeUnitAt(0);
+    if (unicode.isAsciiLower(c)) {
+      StringBuffer buffer = StringBuffer();
+      buffer.writeCharCode(c ^ 0x20);
+      buffer.write(str.substring(1));
+      return buffer.toString();
+    }
+    return str;
+  }
+
+  static String prefix(String str, int sep) {
+    if (str == null) return null;
+    if (sep == null) return str;
+
+    StringBuffer buffer = StringBuffer();
+    for (int i = 0; i < str.length; i++) {
+      int c = str.codeUnitAt(i);
+      if (c == sep) break;
+      buffer.writeCharCode(c);
+    }
+    return buffer.toString();
+  }
 }

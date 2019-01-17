@@ -718,7 +718,10 @@ class Variable extends Expression {
 
   String toString() => "${declarator.binder}";
 
-  bool isPure = true;
+  // bool operator ==(dynamic other) =>
+  //     other != null && other is Variable && identical(other.binder, binder);
+
+  // int get hashCode => 13 * binder.hashCode;
 }
 
 class If extends Expression {
@@ -1187,21 +1190,22 @@ class Project extends Expression {
 }
 
 class MatchClosure extends Expression {
-  Expression scrutinee;
-  List<Binder> context; // Binder for free variables.
+  List<Binder> context; // Binders for free variables.
   List<LetFunction> cases;
   LetFunction defaultCase;
 
-  MatchClosure(this.scrutinee, this.cases, this.context) : super(ExpTag.MATCH);
+  MatchClosure(this.cases, this.defaultCase, this.context)
+      : super(ExpTag.MATCH);
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitMatchClosure(this);
 }
 
 class Eliminate extends Expression {
-  DatatypeDescriptor descriptor; // The introduction form.
+  TypeConstructor constructor; // The introduction form.
   MatchClosure closure;
+  Variable scrutinee;
 
-  Eliminate(this.closure, this.descriptor) : super(ExpTag.ELIM, null);
+  Eliminate(this.scrutinee, this.closure, this.constructor) : super(ExpTag.ELIM, null);
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitEliminate(this);
 }

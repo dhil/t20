@@ -102,6 +102,10 @@ class StringifyModule extends BufferedWriter implements ModuleVisitor<void> {
   }
 
   void visitFunction(FunctionDeclaration decl) {
+    if (decl.signature != null) {
+      decl.signature.accept<void>(this);
+      space();
+    }
     lparen();
     if (decl.isVirtual) {
       write("define-stub");
@@ -122,12 +126,17 @@ class StringifyModule extends BufferedWriter implements ModuleVisitor<void> {
     rparen();
 
     if (!decl.isVirtual) {
+      space();
       decl.body.accept<void>(StringifyExpression(buffer));
     }
     rparen();
   }
 
   void visitLetFunction(LetFunction fun) {
+    if (fun.signature != null) {
+      fun.signature.accept<void>(this);
+      space();
+    }
     lparen();
     if (fun.isVirtual) {
       write("define-stub");
@@ -147,6 +156,7 @@ class StringifyModule extends BufferedWriter implements ModuleVisitor<void> {
     rparen();
 
     if (!fun.isVirtual) {
+      space();
       fun.body.accept<void>(StringifyExpression(buffer));
     }
     rparen();
@@ -200,6 +210,10 @@ class StringifyModule extends BufferedWriter implements ModuleVisitor<void> {
   }
 
   void visitValue(ValueDeclaration decl) {
+    if (decl.signature != null) {
+      decl.signature.accept<void>(this);
+      space();
+    }
     lparen();
     if (decl.isVirtual) {
       write("define-stub");

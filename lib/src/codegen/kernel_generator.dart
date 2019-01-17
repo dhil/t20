@@ -13,42 +13,6 @@ import '../typing/type_utils.dart' as typeUtils;
 
 import 'platform.dart';
 
-// Archivist is a helper class for querying the origin of binders.
-enum Origin { DART_LIST, KERNEL, PRELUDE, STRING, CUSTOM }
-
-class Archivist {
-  ModuleEnvironment environment;
-
-  Archivist(this.environment);
-
-  bool isKernelModule(TopModule module) =>
-      identical(module.origin, environment.kernel);
-
-  Origin originOf(Binder binder) {
-    if (binder.origin == null)
-      throw "Logical error: The binder ${binder} has no origin.";
-    if (identical(binder.origin, environment.prelude)) return Origin.PRELUDE;
-    if (identical(binder.origin, environment.kernel)) return Origin.KERNEL;
-    if (identical(binder.origin, environment.dartList)) return Origin.DART_LIST;
-    if (identical(binder.origin, environment.string)) return Origin.STRING;
-
-    return Origin.CUSTOM;
-  }
-
-  bool isPrimitive(Binder binder) => originOf(binder) != Origin.CUSTOM;
-
-  bool isGlobal(Binder binder) {
-    if (binder.bindingOccurrence is LetFunction) {
-      LetFunction fun = binder.bindingOccurrence;
-      return identical(fun.binder, binder);
-    }
-
-    return binder.bindingOccurrence is ModuleMember;
-  }
-
-  bool isLocal(Binder binder) => !isGlobal(binder);
-}
-
 VariableDeclaration translateBinder(Binder binder) {
   VariableDeclaration v =
       VariableDeclaration(binder.toString()); // TODO translate type.
@@ -62,13 +26,13 @@ VariableDeclaration translateFormalParameter(FormalParameter parameter) {
 
 class KernelGenerator {
   final Platform platform;
-  final Archivist archivist;
+  final ModuleEnvironment environment;
   ModuleKernelGenerator module;
 
   KernelGenerator(this.platform, ModuleEnvironment environment)
-      : archivist = Archivist(environment) {
+      : this.environment = environment {
     this.module =
-        ModuleKernelGenerator(platform, archivist, new DartTypeGenerator());
+        ModuleKernelGenerator(platform, environment, new DartTypeGenerator());
   }
 
   Component compile(List<TopModule> modules) {
@@ -274,20 +238,20 @@ class MainProcedureKernelGenerator {
 
 class ModuleKernelGenerator {
   final Platform platform;
-  final Archivist archivist;
+  final ModuleEnvironment environment;
   final ExpressionKernelGenerator expression;
   final DartTypeGenerator type;
 
   ModuleKernelGenerator(
-      Platform platform, Archivist archivist, DartTypeGenerator type)
-      : this.archivist = archivist,
+      Platform platform, ModuleEnvironment environment, DartTypeGenerator type)
+      : this.environment = environment,
         this.platform = platform,
         this.type = type,
-        expression = ExpressionKernelGenerator(platform, archivist, type);
+        expression = ExpressionKernelGenerator(platform, environment, type);
 
   Library compile(TopModule module) {
     // Do nothing for the (virtual) kernel module.
-    if (archivist.isKernelModule(module)) return null;
+    if (environment.isKernelModule(module)) return null;
 
     // Process each member.
     Library library;
@@ -348,7 +312,7 @@ class ModuleKernelGenerator {
   }
 
   Procedure virtualFunction(LetVirtualFunction fun) {
-    switch (archivist.originOf(fun.binder)) {
+    switch (environment.originOf(fun.binder)) {
       case Origin.PRELUDE:
         switch (fun.binder.sourceName) {
           case "error":
@@ -445,7 +409,7 @@ class ModuleKernelGenerator {
         break;
       default:
         unhandled("ModuleKernelGenerator.virtualFunction",
-            archivist.originOf(fun.binder));
+            environment.originOf(fun.binder));
     }
     return null;
   }
@@ -468,15 +432,15 @@ class ModuleKernelGenerator {
 }
 
 class ExpressionKernelGenerator {
-  final Archivist archivist;
+  final ModuleEnvironment environment;
   final Platform platform;
   final InvocationKernelGenerator invoke;
   final DartTypeGenerator type;
 
   ExpressionKernelGenerator(
-      this.platform, Archivist archivist, DartTypeGenerator type)
-      : this.archivist = archivist,
-        this.invoke = InvocationKernelGenerator(archivist, type),
+      this.platform, ModuleEnvironment environment, DartTypeGenerator type)
+      : this.environment = environment,
+        this.invoke = InvocationKernelGenerator(environment, type),
         this.type = type;
 
   kernel.Expression compile(Expression exp) {
@@ -553,7 +517,7 @@ class ExpressionKernelGenerator {
       Variable v = apply.abstractor;
       if (v.declarator is DataConstructor) {
         return invoke.constructor(v.declarator, arguments);
-      } else if (archivist.isPrimitive(v.binder)) {
+      } else if (environment.isPrimitive(v.binder)) {
         return invoke.primitive(v.binder, arguments);
       } else if (v.declarator is! LetFunction) {
         return invoke.dynamic$(compile(v), arguments);
@@ -607,11 +571,11 @@ class ExpressionKernelGenerator {
   kernel.Expression getVariable(Variable v) {
     // To retain soundness, some primitive must be eta expanded when used as a
     // return value or as an input to a higher-order function.
-    if (archivist.isPrimitive(v.binder) && requiresEtaExpansion(v.binder)) {
+    if (environment.isPrimitive(v.binder) && requiresEtaExpansion(v.binder)) {
       return etaPrimitive(v.binder);
     }
 
-    if (archivist.isGlobal(v.binder)) {
+    if (environment.isGlobal(v.binder)) {
       Object d = v.declarator;
       return d is KernelNode
           ? StaticGet(d.asKernelNode)
@@ -631,7 +595,7 @@ class ExpressionKernelGenerator {
   }
 
   bool requiresEtaExpansion(Binder b) {
-    switch (archivist.originOf(b)) {
+    switch (environment.originOf(b)) {
       case Origin.PRELUDE:
         switch (b.sourceName) {
           case "&&":
@@ -662,10 +626,10 @@ class ExpressionKernelGenerator {
 }
 
 class InvocationKernelGenerator {
-  final Archivist archivist;
+  final ModuleEnvironment environment;
   final DartTypeGenerator type;
 
-  InvocationKernelGenerator(this.archivist, this.type);
+  InvocationKernelGenerator(this.environment, this.type);
 
   // TODO include argument types as a parallel list?
   kernel.Expression primitive(
@@ -678,7 +642,7 @@ class InvocationKernelGenerator {
     }
 
     // Some primitive functions have a direct encoding into Kernel.
-    switch (archivist.originOf(binder)) {
+    switch (environment.originOf(binder)) {
       case Origin.PRELUDE:
         // Short-circuiting boolean operations.
         switch (binder.sourceName) {
@@ -761,8 +725,8 @@ class InvocationKernelGenerator {
         throw "Logical error: $binder does not originate from a virtual module.";
         break;
       default:
-        unhandled(
-            "InvocationKernelGenerator.primitive", archivist.originOf(binder));
+        unhandled("InvocationKernelGenerator.primitive",
+            environment.originOf(binder));
     }
 
     // Other primitive functions are treated just as top-level functions.

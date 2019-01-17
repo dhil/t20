@@ -7,10 +7,12 @@ library t20.compilation_unit;
 import 'dart:io';
 
 import 'io/bytestream.dart';
+import 'utils.dart' show StringUtils;
+import 'unicode.dart' as unicode;
 
 abstract class Source {
   Uri get uri;
-  String get basename;
+  String get moduleName;
   ByteStream openStream();
 }
 
@@ -28,21 +30,22 @@ class FileSource implements Source {
 
   Uri get uri => Uri.file(_sourceFile.path);
 
-  String get basename {
+  String get moduleName {
     // Attempt to compute the basename from the uri.
     String fileName = uri.pathSegments.last;
-    return fileName;
+    String prefix = StringUtils.prefix(fileName, unicode.DOT);
+    return StringUtils.capitalise(prefix);
   }
 }
 
 class StringSource implements Source {
   String _contents;
-  String _basename;
+  String _moduleName;
 
   StringSource(String contents, [String name = "stdin"]) {
     if (contents == null) throw new ArgumentError.notNull("contents");
     _contents = contents;
-    _basename = name;
+    _moduleName = name;
   }
 
   ByteStream openStream() {
@@ -50,5 +53,5 @@ class StringSource implements Source {
   }
 
   Uri get uri => Uri.dataFromString(_contents);
-  String get basename => _basename;
+  String get moduleName => _moduleName;
 }

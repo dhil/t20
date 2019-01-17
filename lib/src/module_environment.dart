@@ -4,18 +4,17 @@
 
 import 'dart:collection' show LinkedHashMap;
 
-//import 'ast/binder.dart' show Binder;
 import 'ast/ast.dart'
     show
-        DatatypeDeclarations,
-        Declaration,
+        Binder,
+        LetFunction,
         ModuleMember,
-        ModuleTag,
         TopModule,
-        VirtualModule,
-        TypeDescriptor;
+        VirtualModule;
 
 import 'compiler_constants.dart' show ModuleConstants;
+
+enum Origin { DART_LIST, KERNEL, PRELUDE, STRING, CUSTOM }
 
 class ModuleEnvironment {
   LinkedHashMap<String, VirtualModule> _virtualModules;
@@ -52,4 +51,36 @@ class ModuleEnvironment {
       ..addAll(_modules);
     return allModules;
   }
+
+  bool isKernelModule(TopModule module) =>
+      module != null && identical(module, kernel);
+
+  Origin originOf(Binder binder) {
+    if (binder.origin == null)
+      throw "Logical error: The binder ${binder} has no origin.";
+    if (identical(binder.origin, prelude)) return Origin.PRELUDE;
+    if (identical(binder.origin, kernel)) return Origin.KERNEL;
+    if (identical(binder.origin, dartList)) return Origin.DART_LIST;
+    if (identical(binder.origin, string)) return Origin.STRING;
+
+    return Origin.CUSTOM;
+  }
+
+  bool isPrimitive(Binder binder) => originOf(binder) != Origin.CUSTOM;
+
+  bool isGlobal(Binder binder) {
+    if (binder.bindingOccurrence is LetFunction) {
+      LetFunction fun = binder.bindingOccurrence;
+      return identical(fun.binder, binder);
+    }
+
+    // if (binder.bindingOccurrence is FunctionDeclaration) {
+    //   FunctionDeclaration fun = binder.bindingOccurrence;
+    //   return identical(fun.binder, binder);
+    // }
+
+    return binder.bindingOccurrence is ModuleMember;
+  }
+
+  bool isLocal(Binder binder) => !isGlobal(binder);
 }

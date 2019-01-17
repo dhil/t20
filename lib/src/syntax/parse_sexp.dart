@@ -28,11 +28,11 @@ class SexpParser implements Parser {
     if (source == null) throw new ArgumentError.notNull("source");
     if (trace) {
       return new _TracingSexpParser(
-              source.uri, source.basename, source.openStream())
+              source.uri, source.moduleName, source.openStream())
           .parse();
     } else {
       return new _StatefulSexpParser(
-              source.uri, source.basename, source.openStream())
+              source.uri, source.moduleName, source.openStream())
           .parse();
     }
   }

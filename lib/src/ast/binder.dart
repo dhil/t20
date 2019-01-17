@@ -38,7 +38,7 @@ class Binder implements Identifiable, KernelNode {
 
   String toString() {
     if (_sourceName == null) {
-      return "\$_$ident";
+      return "#_$ident";
     } else {
       return "${_sourceName}_$ident";
     }

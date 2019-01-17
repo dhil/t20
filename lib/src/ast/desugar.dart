@@ -1,16 +1,13 @@
-// Copyright (c) 2018, the Dart project authors.  Please see the AUTHORS file
+// Copyright (c) 2019, the Dart project authors.  Please see the AUTHORS file
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-//import 'dart:collection' show DoubleLinkedQueue, Queue;
-
-//import 'package:kernel/ast.dart';
-
-import '../errors/errors.dart' show unhandled, T20Error;
+import '../errors/errors.dart' show unhandled;
 import '../location.dart' show Location;
 import '../module_environment.dart';
 
 import 'ast.dart';
+import 'closure.dart' show freeVariables;
 
 Binder freshBinder(TopModule origin, Datatype type) {
   Binder binder = Binder.fresh(origin)..type = type;
@@ -188,7 +185,8 @@ class ModuleDesugarer {
 
 class ExpressionDesugarer {
   ModuleEnvironment environment;
-  PatternDesugarer pattern; // Lazily instantiated.
+  PatternDesugarer pattern;
+  MatchCompiler matchCompiler;
 
   DecisionTreeCompiler _decisionTree;
   DecisionTreeCompiler get decisionTree {
@@ -197,7 +195,11 @@ class ExpressionDesugarer {
     return _decisionTree;
   }
 
-  ExpressionDesugarer(this.environment, [this.pattern]);
+  ExpressionDesugarer(ModuleEnvironment environment, PatternDesugarer pattern) {
+    this.environment = environment;
+    this.pattern = pattern;
+    this.matchCompiler = MatchCompiler(environment, this, pattern);
+  }
 
   Expression desugar(Expression exp) {
     switch (exp.tag) {
@@ -243,6 +245,8 @@ class ExpressionDesugarer {
       default:
         unhandled("ExpressionDesugarer.desugar", exp.tag);
     }
+
+    return null; // Impossible!
   }
 
   DLambda lambda(Lambda lambda) {
@@ -293,7 +297,10 @@ class ExpressionDesugarer {
 
   Expression match(Match match) {
     if (match.cases.length == 0) {
-      return desugar(match.scrutinee);
+      // let x = scrutinee in matchFailure.
+      Binder xb = freshBinder(match.origin, match.scrutinee.type);
+      return DLet(
+          xb, desugar(match.scrutinee), pattern.matchFailure(match.location));
     }
 
     // Type-directed match compilation.
@@ -326,14 +333,86 @@ class ExpressionDesugarer {
     }
 
     if (scrutineeType is TypeConstructor) {
-      //throw "Not yet implemented.";
-      return Apply(pattern.matchFailure(),
-          <Expression>[StringLit("Not yet implemented.")]);
+      // Not a simple "desugaring". This requires introduction of closures and
+      // eliminator application. The match compiler handles all of that.
+      return matchCompiler.compile(scrutineeType, match);
     }
 
     unhandled("ExpressionDesugarer.match", scrutineeType);
 
     return null; // Impossible!
+  }
+}
+
+class MatchCompiler {
+  ModuleEnvironment environment;
+  ExpressionDesugarer expression;
+  PatternDesugarer pattern;
+
+  MatchCompiler(this.environment, this.expression, this.pattern);
+
+  Expression compile(TypeConstructor scrutineeType, Match match) {
+    assert(match.cases.length > 0 &&
+        scrutineeType.declarator is DatatypeDescriptor);
+    // TODO optimise for |cases| < k, where k is some predetermined constant, e.g. 5.
+
+    // General transformation:
+    // (match scrutinee cases+) => let x = scrutinee in eliminate(closure(x, cases)).
+    Expression scrutinee = expression.desugar(match.scrutinee);
+    Binder scrutineeBinder = freshBinder(match.origin, scrutineeType);
+    Variable scrutineeVar = Variable(scrutineeBinder);
+    Expression exp = DLet(scrutineeBinder, scrutinee, scrutineeVar);
+
+    // Steps:
+    // Compute the closure of match.cases.
+    // Create a MatchClosure object.
+    // Create a elimination node.
+    // Let bind the scrutinee.
+
+    Datatype resultType = match.type;
+
+    LetFunction defaultCase0;
+    List<LetFunction> cases = new List<LetFunction>();
+    int n =
+        (scrutineeType.declarator as DatatypeDescriptor).constructors.length;
+    for (int i = 0; i < match.cases.length; i++) {
+      Case case0 = match.cases[i];
+      Expression exp = expression.desugar(case0.expression);
+      Pattern pat = case0.pattern;
+
+      if (pat is WildcardPattern || pat is VariablePattern) {
+        // Catch-all pattern.
+        Binder xb;
+        if (pat is VariablePattern) {
+          xb = pat.binder;
+        } else {
+          xb = freshBinder(pat.origin, pat.type);
+        }
+        defaultCase0 = defaultCase(xb, exp, resultType);
+        break;
+      } else if (pat is ConstructorPattern) {
+        DataConstructor constructor = pat.declarator;
+        cases.add(regularCase(constructor, exp, resultType));
+        if (cases.length == n) break; // Exhaustive.
+      } else {
+        unhandled("MatchCompiler.compile", pat);
+      }
+    }
+
+    MatchClosure _ = MatchClosure(cases, defaultCase0, null);
+
+    return Apply(pattern.matchFailure(),
+        <Expression>[StringLit("Not yet implemented.")]);
+  }
+
+  LetFunction defaultCase(
+      Binder xb, Expression desugaredExp, Datatype resultType) {
+    return null;
+  }
+
+  LetFunction regularCase(DataConstructor constructor, Expression desugaredExp,
+      Datatype resultType) {
+    return null;
   }
 }
 
@@ -578,10 +657,10 @@ class PatternDesugarer {
       unhandled("PatternDesugarer.basePattern", pat);
     }
 
-    Binder binder = Binder.fresh(pat.origin)..type = pat.type;
+    Binder binder = freshBinder(pat.origin, pat.type);
     // [|p|] = (if (eq? p.value d) d else fail)
     //     where d is a declaration.
-    Binder dummy = Binder.fresh(pat.origin)..type = pat.type;
+    Binder dummy = freshBinder(pat.origin, pat.type);
     Expression x = Variable(binder);
     Expression exp = If(
         Apply(equals, <Expression>[operand, x]), x, matchFailure(pat.location));
@@ -592,14 +671,14 @@ class PatternDesugarer {
   }
 
   Binder tuple(TuplePattern tuple, ScratchSpace space) {
-    Binder source = Binder.fresh(tuple.origin)..type = tuple.type;
+    Binder source = freshBinder(tuple.origin, tuple.type);
     for (int i = 0; i < tuple.components.length; i++) {
       Pattern component = tuple.components[i];
       assert(component is WildcardPattern || component is VariablePattern);
       Binder binder = desugar(component, space);
       if (binder != null) {
         space.addBinder(binder);
-        space.addBody(Project(Variable(source), i));
+        space.addBody(Project(Variable(source), i + 1));
       }
     }
     return source;
