@@ -317,6 +317,6 @@ class _InstantiateType extends TransformDatatype {
 Datatype instantiate(
     List<Quantifier> quantifiers, List<Datatype> types, Datatype type) {
   Map<int, Datatype> instantiationMap =
-    Map.fromIterables(quantifiers.map((Quantifier q) => q.ident), types);
+      Map.fromIterables(quantifiers.map((Quantifier q) => q.ident), types);
   return type.accept<Datatype>(_InstantiateType(instantiationMap));
 }
