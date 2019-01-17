@@ -417,8 +417,6 @@ class StringifyExpression extends BufferedWriter
     }
     rparen();
     space();
-    clo.scrutinee.accept<void>(this);
-    space();
     lparen();
     StringifyModule module = StringifyModule(buffer);
     for (int i = 0; i < clo.cases.length; i++) {

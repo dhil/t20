@@ -56,6 +56,7 @@ import 'package:kernel/ast.dart'
 import '../deriving.dart' show Derivable;
 import '../location.dart' show Location;
 import '../errors/errors.dart' show LocatedError;
+import '../typing/type_utils.dart' as typeUtils;
 import '../utils.dart' show ListUtils;
 
 import 'binder.dart';
@@ -942,6 +943,8 @@ abstract class BaseValuePattern<T> extends Pattern {
 class BoolPattern extends BaseValuePattern<bool> {
   final bool value;
 
+  Datatype get type => typeUtils.boolType;
+
   BoolPattern(this.value, Location location) : super(PatternTag.BOOL, location);
 
   T accept<T>(PatternVisitor<T> v) {
@@ -956,7 +959,6 @@ class BoolPattern extends BaseValuePattern<bool> {
 class ConstructorPattern extends Pattern {
   DataConstructor declarator;
   List<Pattern> components;
-  Datatype get type => declarator.type; // TODO: this is not correct...
   int get arity => components == null ? 0 : components.length;
 
   ConstructorPattern(
@@ -968,9 +970,7 @@ class ConstructorPattern extends Pattern {
   ConstructorPattern.nullary(DataConstructor declarator, Location location)
       : this(declarator, const <VariablePattern>[], location);
 
-  T accept<T>(PatternVisitor<T> v) {
-    return v.visitConstructor(this);
-  }
+  T accept<T>(PatternVisitor<T> v) => v.visitConstructor(this);
 
   String toString() {
     if (arity == 0) {
@@ -978,6 +978,21 @@ class ConstructorPattern extends Pattern {
     } else {
       String subpatterns = ListUtils.stringify(" ", components);
       return "[${declarator.binder.sourceName} $subpatterns]";
+    }
+  }
+
+  Datatype get type {
+    if (arity != declarator.parameters.length) return const DynamicType();
+
+    Datatype dataConstructorType = declarator.type;
+    for (int i = 0; i < arity; i++) {
+      
+    }
+
+    if (arity > 0) {
+      return typeUtils.codomain(dataConstructorType);
+    } else {
+      return dataConstructorType;
     }
   }
 }
@@ -990,6 +1005,8 @@ class ErrorPattern extends Pattern {
   T accept<T>(PatternVisitor<T> v) {
     return v.visitError(this);
   }
+
+  Datatype get type => const DynamicType();
 }
 
 class HasTypePattern extends Pattern {
@@ -1014,30 +1031,28 @@ class HasTypePattern extends Pattern {
 class IntPattern extends BaseValuePattern<int> {
   final int value;
 
+  Datatype get type => typeUtils.intType;
+
   IntPattern(this.value, Location location) : super(PatternTag.INT, location);
 
   T accept<T>(PatternVisitor<T> v) {
     return v.visitInt(this);
   }
 
-  String toString() {
-    return "$value";
-  }
+  String toString() => "$value";
 }
 
 class StringPattern extends BaseValuePattern<String> {
   final String value;
 
+  Datatype get type => typeUtils.stringType;
+
   StringPattern(this.value, Location location)
       : super(PatternTag.STRING, location);
 
-  T accept<T>(PatternVisitor<T> v) {
-    return v.visitString(this);
-  }
+  T accept<T>(PatternVisitor<T> v) => v.visitString(this);
 
-  String toString() {
-    return "$value";
-  }
+  String toString() => '"$value"';
 }
 
 class TuplePattern extends Pattern {
@@ -1049,9 +1064,7 @@ class TuplePattern extends Pattern {
     _setParentMany(components, this);
   }
 
-  T accept<T>(PatternVisitor<T> v) {
-    return v.visitTuple(this);
-  }
+  T accept<T>(PatternVisitor<T> v) => v.visitTuple(this);
 
   String toString() {
     if (components.length == 0) {
@@ -1060,6 +1073,18 @@ class TuplePattern extends Pattern {
       String components0 = ListUtils.stringify(" ", components);
       return "(, $components0)";
     }
+  }
+
+  bool get isUnit => components.length == 0;
+
+  Datatype get type {
+    if (isUnit) return typeUtils.unitType;
+
+    List<Datatype> componentTypes = List<Datatype>();
+    for (int i = 0; i < components.length; i++) {
+      componentTypes.add(components[i].type);
+    }
+    return TupleType(componentTypes);
   }
 }
 
@@ -1077,13 +1102,13 @@ class VariablePattern extends Pattern
     binder.bindingOccurrence = this;
   }
 
-  T accept<T>(PatternVisitor<T> v) {
-    return v.visitVariable(this);
-  }
+  T accept<T>(PatternVisitor<T> v) => v.visitVariable(this);
 
-  String toString() {
-    return "${binder}";
-  }
+  String toString() => "$binder";
+
+  Datatype _type = const DynamicType();
+  Datatype get type => _type;
+  Datatype set type(Datatype type) => _type = type;
 }
 
 class WildcardPattern extends Pattern {
@@ -1091,9 +1116,11 @@ class WildcardPattern extends Pattern {
 
   T accept<T>(PatternVisitor<T> v) => v.visitWildcard(this);
 
-  String toString() {
-    return "_";
-  }
+  String toString() => "_";
+
+  Datatype _type = const DynamicType();
+  Datatype get type => _type;
+  Datatype set type(Datatype type) => _type = type;
 }
 
 //===== Desugared AST nodes.
@@ -1205,7 +1232,8 @@ class Eliminate extends Expression {
   MatchClosure closure;
   Variable scrutinee;
 
-  Eliminate(this.scrutinee, this.closure, this.constructor) : super(ExpTag.ELIM, null);
+  Eliminate(this.scrutinee, this.closure, this.constructor)
+      : super(ExpTag.ELIM, null);
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitEliminate(this);
 }

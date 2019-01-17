@@ -22,6 +22,10 @@ List<Datatype> domain(Datatype ft) {
     return domain(ft.body);
   }
 
+  if (ft is DynamicType) {
+    return <Datatype>[ft];
+  }
+
   // Error.
   throw "'domain' called with non-function type argument.";
 }
@@ -33,6 +37,10 @@ Datatype codomain(Datatype ft) {
 
   if (ft is ForallType) {
     return codomain(ft.body);
+  }
+
+  if (ft is DynamicType) {
+    return ft;
   }
 
   // Error.
@@ -258,4 +266,57 @@ Datatype unrollAlias(TypeConstructor typeAlias) {
   Substitution sigma = Substitution.fromPairs(parameters, arguments);
 
   return sigma.apply(unrolledType);
+}
+
+Datatype unroll(Datatype type) {
+  if (type is Skolem) {
+    return type.isSolved ? type.type : type;
+  }
+
+  if (isTypeAlias(type)) return unrollAlias(type);
+
+  return type;
+}
+
+class _InstantiateType extends TransformDatatype {
+  Map<int, Datatype> instantiationMap;
+
+  _InstantiateType(this.instantiationMap);
+
+  Datatype visitForallType(ForallType forallType) {
+    List<Quantifier> quantifiers;
+    for (int i = 0; i < forallType.quantifiers.length; i++) {
+      Quantifier q = forallType.quantifiers[i];
+      if (!instantiationMap.containsKey(q.ident)) {
+        quantifiers ??= new List<Quantifier>();
+        quantifiers.add(q);
+      }
+    }
+    Datatype body0 = forallType.body.accept(this);
+    if (quantifiers == null) {
+      return body0;
+    } else {
+      return new ForallType.complete(quantifiers, body0);
+    }
+  }
+
+  Datatype visitTypeVariable(TypeVariable variable) =>
+      instantiationMap[variable.ident] ?? variable;
+  Datatype visitSkolem(Skolem skolem) {
+    if (skolem.painted) {
+      return skolem;
+    } else {
+      skolem.paint();
+      Datatype type = skolem.type.accept<Datatype>(this);
+      skolem.reset();
+      return type;
+    }
+  }
+}
+
+Datatype instantiate(
+    List<Quantifier> quantifiers, List<Datatype> types, Datatype type) {
+  Map<int, Datatype> instantiationMap =
+    Map.fromIterables(quantifiers.map((Quantifier q) => q.ident), types);
+  return type.accept<Datatype>(_InstantiateType(instantiationMap));
 }
