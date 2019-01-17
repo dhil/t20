@@ -140,19 +140,58 @@ class StringifyModule extends BufferedWriter implements ModuleVisitor<void> {
   }
 
   void visitSignature(Signature sig) {
-    return null;
+    lparen();
+    write(":");
+    space();
+    write(stringOfBinder(sig.binder));
+    space();
+    write(sig.type.toString());
+    rparen();
   }
 
   void visitTopModule(TopModule mod) {
-    return null;
+    lparen();
+    write("module");
+    space();
+    write(mod.name);
+    space();
+    for (int i = 0; i < mod.members.length; i++) {
+      mod.members[i].accept<void>(this);
+    }
+    rparen();
   }
 
   void visitTypename(TypeAliasDescriptor decl) {
-    return null;
+    lparen();
+    write("define-typename");
+    space();
+    if (decl.parameters.length == 0) {
+      write(stringOfBinder(decl.binder));
+    } else {
+      lparen();
+      write(stringOfBinder(decl.binder));
+      write(ListUtils.stringify(" ", decl.parameters));
+      rparen();
+    }
+    space();
+    write(decl.rhs.toString());
+    rparen();
   }
 
   void visitValue(ValueDeclaration decl) {
-    return null;
+    lparen();
+    if (decl.isVirtual) {
+      write("define-stub");
+    } else {
+      write("define");
+    }
+    space();
+    write(stringOfBinder(decl.binder));
+    if (!decl.isVirtual) {
+      space();
+      decl.body.accept<void>(new StringifyExpression());
+    }
+    rparen();
   }
 }
 
