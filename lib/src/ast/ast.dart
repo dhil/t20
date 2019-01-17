@@ -593,6 +593,7 @@ abstract class ExpressionVisitor<T> {
   T visitDLet(DLet let);
   T visitProject(Project project);
   T visitMatchClosure(MatchClosure clo);
+  T visitEliminate(Eliminate elim);
   // T visitBlock(Block block);
 }
 
@@ -612,6 +613,7 @@ abstract class Expression extends T20Node {
 enum ExpTag {
   // BLOCK,
   BOOL,
+  ELIM,
   ERROR,
   // GET,
   INT,
@@ -1189,18 +1191,17 @@ class MatchClosure extends Expression {
   List<Binder> context; // Binder for free variables.
   List<LetFunction> cases;
   LetFunction defaultCase;
-  Eliminator eliminator;
 
   MatchClosure(this.scrutinee, this.cases, this.context) : super(ExpTag.MATCH);
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitMatchClosure(this);
 }
 
-class Eliminator extends T20Node implements KernelNode {
-  String name; // The name of the eliminator class.
+class Eliminate extends Expression {
   DatatypeDescriptor descriptor; // The introduction form.
+  MatchClosure closure;
 
-  Eliminator(this.name, this.descriptor);
+  Eliminate(this.closure, this.descriptor) : super(ExpTag.ELIM, null);
 
-  Class asKernelNode;
+  T accept<T>(ExpressionVisitor<T> v) => v.visitEliminate(this);
 }

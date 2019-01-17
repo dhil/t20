@@ -128,7 +128,28 @@ class StringifyModule extends BufferedWriter implements ModuleVisitor<void> {
   }
 
   void visitLetFunction(LetFunction fun) {
-    return null;
+    lparen();
+    if (fun.isVirtual) {
+      write("define-stub");
+    } else {
+      write("define");
+    }
+    space();
+    lparen();
+    write(stringOfBinder(fun.binder));
+    if (fun.parameters.length > 0) {
+      space();
+      for (int i = 0; i < fun.parameters.length; i++) {
+        write(stringOfBinder(fun.parameters[i].binder));
+        if (i + 1 < fun.parameters.length) space();
+      }
+    }
+    rparen();
+
+    if (!fun.isVirtual) {
+      fun.body.accept<void>(StringifyExpression(buffer));
+    }
+    rparen();
   }
 
   void visitInclude(Include include) {
@@ -393,6 +414,10 @@ class StringifyExpression extends BufferedWriter
     rparen();
     rparen();
   }
+
+  void visitEliminate(Eliminate elim) {
+    throw "Not yet implemented.";
+  }
 }
 
 class StringifyPattern extends BufferedWriter implements PatternVisitor<void> {
@@ -453,8 +478,10 @@ class StringifyPattern extends BufferedWriter implements PatternVisitor<void> {
 
 // Reductions.
 
-class ReduceModule<T> extends ModuleVisitor<T> {
-  Monoid<T> get m => null;
+abstract class ReduceModule<T> extends ModuleVisitor<T> {
+  Monoid<T> get m;
+  ReducePattern<T> get pattern;
+  ReduceExpression<T> get expression;
 
   T visitDataConstructor(DataConstructor _) => m.empty;
   T visitDatatype(DatatypeDescriptor _) => m.empty;
@@ -465,14 +492,12 @@ class ReduceModule<T> extends ModuleVisitor<T> {
     T acc = m.empty;
 
     if (decl.parameters != null) {
-      ReducePattern<T> pattern;
       for (int i = 0; i < decl.parameters.length; i++) {
         acc = m.compose(acc, decl.parameters[i].accept<T>(pattern));
       }
     }
 
     if (!decl.isVirtual) {
-      ReduceExpression<T> expression;
       acc = m.compose(acc, decl.body.accept<T>(expression));
       return acc;
     } else {
@@ -482,7 +507,6 @@ class ReduceModule<T> extends ModuleVisitor<T> {
 
   T visitLetFunction(LetFunction fun) {
     if (!fun.isVirtual) {
-      ReduceExpression<T> expression;
       return fun.body.accept<T>(expression);
     } else {
       return m.empty;
@@ -505,11 +529,14 @@ class ReduceModule<T> extends ModuleVisitor<T> {
   T visitTypename(TypeAliasDescriptor decl) => m.empty;
 
   T visitValue(ValueDeclaration decl) =>
-      decl.body.accept<T>(ReduceExpression<T>());
+      decl.body.accept<T>(expression);
 }
 
-class ReduceExpression<T> extends ExpressionVisitor<T> {
-  Monoid<T> get m => null;
+abstract class ReduceExpression<T> extends ExpressionVisitor<T> {
+  Monoid<T> get m;
+  ReducePattern<T> get pattern;
+
+  ReduceExpression();
 
   T many(List<Expression> exps) {
     T acc = m.empty;
@@ -537,7 +564,6 @@ class ReduceExpression<T> extends ExpressionVisitor<T> {
 
   T visitLambda(Lambda lambda) {
     T acc = m.empty;
-    ReducePattern<T> pattern = ReducePattern<T>();
     for (int i = 0; i < lambda.parameters.length; i++) {
       acc = m.compose(acc, lambda.parameters[i].accept<T>(pattern));
     }
@@ -547,7 +573,6 @@ class ReduceExpression<T> extends ExpressionVisitor<T> {
 
   T visitLet(Let binding) {
     T acc = m.empty;
-    ReducePattern<T> pattern = ReducePattern<T>();
     for (int i = 0; i < binding.valueBindings.length; i++) {
       Binding b = binding.valueBindings[i];
       acc = m.compose(acc, b.pattern.accept<T>(pattern));
@@ -558,7 +583,6 @@ class ReduceExpression<T> extends ExpressionVisitor<T> {
 
   T visitMatch(Match match) {
     T acc = match.scrutinee.accept<T>(this);
-    ReducePattern<T> pattern = ReducePattern<T>();
     for (int i = 0; i < match.cases.length; i++) {
       Case case0 = match.cases[i];
       acc = m.compose(acc, case0.pattern.accept<T>(pattern));
@@ -586,10 +610,12 @@ class ReduceExpression<T> extends ExpressionVisitor<T> {
   T visitProject(Project project) => project.receiver.accept<T>(this);
 
   T visitMatchClosure(MatchClosure clo) => throw "Not yet implemented.";
+
+  T visitEliminate(Eliminate elim) => throw "Not yet implemented.";
 }
 
-class ReducePattern<T> extends PatternVisitor<T> {
-  Monoid<T> get m => null;
+abstract class ReducePattern<T> extends PatternVisitor<T> {
+  Monoid<T> get m;
 
   T many(List<Pattern> patterns) {
     T acc = m.empty;
