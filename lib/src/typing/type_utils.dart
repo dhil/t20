@@ -95,6 +95,7 @@ bool isUnitType(Datatype type) {
 const Datatype boolType = const BoolType();
 const Datatype intType = const IntType();
 const Datatype stringType = const StringType();
+const Datatype dynamicType = const DynamicType();
 
 class _FreeTypeVariables extends ReduceDatatype<Set<int>> {
   static _FreeTypeVariables _instance;

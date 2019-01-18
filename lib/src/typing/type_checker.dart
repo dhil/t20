@@ -470,7 +470,7 @@ class _TypeChecker {
         if (scopeMarker != null) {
           ctxt = ctxt.drop(scopeMarker);
         }
-        lambda.type = ctxt.apply(type);
+        // lambda.type = ctxt.apply(type);
         return ctxt;
       }
     }
@@ -522,7 +522,7 @@ class _TypeChecker {
     Datatype left = result.type;
     ctxt = safeSubsumes(exp.location, ctxt.apply(left), ctxt.apply(type), ctxt);
 
-    exp.type = ctxt.apply(type);
+    // exp.type = ctxt.apply(type);
     return ctxt;
   }
 
@@ -661,7 +661,7 @@ class _TypeChecker {
   PatternInferenceResult inferConstructorPattern(
       ConstructorPattern constr, OrderedContext ctxt) {
     // Get the induced type.
-    Datatype type = constr
+    Datatype type = constr.declarator
         .type; // guaranteed to be compatible with `type_utils' function type api.
     // Arity check.
     if (typeUtils.isFunctionType(type) &&
@@ -694,6 +694,8 @@ class _TypeChecker {
       }
       type = typeUtils.codomain(type);
     }
+    // Store the store.
+    constr.type = type;
 
     return PatternInferenceResult(ctxt, type, marker);
   }
@@ -883,7 +885,7 @@ class _TypeChecker {
   OrderedContext safeSubsumes(
       Location location, Datatype a, Datatype b, OrderedContext ctxt) {
     try {
-    ctxt = subsumes(a, b, ctxt);
+      ctxt = subsumes(a, b, ctxt);
     } on SubsumptionError catch (e) {
       errors.add(LocatedSubsumptionError(e, location));
       if (trace) {

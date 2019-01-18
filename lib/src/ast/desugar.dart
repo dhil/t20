@@ -266,7 +266,7 @@ class ExpressionDesugarer {
     body = workSpace.build(body);
 
     DLambda target = DLambda(parameters, body, lambda.location);
-    target.type = lambda.type;
+    // target.type = lambda.type;
 
     return target;
   }

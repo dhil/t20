@@ -191,15 +191,17 @@ class ValueDeclaration extends ModuleMember
   Expression body;
 
   bool get isVirtual => false;
-  Datatype get type => signature.type;
+  Datatype get type => binder.type;
   int get ident => binder.ident;
 
   ValueDeclaration(
-      this.signature, Binder binder, Expression body, Location location)
+      Signature signature, Binder binder, Expression body, Location location)
       : this.binder = binder,
         this.body = body,
+        this.signature = signature,
         super(ModuleTag.VALUE_DEF, location) {
     binder.bindingOccurrence = this;
+    binder.type = signature.type;
     _setParent(body, this);
   }
   T accept<T>(ModuleVisitor<T> v) => v.visitValue(this);
@@ -240,16 +242,18 @@ abstract class AbstractFunctionDeclaration<Param extends T20Node,
   Body body;
 
   bool get isVirtual => false;
-  Datatype get type => signature.type;
+  Datatype get type => binder.type;
   int get ident => binder.ident;
 
-  AbstractFunctionDeclaration(this.signature, Binder binder,
+  AbstractFunctionDeclaration(Signature signature, Binder binder,
       List<Param> parameters, Body body, Location location)
       : this.binder = binder,
         this.body = body,
         this.parameters = parameters,
+        this.signature = signature,
         super(ModuleTag.FUNC_DEF, location) {
     binder.bindingOccurrence = this;
+    binder.type = signature.type;
     _setParent(body, this);
     _setParentMany(parameters, this);
   }
@@ -301,9 +305,8 @@ class DataConstructor extends ModuleMember
   bool get isVirtual => false;
   int get ident => binder.ident;
 
-  Datatype _type;
   Datatype get type {
-    if (_type == null) {
+    if (binder.type == null) {
       List<Quantifier> quantifiers;
       if (declarator.parameters.length > 0) {
         // It's necessary to copy the quantifiers as the [ForallType] enforces
@@ -322,19 +325,19 @@ class DataConstructor extends ModuleMember
           forallType.body = ft;
           ft = forallType;
         }
-        _type = ft;
+        binder.type = ft;
       } else {
         if (quantifiers != null) {
           ForallType forallType = new ForallType();
           forallType.quantifiers = quantifiers;
           forallType.body = declarator.type;
-          _type = forallType;
+          binder.type = forallType;
         } else {
-          _type = declarator.type;
+          binder.type = declarator.type;
         }
       }
     }
-    return _type;
+    return binder.type;
   }
 
   DataConstructor(Binder binder, this.parameters, Location location)
@@ -357,16 +360,15 @@ class DatatypeDescriptor extends ModuleMember
   bool get isVirtual => false;
   int get ident => binder.ident;
 
-  TypeConstructor _type;
   TypeConstructor get type {
-    if (_type == null) {
+    if (binder.type == null) {
       List<Datatype> arguments = new List<Datatype>(parameters.length);
       for (int i = 0; i < parameters.length; i++) {
         arguments[i] = TypeVariable.bound(parameters[i]);
       }
-      _type = TypeConstructor.from(this, arguments);
+      binder.type = TypeConstructor.from(this, arguments);
     }
-    return _type;
+    return binder.type as TypeConstructor;
   }
 
   int get arity => parameters.length;
@@ -408,9 +410,7 @@ class DatatypeDeclarations extends ModuleMember {
 
   T accept<T>(ModuleVisitor<T> v) => v.visitDatatypes(this);
 
-  String toString() {
-    return "(define-datatypes $declarations)";
-  }
+  String toString() => "(define-datatypes $declarations)";
 }
 
 class Include extends ModuleMember {
@@ -418,9 +418,7 @@ class Include extends ModuleMember {
 
   Include(this.module, Location location) : super(ModuleTag.OPEN, location);
 
-  T accept<T>(ModuleVisitor<T> v) {
-    return v.visitInclude(this);
-  }
+  T accept<T>(ModuleVisitor<T> v) => v.visitInclude(this);
 }
 
 class Summary {
@@ -534,16 +532,15 @@ class TypeAliasDescriptor extends ModuleMember
   bool get isVirtual => false;
   int get ident => binder.ident;
 
-  TypeConstructor _type;
   TypeConstructor get type {
-    if (_type == null) {
+    if (binder.type == null) {
       List<Datatype> arguments = new List<Datatype>(parameters.length);
       for (int i = 0; i < parameters.length; i++) {
         arguments[i] = TypeVariable.bound(parameters[i]);
       }
-      _type = TypeConstructor.from(this, arguments);
+      binder.type = TypeConstructor.from(this, arguments);
     }
-    return _type;
+    return binder.type as TypeConstructor;
   }
 
   int get arity => parameters.length;
@@ -564,9 +561,7 @@ class ErrorModule extends ModuleMember {
   ErrorModule(this.error, [Location location = null])
       : super(ModuleTag.ERROR, location == null ? Location.dummy() : location);
 
-  T accept<T>(ModuleVisitor<T> v) {
-    return v.visitError(this);
-  }
+  T accept<T>(ModuleVisitor<T> v) => v.visitError(this);
 }
 
 //===== Expression language.
@@ -600,15 +595,13 @@ abstract class ExpressionVisitor<T> {
 
 abstract class Expression extends T20Node {
   final ExpTag tag;
-  Datatype type;
+  Datatype get type; // TODO perform type reconstruction.
   Location location;
 
   Expression(this.tag, [Location location])
       : this.location = location == null ? Location.dummy() : location;
 
   T accept<T>(ExpressionVisitor<T> v);
-
-  bool isPure = false;
 }
 
 enum ExpTag {
@@ -647,40 +640,33 @@ class BoolLit extends Constant<bool> {
   BoolLit(bool value, [Location location])
       : super(value, ExpTag.BOOL, location);
 
-  T accept<T>(ExpressionVisitor<T> v) {
-    return v.visitBool(this);
-  }
+  T accept<T>(ExpressionVisitor<T> v) => v.visitBool(this);
 
   static const String T_LITERAL = "#t";
   static const String F_LITERAL = "#f";
 
-  String toString() {
-    if (value)
-      return T_LITERAL;
-    else
-      return F_LITERAL;
-  }
+  String toString() => value ? T_LITERAL : F_LITERAL;
+
+  BoolType get type => typeUtils.boolType;
 }
 
 class IntLit extends Constant<int> {
   IntLit(int value, [Location location]) : super(value, ExpTag.INT, location);
 
-  T accept<T>(ExpressionVisitor<T> v) {
-    return v.visitInt(this);
-  }
+  T accept<T>(ExpressionVisitor<T> v) => v.visitInt(this);
+
+  IntType get type => typeUtils.intType;
 }
 
 class StringLit extends Constant<String> {
   StringLit(String value, [Location location])
       : super(value, ExpTag.STRING, location);
 
-  T accept<T>(ExpressionVisitor<T> v) {
-    return v.visitString(this);
-  }
+  T accept<T>(ExpressionVisitor<T> v) => v.visitString(this);
 
-  String toString() {
-    return "\"$value\"";
-  }
+  String toString() => "\"$value\"";
+
+  StringType get type => typeUtils.stringType;
 }
 
 class Apply extends Expression {
@@ -705,6 +691,15 @@ class Apply extends Expression {
       return "($abstractor $arguments0)";
     }
   }
+
+  Datatype get type {
+    Datatype abs = abstractor.type;
+    if (typeUtils.isFunctionType(abs)) {
+      return typeUtils.dynamicType; // TODO.
+    } else {
+      return typeUtils.dynamicType;
+    }
+  }
 }
 
 class Variable extends Expression {
@@ -723,6 +718,10 @@ class Variable extends Expression {
   //     other != null && other is Variable && identical(other.binder, binder);
 
   // int get hashCode => 13 * binder.hashCode;
+
+  Datatype _type;
+  Datatype get type => _type ?? typeUtils.dynamicType;
+  Datatype set type(Datatype type) => _type = type;
 }
 
 class If extends Expression {
@@ -741,11 +740,11 @@ class If extends Expression {
     _setParent(elseBranch, this);
   }
 
-  T accept<T>(ExpressionVisitor<T> v) {
-    return v.visitIf(this);
-  }
+  T accept<T>(ExpressionVisitor<T> v) => v.visitIf(this);
 
   String toString() => "(if $condition (...) (...))";
+
+  Datatype get type => null;
 }
 
 class Binding extends T20Node {
@@ -759,9 +758,7 @@ class Binding extends T20Node {
     _setParent(expression, this);
   }
 
-  String toString() {
-    return "($pattern ...)";
-  }
+  String toString() => "($pattern ...)";
 }
 
 class Let extends Expression {
@@ -782,6 +779,8 @@ class Let extends Expression {
   }
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitLet(this);
+
+  Datatype get type => body.type;
 }
 
 abstract class LambdaAbstraction<Param extends T20Node, Body extends T20Node>
@@ -809,8 +808,12 @@ class Lambda extends LambdaAbstraction<Pattern, Expression> {
   Lambda(List<Pattern> parameters, Expression body, Location location)
       : super(parameters, body, location);
 
-  T accept<T>(ExpressionVisitor<T> v) {
-    return v.visitLambda(this);
+  T accept<T>(ExpressionVisitor<T> v) => v.visitLambda(this);
+
+  ArrowType get type {
+    List<Datatype> domain = parameters.map((Pattern p) => p.type).toList();
+    Datatype codomain = body.type;
+    return ArrowType(domain, codomain);
   }
 }
 
@@ -850,6 +853,8 @@ class Match extends Expression {
     String cases0 = ListUtils.stringify(" ", cases);
     return "(match $scrutinee $cases0)";
   }
+
+  Datatype get type => null; // TODO.
 }
 
 class Tuple extends Expression {
@@ -875,9 +880,16 @@ class Tuple extends Expression {
       return "(, $components0)";
     }
   }
+
+  TupleType get type {
+    List<Datatype> componentTypes =
+        components.map((Expression e) => e.type).toList();
+    return TupleType(componentTypes);
+  }
 }
 
 class TypeAscription extends Expression {
+  Datatype type;
   Expression exp;
 
   TypeAscription(Expression exp, Datatype type, Location location)
@@ -896,9 +908,9 @@ class ErrorExpression extends Expression {
   ErrorExpression(this.error, Location location)
       : super(ExpTag.ERROR, location);
 
-  T accept<T>(ExpressionVisitor<T> v) {
-    return v.visitError(this);
-  }
+  T accept<T>(ExpressionVisitor<T> v) => v.visitError(this);
+
+  Datatype get type => typeUtils.dynamicType;
 }
 
 //===== Pattern language.
@@ -981,20 +993,9 @@ class ConstructorPattern extends Pattern {
     }
   }
 
-  Datatype get type {
-    if (arity != declarator.parameters.length) return const DynamicType();
-
-    Datatype dataConstructorType = declarator.type;
-    for (int i = 0; i < arity; i++) {
-      
-    }
-
-    if (arity > 0) {
-      return typeUtils.codomain(dataConstructorType);
-    } else {
-      return dataConstructorType;
-    }
-  }
+  Datatype _type;
+  Datatype get type => _type ?? declarator.type;
+  Datatype set type(Datatype type) => _type = type;
 }
 
 class ErrorPattern extends Pattern {
@@ -1154,6 +1155,13 @@ class DLambda extends LambdaAbstraction<FormalParameter, Expression> {
   }
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitDLambda(this);
+
+  ArrowType get type {
+    List<Datatype> domain =
+        parameters.map((FormalParameter p) => p.type).toList();
+    Datatype codomain = body.type;
+    return ArrowType(domain, codomain);
+  }
 }
 
 class DLet extends Expression with DeclarationMixin implements Declaration {
@@ -1175,6 +1183,8 @@ class DLet extends Expression with DeclarationMixin implements Declaration {
   }
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitDLet(this);
+
+  Datatype get type => continuation.type;
 }
 
 class LetFunction
@@ -1214,6 +1224,8 @@ class Project extends Expression {
   T accept<T>(ExpressionVisitor<T> v) => v.visitProject(this);
 
   String toString() => "(\$$label $receiver)";
+
+  Datatype get type => null; // TODO.
 }
 
 class MatchClosure extends Expression {
@@ -1225,6 +1237,8 @@ class MatchClosure extends Expression {
       : super(ExpTag.MATCH);
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitMatchClosure(this);
+
+  Datatype get type => null; // TODO.
 }
 
 class Eliminate extends Expression {
@@ -1236,4 +1250,6 @@ class Eliminate extends Expression {
       : super(ExpTag.ELIM, null);
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitEliminate(this);
+
+  Datatype get type => null; // TODO.
 }

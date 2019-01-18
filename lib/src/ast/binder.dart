@@ -23,7 +23,7 @@ class Binder implements Identifiable, KernelNode {
   // TODO introduce a subclass for typed binders.
   Datatype _type;
   void set type(Datatype type) => _type = type;
-  Datatype get type => _type ?? bindingOccurrence?.type;
+  Datatype get type => _type;
 
   Location get location => _location ?? Location.dummy();
   String get sourceName => _sourceName ?? "<synthetic>";

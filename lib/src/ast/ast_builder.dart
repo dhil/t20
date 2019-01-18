@@ -716,14 +716,12 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
       (BuildContext ctxt) {
         // Construct a boolean literal node.
         BoolLit lit = new BoolLit(b, location);
-        lit.type = typeUtils.boolType;
         return Pair<BuildContext, Expression>(ctxt, lit);
       };
 
   Build<Expression> intLit(int n, {Location location}) => (BuildContext ctxt) {
         // Construct a boolean literal node.
         IntLit lit = new IntLit(n, location);
-        lit.type = typeUtils.intType;
         return Pair<BuildContext, Expression>(ctxt, lit);
       };
 
@@ -731,7 +729,6 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
       (BuildContext ctxt) {
         // Construct a boolean literal node.
         StringLit lit = new StringLit(s, location);
-        lit.type = typeUtils.stringType;
         return Pair<BuildContext, Expression>(ctxt, lit);
       };
 
