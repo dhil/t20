@@ -29,12 +29,13 @@ class Binder implements Identifiable, KernelNode {
   String get sourceName => _sourceName ?? "<synthetic>";
 
   Binder.fromSource(TopModule origin, String sourceName, Location location)
-      : this.raw(origin, null, Gensym.freshInt(), sourceName, location);
+  : this.raw(origin, null, Gensym.freshInt(), sourceName, location, null);
   Binder.fresh(TopModule origin) : this.fromSource(origin, null, null);
   Binder.primitive(TopModule origin, String name)
       : this.fromSource(origin, name, null);
   Binder.raw(this.origin, this.bindingOccurrence, this._ident, this._sourceName,
-      this._location);
+             this._location, this._type);
+  Binder.refresh(Binder binder) : this.raw(binder.origin, null, Gensym.freshInt(), binder._sourceName, Location.dummy(), binder.type);
 
   String toString() {
     if (_sourceName == null) {

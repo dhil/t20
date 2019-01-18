@@ -20,9 +20,8 @@ VariableDeclaration translateBinder(Binder binder) {
   return v;
 }
 
-VariableDeclaration translateFormalParameter(FormalParameter parameter) {
-  return translateBinder(parameter.binder);
-}
+VariableDeclaration translateFormalParameter(FormalParameter parameter) =>
+    translateBinder(parameter.binder);
 
 class KernelGenerator {
   final Platform platform;
@@ -236,61 +235,142 @@ class MainProcedureKernelGenerator {
   }
 }
 
+class SegregationResult {
+  final List<DatatypeDeclarations> datatypes;
+  final List<Declaration> termDeclarations;
+  final List<BoilerplateTemplate> templates;
+
+  SegregationResult(this.datatypes, this.termDeclarations, this.templates);
+}
+
+class AlgebraicDatatypeKernelGenerator {
+  final Platform platform;
+  final ModuleEnvironment environment;
+  final DartTypeGenerator type;
+
+  AlgebraicDatatypeKernelGenerator(this.platform, this.environment, this.type);
+
+  List<Class> compile(DatatypeDeclarations datatypes) {
+    // Process each datatype declaration.
+    List<Class> classes;
+    for (int i = 0; i < datatypes.declarations.length; i++) {
+      DatatypeDescriptor descriptor = datatypes.declarations[i];
+      List<Class> result = datatype(descriptor);
+      if (result != null) {
+        classes ??= new List<Class>();
+        classes.addAll(result);
+      }
+    }
+
+    return classes;
+  }
+
+  List<Class> datatype(DatatypeDescriptor descriptor) {
+    // TODO.
+    return null;
+  }
+}
+
 class ModuleKernelGenerator {
   final Platform platform;
   final ModuleEnvironment environment;
   final ExpressionKernelGenerator expression;
   final DartTypeGenerator type;
+  final AlgebraicDatatypeKernelGenerator adt;
 
   ModuleKernelGenerator(
       Platform platform, ModuleEnvironment environment, DartTypeGenerator type)
       : this.environment = environment,
         this.platform = platform,
         this.type = type,
-        expression = ExpressionKernelGenerator(platform, environment, type);
+        this.expression =
+            ExpressionKernelGenerator(platform, environment, type),
+        this.adt =
+            AlgebraicDatatypeKernelGenerator(platform, environment, type);
 
   Library compile(TopModule module) {
     // Do nothing for the (virtual) kernel module.
     if (environment.isKernelModule(module)) return null;
 
-    // Process each member.
+    // Target library.
     Library library;
+
+    // Segregate the module members. As a side effect [segregate] dispenses of
+    // members that have no runtime representation.
+    SegregationResult segmod = segregate(module);
+
+    // Firstly, process datatype declarations.
+    for (int i = 0; i < segmod.datatypes.length; i++) {
+      List<Class> classes = adt.compile(segmod.datatypes[i]);
+      if (classes != null) {
+        library ??= emptyLibrary(module.name);
+        library.classes.addAll(classes);
+      }
+    }
+
+    // Secondly, process boilerplate templates (as they depend on the datatype
+    // declarations).
+    for (int i = 0; i < segmod.templates.length; i++) {
+      // TODO.
+    }
+
+    // Thirdly, term declarations (as they depend on templates).
+    for (int i = 0; i < segmod.termDeclarations.length; i++) {
+      Declaration decl = segmod.termDeclarations[i];
+
+      if (decl is DataConstructor) {
+        // Performed exclusively for its side effects. A class for the
+        // constructor has been generated earlier.
+        dataConstructor(decl);
+      } else if (decl is LetFunction) {
+        Procedure procedure = function(decl);
+        // Virtual functions may compile to [null].
+        if (procedure != null) {
+          library ??= emptyLibrary(module.name);
+          library.procedures.add(procedure);
+        }
+      } else if (decl is ValueDeclaration) {
+        Field field = value(decl);
+        if (field != null) {
+          library ??= emptyLibrary(module.name);
+          library.fields.add(field);
+        }
+      } else {
+        unhandled("ModuleKernelGenerator.compile", decl);
+      }
+    }
+
+    return library;
+  }
+
+  SegregationResult segregate(TopModule module) {
+    List<DatatypeDeclarations> datatypes = new List<DatatypeDeclarations>();
+    List<Declaration> declarations =
+        new List<Declaration>(); // term declarations.
     for (int i = 0; i < module.members.length; i++) {
       ModuleMember member = module.members[i];
       switch (member.tag) {
-        // No-ops.
-        case ModuleTag.CONSTR:
-        case ModuleTag.SIGNATURE:
-        case ModuleTag.TYPENAME:
-          // Ignore.
-          break;
         case ModuleTag.DATATYPE_DEFS:
-          // TODO.
+          datatypes.add(member as DatatypeDeclarations);
           break;
+        case ModuleTag.CONSTR:
         case ModuleTag.FUNC_DEF:
-          Procedure procedure = function(member as LetFunction);
-          // Virtual functions may compile to [null].
-          if (procedure != null) {
-            library ??= emptyLibrary(module.name);
-            library.procedures.add(procedure);
-          }
-          break;
         case ModuleTag.VALUE_DEF:
-          Field field = value(member as ValueDeclaration);
-          if (field != null) {
-            library ??= emptyLibrary(module.name);
-            library.fields.add(field);
-          }
+          declarations.add(member as Declaration);
           break;
         default:
-          unhandled("ModuleKernelGenerator.compile", member.tag);
+        // Ignore.
       }
     }
-    return library;
+    return SegregationResult(datatypes, declarations, module.templates);
   }
 
   Library emptyLibrary(String name) {
     return Library(Uri(scheme: "file", path: "."), name: name);
+  }
+
+  void dataConstructor(DataConstructor constructor) {
+    // TODO.
   }
 
   Procedure function(LetFunction fun) {
@@ -415,7 +495,6 @@ class ModuleKernelGenerator {
   }
 
   Field value(ValueDeclaration val) {
-    // TODO check whether [val] is virtual.
     if (val.isVirtual) {
       throw "Compilation of virtual values has not yet been implemented.";
     }

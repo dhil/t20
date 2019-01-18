@@ -4,7 +4,6 @@
 
 import 'ast.dart';
 import 'monoids.dart' show Monoid, SetMonoid;
-import 'utils.dart' show ReduceExpression, ReducePattern;
 
 List<Variable> freeVariables(Expression exp) {
   return ComputeExpressionFreeVariables().compute(exp);
@@ -123,6 +122,7 @@ class ComputeExpressionFreeVariables extends ExpressionVisitor<void> {
     List<Variable> fvs = freeVariables[v.ident];
     if (fvs == null) {
       fvs = <Variable>[v];
+      freeVariables[v.ident] = fvs;
     } else {
       fvs.add(v);
     }

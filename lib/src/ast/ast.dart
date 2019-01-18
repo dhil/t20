@@ -86,6 +86,16 @@ void _setParentMany(List<T20Node> nodes, T20Node parent) {
   }
 }
 
+void _setBindingOccurrence(Binder binder, Declaration decl) =>
+    binder.bindingOccurrence = decl;
+void _setBindingOccurrenceMany(List<Binder> binders, Declaration decl) {
+  if (binders == null) return;
+
+  for (int i = 0; i < binders.length; i++) {
+    binders[i].bindingOccurrence = decl;
+  }
+}
+
 //===== Declaration.
 abstract class Declaration implements Identifiable {
   Datatype get type;
@@ -94,32 +104,34 @@ abstract class Declaration implements Identifiable {
   bool get isVirtual;
   int get ident;
 
-  List<Variable> get uses;
-  void use(Variable reference);
+  // List<Variable> get uses;
+  // void use(Variable reference);
 }
 
 abstract class DeclarationMixin implements Declaration {
-  Datatype get type;
+  Binder binder;
   int get ident => binder.ident;
+  bool get isVirtual => false;
+  Datatype get type => binder.type;
 
-  List<Variable> _uses;
-  List<Variable> get uses {
-    _uses ??= new List<Variable>();
-    return _uses;
-  }
+  // List<Variable> _uses;
+  // List<Variable> get uses {
+  //   _uses ??= new List<Variable>();
+  //   return _uses;
+  // }
 
-  void use(Variable reference) {
-    _uses ??= new List<Variable>();
-    uses.add(reference);
-  }
+  // void use(Variable reference) {
+  //   _uses ??= new List<Variable>();
+  //   uses.add(reference);
+  // }
 
-  void mergeUses(List<Variable> references) {
-    if (_uses == null) {
-      _uses = references;
-    } else {
-      uses.addAll(references);
-    }
-  }
+  // void mergeUses(List<Variable> references) {
+  //   if (_uses == null) {
+  //     _uses = references;
+  //   } else {
+  //     uses.addAll(references);
+  //   }
+  // }
 }
 
 //===== Module / top-level language.
@@ -166,14 +178,12 @@ class Signature extends ModuleMember
   Datatype type;
 
   List<Declaration> definitions;
-  bool get isVirtual => false;
-  int get ident => binder.ident;
 
   Signature(Binder binder, this.type, Location location)
       : this.binder = binder,
         definitions = new List<Declaration>(),
         super(ModuleTag.SIGNATURE, location) {
-    binder.bindingOccurrence = this;
+    _setBindingOccurrence(binder, this);
   }
 
   void addDefinition(Declaration decl) {
@@ -190,25 +200,19 @@ class ValueDeclaration extends ModuleMember
   Signature signature;
   Expression body;
 
-  bool get isVirtual => false;
-  Datatype get type => binder.type;
-  int get ident => binder.ident;
-
   ValueDeclaration(
       Signature signature, Binder binder, Expression body, Location location)
       : this.binder = binder,
         this.body = body,
         this.signature = signature,
         super(ModuleTag.VALUE_DEF, location) {
-    binder.bindingOccurrence = this;
+    _setBindingOccurrence(binder, this);
     binder.type = signature.type;
     _setParent(body, this);
   }
   T accept<T>(ModuleVisitor<T> v) => v.visitValue(this);
 
-  String toString() {
-    return "(define $binder (...)))";
-  }
+  String toString() => "(define $binder (...)))";
 
   Member asKernelNode;
 }
@@ -241,10 +245,6 @@ abstract class AbstractFunctionDeclaration<Param extends T20Node,
   List<Param> parameters;
   Body body;
 
-  bool get isVirtual => false;
-  Datatype get type => binder.type;
-  int get ident => binder.ident;
-
   AbstractFunctionDeclaration(Signature signature, Binder binder,
       List<Param> parameters, Body body, Location location)
       : this.binder = binder,
@@ -252,7 +252,7 @@ abstract class AbstractFunctionDeclaration<Param extends T20Node,
         this.parameters = parameters,
         this.signature = signature,
         super(ModuleTag.FUNC_DEF, location) {
-    binder.bindingOccurrence = this;
+    _setBindingOccurrence(binder, this);
     binder.type = signature.type;
     _setParent(body, this);
     _setParentMany(parameters, this);
@@ -302,9 +302,6 @@ class DataConstructor extends ModuleMember
   Binder binder;
   List<Datatype> parameters;
 
-  bool get isVirtual => false;
-  int get ident => binder.ident;
-
   Datatype get type {
     if (binder.type == null) {
       List<Quantifier> quantifiers;
@@ -343,7 +340,7 @@ class DataConstructor extends ModuleMember
   DataConstructor(Binder binder, this.parameters, Location location)
       : this.binder = binder,
         super(ModuleTag.CONSTR, location) {
-    binder.bindingOccurrence = this;
+    _setBindingOccurrence(binder, this);
   }
 
   T accept<T>(ModuleVisitor<T> v) => v.visitDataConstructor(this);
@@ -356,9 +353,6 @@ class DatatypeDescriptor extends ModuleMember
   List<Quantifier> parameters;
   List<DataConstructor> constructors;
   Set<Derivable> deriving;
-
-  bool get isVirtual => false;
-  int get ident => binder.ident;
 
   TypeConstructor get type {
     if (binder.type == null) {
@@ -378,7 +372,7 @@ class DatatypeDescriptor extends ModuleMember
       : this.binder = binder,
         this.constructors = constructors,
         super(ModuleTag.DATATYPE_DEF, location) {
-    binder.bindingOccurrence = this;
+    _setBindingOccurrence(binder, this);
     _setParentMany(constructors, this);
   }
   DatatypeDescriptor.partial(
@@ -511,6 +505,15 @@ class TopModule extends ModuleMember {
   }
 
   bool get isVirtual => false;
+
+  // Module-local boilerplate arising from the user's program.
+  List<BoilerplateTemplate> get templates =>
+      _templates ?? List<BoilerplateTemplate>();
+  List<BoilerplateTemplate> _templates;
+  void addTemplate(BoilerplateTemplate t) {
+    _templates ??= new List<BoilerplateTemplate>();
+    templates.add(t);
+  }
 }
 
 class VirtualModule extends TopModule {
@@ -529,9 +532,6 @@ class TypeAliasDescriptor extends ModuleMember
   List<Quantifier> parameters;
   Datatype rhs;
 
-  bool get isVirtual => false;
-  int get ident => binder.ident;
-
   TypeConstructor get type {
     if (binder.type == null) {
       List<Datatype> arguments = new List<Datatype>(parameters.length);
@@ -549,7 +549,7 @@ class TypeAliasDescriptor extends ModuleMember
       Binder binder, this.parameters, this.rhs, Location location)
       : this.binder = binder,
         super(ModuleTag.TYPENAME, location) {
-    binder.bindingOccurrence = this;
+    _setBindingOccurrence(binder, this);
   }
 
   T accept<T>(ModuleVisitor<T> v) => v.visitTypename(this);
@@ -595,13 +595,14 @@ abstract class ExpressionVisitor<T> {
 
 abstract class Expression extends T20Node {
   final ExpTag tag;
-  Datatype get type; // TODO perform type reconstruction.
   Location location;
 
   Expression(this.tag, [Location location])
       : this.location = location == null ? Location.dummy() : location;
 
   T accept<T>(ExpressionVisitor<T> v);
+
+  Datatype get type => typeUtils.dynamicType;
 }
 
 enum ExpTag {
@@ -611,6 +612,7 @@ enum ExpTag {
   ERROR,
   // GET,
   INT,
+  IS,
   STRING,
   APPLY,
   IF,
@@ -629,11 +631,7 @@ abstract class Constant<T> extends Expression {
   T value;
   Constant(this.value, ExpTag tag, [Location location]) : super(tag, location);
 
-  String toString() {
-    return "$value";
-  }
-
-  bool isPure = true;
+  String toString() => "$value";
 }
 
 class BoolLit extends Constant<bool> {
@@ -691,15 +689,6 @@ class Apply extends Expression {
       return "($abstractor $arguments0)";
     }
   }
-
-  Datatype get type {
-    Datatype abs = abstractor.type;
-    if (typeUtils.isFunctionType(abs)) {
-      return typeUtils.dynamicType; // TODO.
-    } else {
-      return typeUtils.dynamicType;
-    }
-  }
 }
 
 class Variable extends Expression {
@@ -719,9 +708,7 @@ class Variable extends Expression {
 
   // int get hashCode => 13 * binder.hashCode;
 
-  Datatype _type;
-  Datatype get type => _type ?? typeUtils.dynamicType;
-  Datatype set type(Datatype type) => _type = type;
+  Datatype get type => binder.type;
 }
 
 class If extends Expression {
@@ -744,7 +731,7 @@ class If extends Expression {
 
   String toString() => "(if $condition (...) (...))";
 
-  Datatype get type => null;
+  Datatype type;
 }
 
 class Binding extends T20Node {
@@ -802,6 +789,10 @@ abstract class LambdaAbstraction<Param extends T20Node, Body extends T20Node>
     String parameters0 = ListUtils.stringify(" ", parameters);
     return "(lambda ($parameters0) (...))";
   }
+
+  Datatype _type;
+  void set type(Datatype type) => _type = type;
+  Datatype get type => _type;
 }
 
 class Lambda extends LambdaAbstraction<Pattern, Expression> {
@@ -809,12 +800,6 @@ class Lambda extends LambdaAbstraction<Pattern, Expression> {
       : super(parameters, body, location);
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitLambda(this);
-
-  ArrowType get type {
-    List<Datatype> domain = parameters.map((Pattern p) => p.type).toList();
-    Datatype codomain = body.type;
-    return ArrowType(domain, codomain);
-  }
 }
 
 class Case extends T20Node {
@@ -854,7 +839,9 @@ class Match extends Expression {
     return "(match $scrutinee $cases0)";
   }
 
-  Datatype get type => null; // TODO.
+  Datatype _type;
+  void set type(Datatype type) => _type = type;
+  Datatype get type => _type;
 }
 
 class Tuple extends Expression {
@@ -995,7 +982,7 @@ class ConstructorPattern extends Pattern {
 
   Datatype _type;
   Datatype get type => _type ?? declarator.type;
-  Datatype set type(Datatype type) => _type = type;
+  void set type(Datatype type) => _type = type;
 }
 
 class ErrorPattern extends Pattern {
@@ -1093,14 +1080,11 @@ class VariablePattern extends Pattern
     with DeclarationMixin
     implements Declaration {
   Binder binder;
-  bool get isVirtual => false;
-
-  int get ident => binder.ident;
 
   VariablePattern(Binder binder, Location location)
       : this.binder = binder,
         super(PatternTag.VAR, location) {
-    binder.bindingOccurrence = this;
+    _setBindingOccurrence(binder, this);
   }
 
   T accept<T>(PatternVisitor<T> v) => v.visitVariable(this);
@@ -1109,7 +1093,7 @@ class VariablePattern extends Pattern
 
   Datatype _type = const DynamicType();
   Datatype get type => _type;
-  Datatype set type(Datatype type) => _type = type;
+  void set type(Datatype type) => _type = type;
 }
 
 class WildcardPattern extends Pattern {
@@ -1133,13 +1117,9 @@ class FormalParameter extends T20Node
     with DeclarationMixin
     implements Declaration, KernelNode {
   Binder binder;
-  int get ident => binder.ident;
-  Datatype get type => binder.type;
-  bool get isVirtual => false;
 
-  FormalParameter(Binder binder) {
-    this.binder = binder;
-    binder.bindingOccurrence = this;
+  FormalParameter(Binder binder) : this.binder = binder {
+    _setBindingOccurrence(binder, this);
   }
 
   VariableDeclaration asKernelNode;
@@ -1169,15 +1149,13 @@ class DLet extends Expression with DeclarationMixin implements Declaration {
   Expression body;
   Expression continuation;
 
-  bool get isVirtual => false;
-
   DLet(Binder binder, Expression body, Expression continuation,
       [Location location])
       : this.binder = binder,
         this.body = body,
         this.continuation = continuation,
         super(ExpTag.LET, location) {
-    binder.bindingOccurrence = this;
+    _setBindingOccurrence(binder, this);
     _setParent(body, this);
     _setParent(continuation, this);
   }
@@ -1195,7 +1173,7 @@ class LetFunction
   LetFunction(Signature signature, Binder binder,
       List<FormalParameter> parameters, Expression body, Location location)
       : super(signature, binder, parameters, body, location) {
-    binder.bindingOccurrence = this;
+    _setBindingOccurrence(binder, this);
     _setParent(body, this);
     _setParentMany(parameters, this);
   }
@@ -1212,8 +1190,7 @@ class LetVirtualFunction extends LetFunction {
 
 class Project extends Expression {
   Expression receiver;
-  int label; // Should be generalised whenever I get around to implement support
-  // for records.
+  int label;
 
   Project(Expression receiver, this.label)
       : this.receiver = receiver,
@@ -1225,24 +1202,76 @@ class Project extends Expression {
 
   String toString() => "(\$$label $receiver)";
 
-  Datatype get type => null; // TODO.
+  Datatype get type {
+    Datatype receiverType = receiver.type;
+    if (label < 1) return super.type;
+
+    if (receiverType is TupleType) {
+      return receiverType.components[label - 1];
+    } else if (receiverType is TypeConstructor) {
+      if (!typeUtils.isTypeAlias(receiverType)) {
+        return receiverType.arguments[label - 1];
+      }
+    }
+
+    return super.type;
+  }
 }
 
-class MatchClosure extends Expression {
-  List<Binder> context; // Binders for free variables.
-  List<LetFunction> cases;
-  LetFunction defaultCase;
+abstract class BoilerplateTemplate {}
 
-  MatchClosure(this.cases, this.defaultCase, this.context)
-      : super(ExpTag.MATCH);
+class MatchClosureCase extends T20Node
+    with DeclarationMixin
+    implements Declaration {
+  Binder binder;
+  DataConstructor constructor;
+  Expression body;
+
+  MatchClosureCase(Binder binder, this.constructor, Expression body)
+      : this.binder = binder,
+        this.body = body {
+    _setParent(body, this);
+    _setBindingOccurrence(binder, this);
+  }
+}
+
+class MatchClosureDefaultCase extends T20Node
+    with DeclarationMixin
+    implements Declaration {
+  Binder binder;
+  Expression body;
+
+  MatchClosureDefaultCase(Binder binder, Expression body)
+      : this.binder = binder,
+        this.body = body {
+    _setBindingOccurrence(binder, this);
+    _setParent(body, this);
+  }
+}
+
+class MatchClosure extends Expression implements BoilerplateTemplate {
+  TypeConstructor typeConstructor;
+  List<Binder> context; // Binders for free variables.
+  List<MatchClosureCase> cases;
+  MatchClosureDefaultCase defaultCase;
+
+  MatchClosure(this.type, this.typeConstructor, List<MatchClosureCase> cases,
+      MatchClosureDefaultCase defaultCase, List<Binder> context)
+      : this.cases = cases,
+        this.context = context,
+        this.defaultCase = defaultCase,
+        super(ExpTag.MATCH) {
+    _setParentMany(cases, this);
+    _setParent(defaultCase, this);
+  }
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitMatchClosure(this);
 
-  Datatype get type => null; // TODO.
+  Datatype type;
 }
 
 class Eliminate extends Expression {
-  TypeConstructor constructor; // The introduction form.
+  TypeConstructor constructor;
   MatchClosure closure;
   Variable scrutinee;
 
@@ -1251,5 +1280,22 @@ class Eliminate extends Expression {
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitEliminate(this);
 
-  Datatype get type => null; // TODO.
+  Datatype get type => closure.type;
+}
+
+class Is extends Expression {
+  Expression operand;
+  // The code generator is responsible for interpreting the [constructor] as a
+  // [DartType].
+  DataConstructor constructor;
+
+  Is(Expression operand, this.constructor)
+      : this.operand = operand,
+        super(ExpTag.IS) {
+    _setParent(operand, this);
+  }
+
+  T accept<T>(ExpressionVisitor<T> v) => null; // TODO.
+
+  Datatype get type => typeUtils.boolType;
 }

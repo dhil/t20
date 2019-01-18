@@ -7,6 +7,7 @@ import 'dart:collection' show LinkedHashMap;
 import 'ast/ast.dart'
     show
         Binder,
+        FunctionDeclaration,
         LetFunction,
         ModuleMember,
         TopModule,
@@ -74,10 +75,10 @@ class ModuleEnvironment {
       return identical(fun.binder, binder);
     }
 
-    // if (binder.bindingOccurrence is FunctionDeclaration) {
-    //   FunctionDeclaration fun = binder.bindingOccurrence;
-    //   return identical(fun.binder, binder);
-    // }
+    if (binder.bindingOccurrence is FunctionDeclaration) {
+      FunctionDeclaration fun = binder.bindingOccurrence;
+      return identical(fun.binder, binder);
+    }
 
     return binder.bindingOccurrence is ModuleMember;
   }

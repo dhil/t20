@@ -238,13 +238,14 @@ class _TypeChecker {
     InferenceResult result = inferExpression(appl.abstractor, ctxt);
     ctxt = result.context;
     // Eliminate foralls.
-    return apply(appl.arguments, ctxt.apply(result.type), ctxt, appl.location);
+    return apply(appl, ctxt.apply(result.type), ctxt, appl.location);
   }
 
-  InferenceResult apply(List<Expression> arguments, Datatype type,
-      OrderedContext ctxt, Location location) {
+  InferenceResult apply(
+      Apply appl, Datatype type, OrderedContext ctxt, Location location) {
+    List<Expression> arguments = appl.arguments;
     if (trace) {
-      print("apply: $arguments, $type");
+      print("apply: ${arguments}, $type");
     }
     // apply xs* (\/qs+.t) ctxt = apply xs* (t[qs+ -> as+]) ctxt
     if (type is ForallType) {
@@ -252,7 +253,8 @@ class _TypeChecker {
           guessInstantiation(type.quantifiers, type.body, ctxt);
       ctxt = result.snd;
       Datatype body = result.thd;
-      return apply(arguments, body, ctxt, location);
+      // TODO store the "guessed instantiation" on the apply node.
+      return apply(appl, body, ctxt, location);
     }
 
     // apply xs* (ts* -> t) ctxt = (ctxt', t ctxt'), where ctxt' = check* xs* ts* ctxt
@@ -346,6 +348,8 @@ class _TypeChecker {
         //  ctxt = ctxt.drop(marker);
         // }
       }
+      // Store the result.
+      match.type = ctxt.apply(branchType);
       return InferenceResult(ctxt, branchType);
     }
   }
@@ -391,6 +395,7 @@ class _TypeChecker {
 
     // Construct the arrow type.
     ArrowType ft = ArrowType(domain, codomain);
+    lambda.type = ft;
     return InferenceResult(ctxt, ft);
   }
 
@@ -408,6 +413,9 @@ class _TypeChecker {
 
     // Check that types agree.
     ctxt = safeSubsumes(ifthenelse.elseBranch.location, tt, ff, ctxt);
+
+    // Store the type.
+    ifthenelse.type = ctxt.apply(tt);
 
     return InferenceResult(ctxt, tt);
   }
@@ -470,7 +478,7 @@ class _TypeChecker {
         if (scopeMarker != null) {
           ctxt = ctxt.drop(scopeMarker);
         }
-        // lambda.type = ctxt.apply(type);
+        lambda.type = ctxt.apply(type);
         return ctxt;
       }
     }

@@ -407,24 +407,25 @@ class StringifyExpression extends BufferedWriter
   }
 
   void visitMatchClosure(MatchClosure clo) {
-    lparen();
-    write("match-closure");
-    space();
-    lparen();
-    for (int i = 0; i < clo.context.length; i++) {
-      write(stringOfBinder(clo.context[i]));
-      if (i + 1 < clo.context.length) space();
-    }
-    rparen();
-    space();
-    lparen();
-    StringifyModule module = StringifyModule(buffer);
-    for (int i = 0; i < clo.cases.length; i++) {
-      clo.cases[i].accept<void>(module);
-      if (i + 1 < clo.cases.length) space();
-    }
-    rparen();
-    rparen();
+    // lparen();
+    // write("match-closure");
+    // space();
+    // lparen();
+    // for (int i = 0; i < clo.context.length; i++) {
+    //   write(stringOfBinder(clo.context[i]));
+    //   if (i + 1 < clo.context.length) space();
+    // }
+    // rparen();
+    // space();
+    // lparen();
+    // StringifyModule module = StringifyModule(buffer);
+    // for (int i = 0; i < clo.cases.length; i++) {
+    //   clo.cases[i].accept<void>(module);
+    //   if (i + 1 < clo.cases.length) space();
+    // }
+    // rparen();
+    // rparen();
+    throw "Not yet implemented.";
   }
 
   void visitEliminate(Eliminate elim) {
