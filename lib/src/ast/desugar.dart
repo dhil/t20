@@ -735,20 +735,24 @@ class PatternDesugarer {
       space.addBody(exp);
     }
 
-    destruct(source, constr.components, space);
+    destruct(source, constr.components, space, constr.declarator);
 
     return source;
   }
 
   // Destructs a compound pattern.
-  void destruct(Binder source, List<Pattern> constituents, ScratchSpace space) {
+  void destruct(Binder source, List<Pattern> constituents, ScratchSpace space,
+      [DataConstructor dataConstructor]) {
     for (int i = 0; i < constituents.length; i++) {
       Pattern constituent = constituents[i];
       assert(constituent is WildcardPattern || constituent is VariablePattern);
       Binder binder = desugar(constituent, space);
       if (binder != null) {
         space.addBinder(binder);
-        space.addBody(Project(Variable(source), i + 1));
+        Project projection = dataConstructor == null
+            ? Project(Variable(source), i + 1)
+            : DataConstructorProject(Variable(source), i + 1, dataConstructor);
+        space.addBody(projection);
       }
     }
   }

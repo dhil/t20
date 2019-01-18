@@ -1203,17 +1203,51 @@ class Project extends Expression {
   String toString() => "(\$$label $receiver)";
 
   Datatype get type {
-    Datatype receiverType = receiver.type;
     if (label < 1) return super.type;
+    Datatype receiverType = receiver.type;
 
     if (receiverType is TupleType) {
       return receiverType.components[label - 1];
-    } else if (receiverType is TypeConstructor) {
-      if (!typeUtils.isTypeAlias(receiverType)) {
-        return receiverType.arguments[label - 1];
-      }
     }
 
+    return super.type;
+  }
+}
+
+class DataConstructorProject extends Project {
+  DataConstructor constructor;
+
+  DataConstructorProject(Expression receiver, int label, this.constructor)
+      : super(receiver, label);
+
+  Datatype get type {
+    if (label < 1) return super.type;
+
+    Datatype receiverType = receiver.type;
+    if (receiverType is TypeConstructor) {
+      if (typeUtils.isTypeAlias(receiverType)) return super.type;
+      if (!identical(receiverType.declarator, constructor.declarator)) {
+        return super.type;
+      }
+
+      // Construct the nth component type.
+      Datatype componentType = constructor.parameters[label - 1];
+      // The component type might be incomplete, i.e. an uninstantiated rigid
+      // type variable. Therefore we need to check whether we need to perform an
+      // instantiation.
+      List<Datatype> typeArguments = receiverType.arguments;
+      if (typeArguments.length == 0) return componentType;
+
+      // At first one may think that it suffices to look at the head of the nth
+      // component type to decide whether to perform an instantiation. However,
+      // a type variable may be sitting arbitrarily deep inside a component
+      // type. Therefore we eagerly choose to perform an instantiation, even if
+      // it is unnecessary (to decide whether it was necessary, we would have to
+      // traverse the entire type anyways).
+      List<Quantifier> quantifiers =
+          typeUtils.extractQuantifiers(constructor.type);
+      return typeUtils.instantiate(quantifiers, typeArguments, componentType);
+    }
     return super.type;
   }
 }
