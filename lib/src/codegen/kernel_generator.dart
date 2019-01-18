@@ -314,7 +314,7 @@ class ModuleKernelGenerator {
       // TODO.
     }
 
-    // Thirdly, term declarations (as they depend on templates).
+    // Thirdly, process term declarations (as they depend on templates).
     for (int i = 0; i < segmod.termDeclarations.length; i++) {
       Declaration decl = segmod.termDeclarations[i];
 

@@ -358,10 +358,6 @@ class MatchCompiler {
 
     // General transformation:
     // (match scrutinee cases+) => let x = scrutinee in eliminate(closure(x, cases)).
-    Expression scrutinee = expression.desugar(match.scrutinee);
-    Binder scrutineeBinder = freshBinder(match.origin, scrutineeType);
-    Variable scrutineeVar = Variable(scrutineeBinder);
-    Expression exp = DLet(scrutineeBinder, scrutinee, scrutineeVar);
 
     // Steps:
     // Compute the closure of match.cases.
@@ -371,13 +367,14 @@ class MatchCompiler {
 
     Datatype resultType = match.type;
 
-    LetFunction defaultCase0;
-    List<LetFunction> cases = new List<LetFunction>();
+    MatchClosureDefaultCase defaultCase0;
+    List<MatchClosureCase> cases = new List<MatchClosureCase>();
+    Set<int> seenConstructors = Set<int>();
     int n =
         (scrutineeType.declarator as DatatypeDescriptor).constructors.length;
+    List<Variable> fvs = List<Variable>();
     for (int i = 0; i < match.cases.length; i++) {
       Case case0 = match.cases[i];
-      Expression exp = expression.desugar(case0.expression);
       Pattern pat = case0.pattern;
 
       if (pat is WildcardPattern || pat is VariablePattern) {
@@ -388,31 +385,81 @@ class MatchCompiler {
         } else {
           xb = freshBinder(pat.origin, pat.type);
         }
+        // Desugar the right hand side expression.
+        Expression exp = expression.desugar(case0.expression);
+        // Monotonically increase the information about free variables.
+        fvs.addAll(freeVariables(exp));
+        // Compile the default case.
         defaultCase0 = defaultCase(xb, exp, resultType);
-        break;
+        break; // Exhaustive match.
       } else if (pat is ConstructorPattern) {
         DataConstructor constructor = pat.declarator;
-        cases.add(regularCase(constructor, exp, resultType));
-        if (cases.length == n) break; // Exhaustive.
+        if (!seenConstructors.contains(constructor.binder.ident)) {
+          // Desugar the right hand side expression.
+          Expression exp = expression.desugar(case0.expression);
+          // Monotonically increase the information about free variables.
+          fvs.addAll(freeVariables(exp));
+
+          // Compile the case.
+          cases.add(regularCase(scrutineeType, pat, exp, resultType));
+          // Remember the constructor.
+          seenConstructors.add(constructor.binder.ident);
+          if (cases.length == n) break; // Exhaustive.
+        } else {
+          // Redundant match.
+        }
       } else {
         unhandled("MatchCompiler.compile", pat);
       }
     }
 
-    MatchClosure _ = MatchClosure(cases, defaultCase0, null);
+    MatchClosure clo = MatchClosure(
+        resultType, scrutineeType, cases, defaultCase0, computeClosure(fvs));
 
-    return Apply(pattern.matchFailure(),
-        <Expression>[StringLit("Not yet implemented.")]);
+    Expression scrutinee = expression.desugar(match.scrutinee);
+    Binder scrutineeBinder = freshBinder(match.origin, scrutineeType);
+    Variable scrutineeVar = Variable(scrutineeBinder);
+
+    // Put everything together.
+    Expression exp = DLet(scrutineeBinder, scrutinee,
+        Eliminate(scrutineeVar, clo, scrutineeType));
+    return exp;
   }
 
-  LetFunction defaultCase(
+  MatchClosureDefaultCase defaultCase(
       Binder xb, Expression desugaredExp, Datatype resultType) {
-    return null;
+    return MatchClosureDefaultCase(xb, desugaredExp);
   }
 
-  LetFunction regularCase(DataConstructor constructor, Expression desugaredExp,
-      Datatype resultType) {
-    return null;
+  MatchClosureCase regularCase(Datatype inputType, ConstructorPattern pattern,
+      Expression desugaredExp, Datatype resultType) {
+    ScratchSpace workSpace = ScratchSpace();
+    Binder binder =
+        expression.pattern.constructor(pattern, workSpace, true, inputType);
+    Expression exp = workSpace.build(desugaredExp);
+    return MatchClosureCase(binder, pattern.declarator, exp);
+  }
+
+  Binder refresh(Binder binder) => Binder.refresh(binder);
+
+  List<Binder> computeClosure(List<Variable> freeVariables) {
+    // Freshen the binders of [freeVariables].
+    Map<int, Binder> binderMap = Map<int, Binder>();
+    for (int i = 0; i < freeVariables.length; i++) {
+      Variable v = freeVariables[i];
+      // Don't capture global variables.
+      if (environment.isLocal(v.binder)) {
+        Binder b = binderMap[v.ident];
+        // If there is fresh binder for [v], then create one.
+        if (b == null) {
+          b = refresh(v.binder);
+          binderMap[v.ident] = b;
+        }
+        // Adjust the variable's binder.
+        v.binder = b;
+      }
+    }
+    return binderMap.values.toList();
   }
 }
 
@@ -625,8 +672,7 @@ class PatternDesugarer {
         return desugar((pattern as HasTypePattern).pattern, space);
         break;
       case PatternTag.CONSTR:
-        return null; // TODO.
-        // throw "Not yet implemented!";
+        return constructor(pattern as ConstructorPattern, space);
         break;
       case PatternTag.TUPLE:
         return tuple(pattern as TuplePattern, space);
@@ -672,16 +718,39 @@ class PatternDesugarer {
 
   Binder tuple(TuplePattern tuple, ScratchSpace space) {
     Binder source = freshBinder(tuple.origin, tuple.type);
-    for (int i = 0; i < tuple.components.length; i++) {
-      Pattern component = tuple.components[i];
-      assert(component is WildcardPattern || component is VariablePattern);
-      Binder binder = desugar(component, space);
+    destruct(source, tuple.components, space);
+    return source;
+  }
+
+  Binder constructor(ConstructorPattern constr, ScratchSpace space,
+      [bool subvertSafetyCheck = false, Datatype inputType]) {
+    Binder source = freshBinder(constr.origin, inputType ?? constr.type);
+
+    // Verify the runtime type of [constr].
+    if (!subvertSafetyCheck) {
+      Binder dummy = freshBinder(source.origin, source.type);
+      Expression exp = If(Is(Variable(source), constr.declarator),
+          Variable(source), matchFailure(constr.location));
+      space.addBinder(dummy);
+      space.addBody(exp);
+    }
+
+    destruct(source, constr.components, space);
+
+    return source;
+  }
+
+  // Destructs a compound pattern.
+  void destruct(Binder source, List<Pattern> constituents, ScratchSpace space) {
+    for (int i = 0; i < constituents.length; i++) {
+      Pattern constituent = constituents[i];
+      assert(constituent is WildcardPattern || constituent is VariablePattern);
+      Binder binder = desugar(constituent, space);
       if (binder != null) {
         space.addBinder(binder);
         space.addBody(Project(Variable(source), i + 1));
       }
     }
-    return source;
   }
 
   Expression matchFailure([Location location]) {
