@@ -352,19 +352,35 @@ class AlgebraicDatatypeKernelGenerator {
           Name("defaultCase"),
           Arguments(<kernel.Expression>[VariableGet(node)]));
 
-      Block block = Block(<Statement>[
+      // Try-catch.
+      Statement tryBody = Block(<Statement>[
         ExpressionStatement(VariableSet(result, runCase)),
         IfStatement(
             Not(MethodInvocation(VariableGet(result), Name("=="),
                 Arguments(<kernel.Expression>[NullLiteral()]))),
             ExpressionStatement(VariableSet(result, runDefaultCase)),
-            EmptyStatement()),
-        IfStatement(
-            MethodInvocation(VariableGet(result), Name("=="),
-                Arguments(<kernel.Expression>[NullLiteral()])),
-            null /* TODO throw */,
-            ReturnStatement(VariableGet(result)))
+            EmptyStatement())
       ]);
+      VariableDeclaration exn = VariableDeclaration("exn");
+      Statement catchBody = ExpressionStatement(Throw(null)); // TODO.
+      Catch catch0 = Catch(exn, catchBody);
+      TryCatch tryCatch = TryCatch(tryBody, <Catch>[catch0], isSynthetic: true);
+
+      // Result checking.
+      Statement checkResult = IfStatement(
+          MethodInvocation(VariableGet(result), Name("=="),
+              Arguments(<kernel.Expression>[NullLiteral()])),
+          ExpressionStatement(Throw(null)) /* TODO throw */,
+          ReturnStatement(VariableGet(result)));
+
+
+      Block block = Block(<Statement>[result, tryCatch, checkResult]);
+
+      // Replace the visit method's body.
+      visitMethod.function.body = block;
+
+      // Attach the method to the eliminator class.
+      cls.procedures.add(visitMethod);
     }
 
     return cls;
