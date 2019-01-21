@@ -297,7 +297,7 @@ class VirtualFunctionDeclaration extends FunctionDeclaration {
 
 class DataConstructor extends ModuleMember
     with DeclarationMixin
-    implements Declaration {
+  implements Declaration, KernelNode {
   DatatypeDescriptor declarator;
   Binder binder;
   List<Datatype> parameters;
@@ -344,11 +344,13 @@ class DataConstructor extends ModuleMember
   }
 
   T accept<T>(ModuleVisitor<T> v) => v.visitDataConstructor(this);
+
+  Class asKernelNode;
 }
 
 class DatatypeDescriptor extends ModuleMember
     with DeclarationMixin
-    implements Declaration, TypeDescriptor {
+  implements Declaration, TypeDescriptor, KernelNode {
   Binder binder;
   List<Quantifier> parameters;
   List<DataConstructor> constructors;
@@ -391,6 +393,10 @@ class DatatypeDescriptor extends ModuleMember
     }
     return "(define-datatype $parameterisedName ...)";
   }
+
+  Class asKernelNode;
+  Class visitorClass;
+  Class eliminatorClass;
 }
 
 class DatatypeDeclarations extends ModuleMember {

@@ -293,6 +293,10 @@ class AlgebraicDatatypeKernelGenerator {
     classes.add(matchClosureClass);
     classes.add(eliminatorClass);
     classes.addAll(dataClasses);
+    // Store the generated classes.
+    descriptor.asKernelNode = typeClass;
+    descriptor.visitorClass = visitorClass;
+    descriptor.eliminatorClass = eliminatorClass;
     return classes;
   }
 
@@ -373,7 +377,6 @@ class AlgebraicDatatypeKernelGenerator {
           ExpressionStatement(Throw(null)) /* TODO throw */,
           ReturnStatement(VariableGet(result)));
 
-
       Block block = Block(<Statement>[result, tryCatch, checkResult]);
 
       // Replace the visit method's body.
@@ -447,6 +450,9 @@ class AlgebraicDatatypeKernelGenerator {
 
     // Attach the constructor to the class template.
     cls.constructors.add(clsConstructor);
+
+    // Store the generated class on [constructor].
+    constructor.asKernelNode = cls;
     return cls;
   }
 
