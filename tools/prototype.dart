@@ -18,13 +18,17 @@ Example:
  */
 
 class PatternMatchFailure {}
+class T20Error {
+  Object error;
+  T20Error(this.error);
+}
 
 // Generic boilerplate.
 abstract class List<A> {
   R accept<R>(ListVisitor<A, R> v);
 }
 
-class Cons<A> implements List<A> {
+class Cons<A> extends List<A> {
   A $1;
   List<A> $2;
 
@@ -45,8 +49,8 @@ abstract class ListVisitor<A, R> {
 abstract class ListMatchClosure<A, R> {
   ListMatchClosure();
 
-  R cons(Cons<A> node);
-  R nil(Nil<A> node);
+  R cons(Cons<A> node) => null;
+  R nil(Nil<A> node) => null;
 
   R defaultCase(List<A> node) => null;
 }
@@ -57,7 +61,13 @@ class ListEliminator<A, R> implements ListVisitor<A, R> {
   ListEliminator(this.match);
 
   R visitCons(Cons<A> node) {
-    R result = match.cons(node) ?? match.defaultCase(node);
+    R result;
+    try {
+      result = match.cons(node) ?? match.defaultCase(node);
+    } catch (e) {
+      throw T20Error(e);
+    }
+
     if (result == null) {
       throw PatternMatchFailure();
     } else {
@@ -66,7 +76,13 @@ class ListEliminator<A, R> implements ListVisitor<A, R> {
   }
 
   R visitNil(Nil<A> node) {
-    R result = match.nil(node) ?? match.defaultCase(node);
+    R result;
+    try {
+      result = match.nil(node) ?? match.defaultCase(node);
+    } catch (e) {
+      throw T20Error(e);
+    }
+
     if (result == null) {
       throw PatternMatchFailure();
     } else {
