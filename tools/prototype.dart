@@ -1,3 +1,7 @@
+// Copyright (c) 2019, the Dart project authors.  Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
 /*
 Example:
 
@@ -243,7 +247,7 @@ void main() {
   print(result);
   bool result0 = bar(41);
   print(result0);
-  List<int> xs = Cons(1, Cons(2, Cons(3, Nil())));
+  List<int> xs = Cons(1, Cons(2, Cons(3, Nil<int>())));
   print(xs.accept<int>(ListFoldRight<int, int>(length1, 0)));
   print(xs.accept<int>(ListFoldLeft<int, int>(length, 0)));
   print("$xs");
