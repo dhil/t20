@@ -1386,7 +1386,12 @@ class InvocationKernelGenerator {
   InvocationExpression constructor(
       DataConstructor constructor, List<kernel.Expression> arguments,
       {bool isPrimitive = false}) {
-    return null;
+    if (isPrimitive) {
+      unhandled("InvocationKernelGenerator.constructor", constructor);
+    }
+
+    Class dataClass = constructor.asKernelNode;
+    return ConstructorInvocation(dataClass.constructors[0], Arguments(arguments));
   }
 
   // Expects [receiver] to evaluate to a callable object.
