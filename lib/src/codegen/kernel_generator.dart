@@ -631,32 +631,6 @@ class AlgebraicDatatypeKernelGenerator {
         isAbstract: isAbstract);
   }
 
-  // List<Procedure> visitMethodSignatures(List<Class> dataClasses,
-  //     Class visitorClass, TypeParameter resultTypeParameter) {
-  //   // Create a dedicated visit method for each data class.
-  //   List<Procedure> methods = List<Procedure>();
-  //   // Each visit method has return type [R], where [R] is a class-wide type
-  //   // parameter.
-  //   DartType visitMethodReturnType = TypeParameterType(resultTypeParameter);
-  //   for (int i = 0; i < dataClasses.length; i++) {
-  //     Class dataClass = dataClasses[i];
-  //     // Create the method parameter.
-  //     DartType nodeType =
-  //         InterfaceType(dataClass, typeArgumentsOf(dataClass.typeParameters));
-  //     VariableDeclaration parameter =
-  //         VariableDeclaration("node", type: nodeType);
-
-  //     // Create the method function node and procedure.
-  //     FunctionNode funNode = FunctionNode(EmptyStatement(),
-  //         positionalParameters: <VariableDeclaration>[parameter],
-  //         returnType: visitMethodReturnType);
-  //     Name name = Name("visit${dataClass.name}");
-  //     methods.add(
-  //         Procedure(name, ProcedureKind.Method, funNode, isAbstract: true));
-  //   }
-  //   return methods;
-  // }
-
   List<TypeParameter> typeParametersOf(List<Quantifier> qs) {
     List<TypeParameter> result = new List<TypeParameter>();
     for (int i = 0; i < qs.length; i++) {
@@ -1134,6 +1108,8 @@ class ExpressionKernelGenerator {
       case ExpTag.APPLY:
         return apply(exp as Apply);
         break;
+      case ExpTag.ELIM:
+        return eliminate(exp as Eliminate);
       default:
         unhandled("ExpressionKernelGenerator.compile", exp.tag);
     }
@@ -1208,6 +1184,9 @@ class ExpressionKernelGenerator {
   }
 
   kernel.Expression tuple(Tuple tuple) {
+    if (tuple.isUnit) {
+      // TODO.
+    }
     throw "Not yet implemented.";
   }
 
@@ -1237,6 +1216,22 @@ class ExpressionKernelGenerator {
     } else {
       throw "Logical error: Cannot eta expand primitive non-functions.";
     }
+  }
+
+  InvocationExpression eliminate(Eliminate elim) {
+    List<kernel.Expression> variables = List<kernel.Expression>();
+    for (int i = 0; i < elim.capturedVariables.length; i++) {
+      variables.add(getVariable(elim.capturedVariables[i]));
+    }
+    ConstructorInvocation matchClosureInvocation = ConstructorInvocation(
+        elim.closure.asKernelNode.constructors[0], Arguments(variables));
+    ConstructorInvocation eliminatorInvocation = ConstructorInvocation(
+        (elim.constructor.declarator as DatatypeDescriptor)
+            .eliminatorClass
+            .constructors[0],
+        Arguments(<kernel.Expression>[matchClosureInvocation]));
+    return MethodInvocation(getVariable(elim.scrutinee), Name("accept"),
+        Arguments(<kernel.Expression>[eliminatorInvocation]));
   }
 
   bool requiresEtaExpansion(Binder b) {
@@ -1391,7 +1386,8 @@ class InvocationKernelGenerator {
     }
 
     Class dataClass = constructor.asKernelNode;
-    return ConstructorInvocation(dataClass.constructors[0], Arguments(arguments));
+    return ConstructorInvocation(
+        dataClass.constructors[0], Arguments(arguments));
   }
 
   // Expects [receiver] to evaluate to a callable object.
@@ -1430,9 +1426,18 @@ class InvocationKernelGenerator {
 
 class DartTypeGenerator {
   final DartType dynamicType = const kernel.DynamicType();
+
   DartType compile(Datatype type) => dynamicType; // TODO.
-  TypeParameter quantifier(Quantifier q) =>
-      freshTypeParameter(q.binder.toString()); // TODO.
+
+  TypeParameter quantifier(Quantifier q) {
+    if (identical(q.asTypeParameter, null)) {
+      // Store the type parameter for later.
+      q.asTypeParameter = freshTypeParameter(q.binder.toString());
+    }
+
+    return q.asTypeParameter;
+  }
+
   TypeParameter freshTypeParameter(String name, {DartType bound}) =>
       TypeParameter(name, bound ?? dynamicType, dynamicType);
 }

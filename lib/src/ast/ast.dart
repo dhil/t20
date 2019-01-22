@@ -1290,7 +1290,7 @@ class MatchClosureDefaultCase extends T20Node
   }
 }
 
-class MatchClosure extends Expression implements BoilerplateTemplate {
+class MatchClosure extends Expression implements BoilerplateTemplate, KernelNode {
   TypeConstructor typeConstructor;
   List<ClosureVariable> context; // Binders for free variables.
   List<MatchClosureCase> cases;
@@ -1314,6 +1314,8 @@ class MatchClosure extends Expression implements BoilerplateTemplate {
   T accept<T>(ExpressionVisitor<T> v) => v.visitMatchClosure(this);
 
   Datatype type;
+
+  Class asKernelNode;
 }
 
 class ClosureVariable extends T20Node

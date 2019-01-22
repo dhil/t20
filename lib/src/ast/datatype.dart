@@ -2,6 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'package:kernel/ast.dart' show TypeParameter, DartType;
+
 import '../errors/errors.dart' show T20Error;
 import '../location.dart';
 import '../unionfind.dart' as unionfind;
@@ -12,7 +14,6 @@ import 'ast.dart' show TopModule;
 import 'binder.dart';
 import 'identifiable.dart';
 import 'monoids.dart' show Monoid, StringMonoid;
-// import 'name.dart';
 
 abstract class TypeDescriptor implements Identifiable {
   Binder binder;
@@ -299,6 +300,8 @@ class Quantifier implements Identifiable {
   String toString() {
     return "$binder";
   }
+
+  TypeParameter asTypeParameter;
 }
 
 class TypeVariable extends Datatype implements Identifiable {
