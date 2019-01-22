@@ -10,6 +10,7 @@ import '../ast/ast.dart';
 import '../errors/errors.dart' show unhandled;
 import '../module_environment.dart';
 import '../typing/type_utils.dart' as typeUtils;
+import '../utils.dart' show Gensym;
 
 import 'platform.dart';
 
@@ -295,8 +296,9 @@ class AlgebraicDatatypeKernelGenerator {
     classes.addAll(dataClasses);
     // Store the generated classes.
     descriptor.asKernelNode = typeClass;
-    descriptor.visitorClass = visitorClass;
     descriptor.eliminatorClass = eliminatorClass;
+    descriptor.matchClosureClass = matchClosureClass;
+    descriptor.visitorClass = visitorClass;
     return classes;
   }
 
@@ -366,15 +368,29 @@ class AlgebraicDatatypeKernelGenerator {
             EmptyStatement())
       ]);
       VariableDeclaration exn = VariableDeclaration("exn");
-      Statement catchBody = ExpressionStatement(Throw(null)); // TODO.
+      kernel.Expression t20error = ConstructorInvocation(
+          platform
+              .getClass(PlatformPathBuilder.package("t20_runtime")
+                  .target("T20Error")
+                  .build())
+              .constructors[0],
+          Arguments(<kernel.Expression>[VariableGet(exn)]));
+      Statement catchBody = ExpressionStatement(Throw(t20error)); // TODO.
       Catch catch0 = Catch(exn, catchBody);
       TryCatch tryCatch = TryCatch(tryBody, <Catch>[catch0], isSynthetic: true);
 
       // Result checking.
+      kernel.Expression patternFailure = ConstructorInvocation(
+          platform
+              .getClass(PlatformPathBuilder.package("t20_runtime")
+                  .target("PatternMatchFailure")
+                  .build())
+              .constructors[0],
+          Arguments.empty());
       Statement checkResult = IfStatement(
           MethodInvocation(VariableGet(result), Name("=="),
               Arguments(<kernel.Expression>[NullLiteral()])),
-          ExpressionStatement(Throw(null)) /* TODO throw */,
+          ExpressionStatement(Throw(patternFailure)) /* TODO throw */,
           ReturnStatement(VariableGet(result)));
 
       Block block = Block(<Statement>[result, tryCatch, checkResult]);
@@ -451,16 +467,40 @@ class AlgebraicDatatypeKernelGenerator {
     // Attach the constructor to the class template.
     cls.constructors.add(clsConstructor);
 
+    // Derive toString method.
+    cls.procedures.add(deriveToString(constructor));
+
     // Store the generated class on [constructor].
     constructor.asKernelNode = cls;
     return cls;
   }
 
+  Procedure deriveToString(DataConstructor constructor) {
+    // Derives a toString method for the data [constructor].
+    List<kernel.Expression> components = <kernel.Expression>[
+      StringLiteral(constructor.binder.sourceName)
+    ];
+    if (constructor.parameters.length > 0) {
+      for (int i = 0; i < constructor.parameters.length; i++) {
+        kernel.Expression exp =
+            PropertyGet(ThisExpression(), Name("\$${i + 1}"));
+        components.add(exp);
+        if (i + 1 < constructor.parameters.length) {
+          components.add(StringLiteral(", "));
+        }
+      }
+    }
+
+    FunctionNode funNode = FunctionNode(
+        ReturnStatement(StringConcatenation(components)),
+        returnType: InterfaceType(platform.coreTypes.stringClass));
+    return Procedure(Name("toString"), ProcedureKind.Method, funNode);
+  }
+
   Class interfaceClassTemplate(Class typeClass, String suffix,
       {bool isAbstract = true, Supertype supertype}) {
     // Create a fresh type parameter for the "return type" of the template.
-    TypeParameter resultTypeParameter = TypeParameter(
-        "\$R", const kernel.DynamicType(), const kernel.DynamicType());
+    TypeParameter resultTypeParameter = type.freshTypeParameter("\$R");
     // Copy the type parameters from [typeClass] and add [resultTypeParameter]
     // to the tail.
     List<TypeParameter> typeParameters = typeClass.typeParameters.sublist(0)
@@ -544,8 +584,7 @@ class AlgebraicDatatypeKernelGenerator {
   Procedure acceptMethod(
       Class visitor, Procedure interfaceTarget, Class dataClass,
       {bool isAbstract = false}) {
-    TypeParameter resultTypeParameter = TypeParameter(
-        "\$R", const kernel.DynamicType(), const kernel.DynamicType());
+    TypeParameter resultTypeParameter = type.freshTypeParameter("\$R");
 
     List<DartType> typeArguments = typeArgumentsOf(visitor.typeParameters);
     TypeParameterType visitorResultType =
@@ -621,9 +660,8 @@ class AlgebraicDatatypeKernelGenerator {
   List<TypeParameter> typeParametersOf(List<Quantifier> qs) {
     List<TypeParameter> result = new List<TypeParameter>();
     for (int i = 0; i < qs.length; i++) {
-      DartType bound = const kernel.DynamicType();
-      TypeParameter parameter = TypeParameter(
-          qs[i].binder.toString(), bound, const kernel.DynamicType());
+      TypeParameter parameter =
+          type.freshTypeParameter(qs[i].binder.toString());
       result.add(parameter);
     }
     return result;
@@ -638,12 +676,161 @@ class AlgebraicDatatypeKernelGenerator {
   }
 }
 
+class MatchClosureKernelGenerator {
+  final Platform platform;
+  final ModuleEnvironment environment;
+  final ExpressionKernelGenerator expression;
+  final DartTypeGenerator type;
+
+  MatchClosureKernelGenerator(Platform platform, ModuleEnvironment environment,
+      ExpressionKernelGenerator expression, DartTypeGenerator type)
+      : this.environment = environment,
+        this.platform = platform,
+        this.type = type,
+        this.expression = expression;
+
+  Class compile(MatchClosure closure) {
+    // Generates:
+    // class ConcreteMatch[closure]<A,..,R> extends [parentClass]<A,...,R>;
+    DatatypeDescriptor descriptor =
+        closure.typeConstructor.declarator as DatatypeDescriptor;
+    // Setup the [supertype] of this concrete match [closure] class.
+    Class parentClass = descriptor.matchClosureClass;
+    DartType resultType = type.compile(closure.type);
+
+    // Type parameters for this class.
+    List<TypeParameter> typeParameters =
+        typeParametersOf(closure.typeConstructor.arguments);
+    // Type arguments for node classes in instance methods.
+    List<DartType> typeArguments =
+        typeArgumentsOf(closure.typeConstructor.arguments);
+    // The type arguments for [parentClass] are [typeArguments] with
+    // [resultType] appended.
+    List<DartType> typeArguments0 = typeArguments.sublist(0)..add(resultType);
+
+    // Construct the actual [supertype] node.
+    Supertype supertype = Supertype(parentClass, typeArguments0);
+
+    // Construct the type of the type constructor.
+    DartType nodeType = InterfaceType(descriptor.asKernelNode, typeArguments);
+
+    // The captured variables are compiled as instance fields.
+    List<Field> fields = new List<Field>();
+    List<Initializer> initializers = new List<Initializer>();
+    List<VariableDeclaration> parameters = new List<VariableDeclaration>();
+    for (int i = 0; i < closure.context.length; i++) {
+      ClosureVariable cv = closure.context[i];
+      DartType cvtype = type.compile(cv.type);
+
+      Field field = Field(Name(cv.binder.toString()), type: cvtype);
+      fields.add(field);
+      cv.asKernelNode = field;
+
+      VariableDeclaration parameter =
+          VariableDeclaration(cv.binder.toString(), type: cvtype);
+      parameters.add(parameter);
+
+      FieldInitializer initializer =
+          FieldInitializer(field, VariableGet(parameter));
+      initializers.add(initializer);
+    }
+
+    // Compile the cases.
+    List<Procedure> procedures = cases(closure.cases, closure.defaultCase,
+        nodeType, typeArguments, resultType);
+
+    // Create a concrete match closure class.
+    String className = "${descriptor.binder}MatchClosure_${Gensym.freshInt()}";
+    Class cls = Class(
+        name: className,
+        fields: fields,
+        procedures: procedures,
+        typeParameters: typeParameters,
+        supertype: supertype);
+
+    // Create the constructor.
+    SuperInitializer superInitializer =
+        SuperInitializer(parentClass.constructors[0], Arguments.empty());
+    initializers.add(superInitializer);
+    FunctionNode funNode = FunctionNode(EmptyStatement(),
+        positionalParameters: parameters,
+        returnType: InterfaceType(cls, <DartType>[]));
+    Constructor cloConstructor = Constructor(funNode,
+        name: Name(""), initializers: initializers, isSynthetic: true);
+
+    // Attach the constructor.
+    cls.constructors.add(cloConstructor);
+
+    return cls;
+  }
+
+  List<Procedure> cases(
+      List<MatchClosureCase> constructorCases,
+      MatchClosureDefaultCase defaultCase0,
+      DartType nodeType,
+      List<DartType> typeArguments,
+      DartType resultType) {
+    // Compile the cases.
+    List<Procedure> result = new List<Procedure>();
+
+    for (int i = 0; i < constructorCases.length; i++) {
+      Procedure procedure =
+          constructorCase(constructorCases[i], typeArguments, resultType);
+      result.add(procedure);
+    }
+
+    if (defaultCase0 != null) {
+      result.add(defaultCase(defaultCase0, nodeType, resultType));
+    }
+    return result;
+  }
+
+  Procedure constructorCase(MatchClosureCase case0,
+      List<DartType> typeArguments, DartType returnType) {
+    Class dataClass = case0.constructor.asKernelNode;
+    String caseName = case0.constructor.binder.toString();
+    VariableDeclaration node = VariableDeclaration("node",
+        type: InterfaceType(dataClass, typeArguments));
+    kernel.Expression body = expression.compile(case0.body);
+    FunctionNode funNode = FunctionNode(ReturnStatement(body),
+        positionalParameters: <VariableDeclaration>[node],
+        returnType: returnType);
+    return Procedure(Name(caseName), ProcedureKind.Method, funNode);
+  }
+
+  Procedure defaultCase(MatchClosureDefaultCase defaultCase0, DartType nodeType,
+      DartType returnType) {
+    VariableDeclaration node = VariableDeclaration("node", type: nodeType);
+    kernel.Expression body = expression.compile(defaultCase0.body);
+    FunctionNode funNode = FunctionNode(ReturnStatement(body),
+        positionalParameters: <VariableDeclaration>[node],
+        returnType: returnType);
+    return Procedure(Name("defaultCase"), ProcedureKind.Method, funNode);
+  }
+
+  List<TypeParameter> typeParametersOf(List<Datatype> types) {
+    List<TypeVariable> typeVariables =
+        typeUtils.extractTypeVariablesMany(types);
+    List<TypeParameter> typeParameters = new List<TypeParameter>();
+    for (int i = 0; i < typeVariables.length; i++) {
+      TypeVariable typeVariable = typeVariables[i];
+      TypeParameter parameter = type.quantifier(typeVariable.declarator);
+      typeParameters.add(parameter);
+    }
+    return typeParameters;
+  }
+
+  List<DartType> typeArgumentsOf(List<Datatype> types) =>
+      types.map(type.compile).toList();
+}
+
 class ModuleKernelGenerator {
   final Platform platform;
   final ModuleEnvironment environment;
   final ExpressionKernelGenerator expression;
   final DartTypeGenerator type;
   final AlgebraicDatatypeKernelGenerator adt;
+  MatchClosureKernelGenerator mclosure;
 
   ModuleKernelGenerator(
       Platform platform, ModuleEnvironment environment, DartTypeGenerator type)
@@ -653,7 +840,10 @@ class ModuleKernelGenerator {
         this.expression =
             ExpressionKernelGenerator(platform, environment, type),
         this.adt =
-            AlgebraicDatatypeKernelGenerator(platform, environment, type);
+            AlgebraicDatatypeKernelGenerator(platform, environment, type) {
+    this.mclosure = MatchClosureKernelGenerator(
+        platform, environment, this.expression, type);
+  }
 
   Library compile(TopModule module) {
     // Do nothing for the (virtual) kernel module.
@@ -678,7 +868,15 @@ class ModuleKernelGenerator {
     // Secondly, process boilerplate templates (as they depend on the datatype
     // declarations).
     for (int i = 0; i < segmod.templates.length; i++) {
-      // TODO.
+      BoilerplateTemplate template = segmod.templates[i];
+      // Invariant: If |templates| > 0 then the [module] must define at least
+      // one data type, and hence the [library] must be non-null.
+      if (template is MatchClosure) {
+        Class cls = mclosure.compile(template);
+        library.classes.add(cls);
+      } else {
+        unhandled("ModuleKernelGenerator.compile", template);
+      }
     }
 
     // Thirdly, process term declarations (as they depend on templates).
@@ -720,7 +918,7 @@ class ModuleKernelGenerator {
         case ModuleTag.DATATYPE_DEFS:
           datatypes.add(member as DatatypeDeclarations);
           break;
-        case ModuleTag.CONSTR:
+        // case ModuleTag.CONSTR:
         case ModuleTag.FUNC_DEF:
         case ModuleTag.VALUE_DEF:
           declarations.add(member as Declaration);
@@ -796,10 +994,9 @@ class ModuleKernelGenerator {
             // }.
 
             // The arguments.
-            TypeParameter a = TypeParameter(
-                "A",
-                InterfaceType(platform.coreTypes.objectClass, <DartType>[]),
-                const kernel.DynamicType());
+            TypeParameter a = type.freshTypeParameter("A",
+                bound: InterfaceType(
+                    platform.coreTypes.objectClass, <DartType>[]));
             DartType intType =
                 InterfaceType(platform.coreTypes.intClass, <DartType>[]);
             VariableDeclaration ndecl = VariableDeclaration("n", type: intType);
@@ -1026,6 +1223,8 @@ class ExpressionKernelGenerator {
       return d is KernelNode
           ? StaticGet(d.asKernelNode)
           : throw "Logical error: expected kernel node.";
+    } else if (environment.isCaptured(v.binder)) {
+      return PropertyGet(ThisExpression(), Name(v.binder.toString()));
     } else {
       return VariableGet(v.binder.asKernelNode);
     }
@@ -1225,5 +1424,10 @@ class InvocationKernelGenerator {
 }
 
 class DartTypeGenerator {
-  DartType compile(Datatype type) => const kernel.DynamicType(); // TODO.
+  final DartType dynamicType = const kernel.DynamicType();
+  DartType compile(Datatype type) => dynamicType; // TODO.
+  TypeParameter quantifier(Quantifier q) =>
+      freshTypeParameter(q.binder.toString()); // TODO.
+  TypeParameter freshTypeParameter(String name, {DartType bound}) =>
+      TypeParameter(name, bound ?? dynamicType, dynamicType);
 }

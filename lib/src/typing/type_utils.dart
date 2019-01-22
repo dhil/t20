@@ -2,6 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'dart:collection' show LinkedHashMap;
+
 import '../ast/ast.dart' show TypeAliasDescriptor;
 import '../ast/binder.dart';
 import '../ast/datatype.dart';
@@ -83,6 +85,60 @@ Datatype stripQuantifiers(Datatype t) {
   }
 }
 
+class _GetTypeVariables extends ReduceDatatype<Null> {
+  static NullMonoid<Null> _m = new NullMonoid<Null>();
+  Monoid<Null> get m => _m;
+
+  Map<int, TypeVariable> _typeVariables;
+  List<TypeVariable> get typeVariables => _typeVariables.values.toList();
+
+  _GetTypeVariables() {
+    _typeVariables = new LinkedHashMap<int, TypeVariable>();
+  }
+
+  Null visitTypeVariable(TypeVariable variable) {
+    TypeVariable entry = _typeVariables[variable.ident];
+    if (entry == null) {
+      _typeVariables[variable.ident] = variable;
+    }
+    return null;
+  }
+}
+
+List<TypeVariable> extractTypeVariables(Datatype type) {
+  _GetTypeVariables v = _GetTypeVariables();
+  type.accept<Null>(v);
+  return v.typeVariables;
+}
+
+List<TypeVariable> extractTypeVariablesMany(List<Datatype> types) {
+  // Extracts all types variables from [types]. The resulting list may contain duplicates.
+  List<TypeVariable> variables;
+  for (int i = 0; i < types.length; i++) {
+    List<TypeVariable> result = extractTypeVariables(types[i]);
+    if (variables == null) {
+      variables = result;
+    } else {
+      variables.addAll(result);
+    }
+  }
+
+  // De-duplicate.
+  if (variables != null) {
+    Set<int> seen = new Set<int>();
+    List<TypeVariable> result = new List<TypeVariable>();
+    for (int i = 0; i < variables.length; i++) {
+      TypeVariable tyvar = variables[i];
+      if (!seen.contains(tyvar.ident)) {
+        seen.add(tyvar.ident);
+        result.add(tyvar);
+      }
+    }
+    variables = result;
+  }
+  return variables;
+}
+
 // Base types.
 const Datatype unitType = const TupleType(const <Datatype>[]);
 bool isUnitType(Datatype type) {
@@ -121,7 +177,21 @@ class _FreeTypeVariables extends ReduceDatatype<Set<int>> {
     return ftv.difference(btv);
   }
 
-  Set<int> visitSkolem(Skolem skolem) => new Set<int>()..add(skolem.ident);
+  Set<int> visitSkolem(Skolem skolem) {
+    if (skolem.painted) {
+      return new Set<int>()..add(skolem.ident);
+    } else {
+      Set<int> fvs;
+      skolem.paint();
+      if (skolem.isSolved) {
+        fvs = skolem.type.accept<Set<int>>(this);
+      } else {
+        fvs = Set<int>()..add(skolem.ident);
+      }
+      skolem.reset();
+      return fvs;
+    }
+  }
 }
 
 Set<int> freeTypeVariables(Datatype type) {

@@ -5,7 +5,7 @@
 library t20.ast;
 
 import 'package:kernel/ast.dart'
-    show Class, Member, Procedure, TreeNode, VariableDeclaration;
+    show Class, Field, Member, Procedure, TreeNode, VariableDeclaration;
 
 // Abstract syntax (algebraic specification in EBNF notation).
 //
@@ -297,7 +297,7 @@ class VirtualFunctionDeclaration extends FunctionDeclaration {
 
 class DataConstructor extends ModuleMember
     with DeclarationMixin
-  implements Declaration, KernelNode {
+    implements Declaration, KernelNode {
   DatatypeDescriptor declarator;
   Binder binder;
   List<Datatype> parameters;
@@ -350,7 +350,7 @@ class DataConstructor extends ModuleMember
 
 class DatatypeDescriptor extends ModuleMember
     with DeclarationMixin
-  implements Declaration, TypeDescriptor, KernelNode {
+    implements Declaration, TypeDescriptor, KernelNode {
   Binder binder;
   List<Quantifier> parameters;
   List<DataConstructor> constructors;
@@ -395,8 +395,9 @@ class DatatypeDescriptor extends ModuleMember
   }
 
   Class asKernelNode;
-  Class visitorClass;
   Class eliminatorClass;
+  Class matchClosureClass;
+  Class visitorClass;
 }
 
 class DatatypeDeclarations extends ModuleMember {
@@ -1291,16 +1292,21 @@ class MatchClosureDefaultCase extends T20Node
 
 class MatchClosure extends Expression implements BoilerplateTemplate {
   TypeConstructor typeConstructor;
-  List<Binder> context; // Binders for free variables.
+  List<ClosureVariable> context; // Binders for free variables.
   List<MatchClosureCase> cases;
   MatchClosureDefaultCase defaultCase;
 
-  MatchClosure(this.type, this.typeConstructor, List<MatchClosureCase> cases,
-      MatchClosureDefaultCase defaultCase, List<Binder> context)
+  MatchClosure(
+      this.type,
+      this.typeConstructor,
+      List<MatchClosureCase> cases,
+      MatchClosureDefaultCase defaultCase,
+      List<ClosureVariable> context,
+      Location location)
       : this.cases = cases,
         this.context = context,
         this.defaultCase = defaultCase,
-        super(ExpTag.MATCH) {
+        super(ExpTag.MATCH, location) {
     _setParentMany(cases, this);
     _setParent(defaultCase, this);
   }
@@ -1310,12 +1316,29 @@ class MatchClosure extends Expression implements BoilerplateTemplate {
   Datatype type;
 }
 
+class ClosureVariable extends T20Node
+    with DeclarationMixin
+    implements Declaration, KernelNode {
+  Binder binder;
+
+  ClosureVariable(Binder binder) {
+    binder.bindingOccurrence = this;
+    this.binder = binder;
+  }
+
+  String toString() => "ClosureVariable($binder)";
+
+  Field asKernelNode;
+}
+
 class Eliminate extends Expression {
   TypeConstructor constructor;
-  MatchClosure closure;
   Variable scrutinee;
+  MatchClosure closure;
+  List<Variable> capturedVariables;
 
-  Eliminate(this.scrutinee, this.closure, this.constructor)
+  Eliminate(
+      this.scrutinee, this.closure, this.capturedVariables, this.constructor)
       : super(ExpTag.ELIM, null);
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitEliminate(this);

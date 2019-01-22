@@ -7,6 +7,7 @@ import 'dart:collection' show LinkedHashMap;
 import 'ast/ast.dart'
     show
         Binder,
+        ClosureVariable,
         FunctionDeclaration,
         LetFunction,
         ModuleMember,
@@ -84,4 +85,8 @@ class ModuleEnvironment {
   }
 
   bool isLocal(Binder binder) => !isGlobal(binder);
+
+  bool isCaptured(Binder binder) =>
+      binder.bindingOccurrence != null &&
+      binder.bindingOccurrence is ClosureVariable;
 }

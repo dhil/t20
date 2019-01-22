@@ -2,6 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'dart:collection' show LinkedHashMap;
+
 import '../errors/errors.dart' show unhandled;
 import '../location.dart' show Location;
 import '../module_environment.dart';
@@ -413,8 +415,12 @@ class MatchCompiler {
       }
     }
 
-    MatchClosure clo = MatchClosure(
-        resultType, scrutineeType, cases, defaultCase0, computeClosure(fvs));
+    // Computes a list of captured local variables and freshens the binders of
+    // captured variables.
+    ClosureResult cloResult = computeClosure(fvs);
+
+    MatchClosure clo = MatchClosure(resultType, scrutineeType, cases,
+        defaultCase0, cloResult.binders, match.location);
 
     Expression scrutinee = expression.desugar(match.scrutinee);
     Binder scrutineeBinder = freshBinder(match.origin, scrutineeType);
@@ -422,7 +428,7 @@ class MatchCompiler {
 
     // Put everything together.
     Expression exp = DLet(scrutineeBinder, scrutinee,
-        Eliminate(scrutineeVar, clo, scrutineeType));
+        Eliminate(scrutineeVar, clo, cloResult.variables, scrutineeType));
     return exp;
   }
 
@@ -442,25 +448,34 @@ class MatchCompiler {
 
   Binder refresh(Binder binder) => Binder.refresh(binder);
 
-  List<Binder> computeClosure(List<Variable> freeVariables) {
+  ClosureResult computeClosure(List<Variable> freeVariables) {
     // Freshen the binders of [freeVariables].
-    Map<int, Binder> binderMap = Map<int, Binder>();
+    List<Variable> variables = List<Variable>();
+    Map<int, ClosureVariable> binderMap = LinkedHashMap<int,
+        ClosureVariable>(); // Crucially, remembers the insertion order.
     for (int i = 0; i < freeVariables.length; i++) {
       Variable v = freeVariables[i];
       // Don't capture global variables.
       if (environment.isLocal(v.binder)) {
-        Binder b = binderMap[v.ident];
-        // If there is fresh binder for [v], then create one.
-        if (b == null) {
-          b = refresh(v.binder);
-          binderMap[v.ident] = b;
+        ClosureVariable cv = binderMap[v.ident];
+        // If there is no fresh binder for [v], then create one.
+        if (cv == null) {
+          cv = ClosureVariable(refresh(v.binder));
+          binderMap[v.ident] = cv;
+          variables.add(Variable(v.binder));
         }
         // Adjust the variable's binder.
-        v.binder = b;
+        v.binder = cv.binder;
       }
     }
-    return binderMap.values.toList();
+    return ClosureResult(variables, binderMap.values.toList());
   }
+}
+
+class ClosureResult {
+  List<Variable> variables;
+  List<ClosureVariable> binders;
+  ClosureResult(this.variables, this.binders);
 }
 
 class DecisionTreeCompiler {
