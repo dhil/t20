@@ -24,6 +24,10 @@ VariableDeclaration translateBinder(Binder binder) {
 VariableDeclaration translateFormalParameter(FormalParameter parameter) =>
     translateBinder(parameter.binder);
 
+InvocationExpression subscript(kernel.Expression receiver, int index) =>
+      MethodInvocation(receiver, Name("[]"),
+          Arguments(<kernel.Expression>[IntLiteral(index)]));
+
 class KernelGenerator {
   final Platform platform;
   final ModuleEnvironment environment;
@@ -202,10 +206,6 @@ class MainProcedureKernelGenerator {
 
     return main;
   }
-
-  InvocationExpression subscript(kernel.Expression receiver, int index) =>
-      MethodInvocation(receiver, Name("[]"),
-          Arguments(<kernel.Expression>[IntLiteral(index)]));
 
   InvocationExpression construct(Class cls, Arguments arguments,
       {Name constructor, bool isFactory: false}) {
@@ -1095,8 +1095,7 @@ class ExpressionKernelGenerator {
         return lambda(exp as DLambda);
         break;
       case ExpTag.PROJECT:
-        Project proj = exp as Project;
-        return PropertyGet(compile(proj.receiver), Name("\$${proj.label}"));
+        return project(exp as Project);
         break;
       case ExpTag.TUPLE:
         return tuple(exp as Tuple);
@@ -1185,9 +1184,11 @@ class ExpressionKernelGenerator {
 
   kernel.Expression tuple(Tuple tuple) {
     if (tuple.isUnit) {
-      // TODO.
+      return ListLiteral(<kernel.Expression>[], isConst: true);
     }
-    throw "Not yet implemented.";
+
+    List<kernel.Expression> components = tuple.components.map(compile).toList();
+    return ListLiteral(components, isConst: false);
   }
 
   kernel.Expression getVariable(Variable v) {
@@ -1207,6 +1208,25 @@ class ExpressionKernelGenerator {
     } else {
       return VariableGet(v.binder.asKernelNode);
     }
+  }
+
+  kernel.Expression project(Project proj) {
+    // Compile the receiver.
+    kernel.Expression receiver = compile(proj.receiver);
+
+    // There are two kinds of projections: 1) Tuple projections, 2) Data
+    // constructor projections.
+    if (proj is DataConstructorProject) {
+      DataConstructor constructor = proj.constructor;
+      // Need to handle projections from Kernel objects specially.
+      if (environment.originOf(constructor.binder) == Origin.KERNEL) {
+        unhandled("ExpressionKernelGenereator.project", constructor);
+      }
+      return PropertyGet(receiver, Name("\$${proj.label}"));
+    }
+
+    assert(proj.label > 0);
+    return subscript(receiver, proj.label - 1);
   }
 
   FunctionExpression etaPrimitive(Binder primitiveBinder) {
