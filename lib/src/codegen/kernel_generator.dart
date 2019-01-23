@@ -25,8 +25,8 @@ VariableDeclaration translateFormalParameter(FormalParameter parameter) =>
     translateBinder(parameter.binder);
 
 InvocationExpression subscript(kernel.Expression receiver, int index) =>
-      MethodInvocation(receiver, Name("[]"),
-          Arguments(<kernel.Expression>[IntLiteral(index)]));
+    MethodInvocation(receiver, Name("[]"),
+        Arguments(<kernel.Expression>[IntLiteral(index)]));
 
 class KernelGenerator {
   final Platform platform;
@@ -1226,7 +1226,10 @@ class ExpressionKernelGenerator {
     }
 
     assert(proj.label > 0);
-    return subscript(receiver, proj.label - 1);
+    DartType componentType = type.compile(proj.type);
+    // Tuple are implemented as heterogeneous lists, therefore we need to coerce
+    // projected members.
+    return AsExpression(subscript(receiver, proj.label - 1), componentType);
   }
 
   FunctionExpression etaPrimitive(Binder primitiveBinder) {
