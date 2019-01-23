@@ -12,7 +12,7 @@ import 'ast.dart';
 import 'closure.dart' show freeVariables;
 
 Binder freshBinder(TopModule origin, Datatype type) {
-  Binder binder = Binder.fresh(origin)..type = type;
+  Binder binder = Binder.fresh()..type = type;
   return binder;
 }
 
@@ -52,20 +52,23 @@ class ScratchSpace {
   bool get isValid => binders == bodies || binders.length == bodies.length;
 
   Expression build(Expression continuation, [bool buildSources = false]) {
-    if (binders == null) return continuation;
+    if (binders == null && !buildSources) return continuation;
 
-    assert(binders.length == bodies.length);
-    assert(buildSources == false ||
-        binders.length == sources.length &&
-            sources.length == initialisers.length);
-    // Builds continuation bottom-up; starting with the provided continuation.
-    for (int i = binders.length - 1; 0 <= i; i--) {
-      Binder binder = binders[i];
-      Expression body = bodies[i];
-      continuation = DLet(binder, body, continuation);
-      if (buildSources) {
-        binder = sources[i];
-        body = initialisers[i];
+    if (binders != null) {
+      assert(binders.length == bodies.length);
+      // Builds the continuation bottom-up; starting with the provided continuation.
+      for (int i = binders.length - 1; 0 <= i; i--) {
+        Binder binder = binders[i];
+        Expression body = bodies[i];
+        continuation = DLet(binder, body, continuation);
+      }
+    }
+
+    if (buildSources) {
+      assert(sources.length == initialisers.length);
+      for (int i = sources.length - 1; 0 <= i; i--) {
+        Binder binder = sources[i];
+        Expression body = initialisers[i];
         continuation = DLet(binder, body, continuation);
       }
     }
@@ -273,7 +276,7 @@ class ExpressionDesugarer {
     return target;
   }
 
-  DLet let(Let letexpr) {
+  Expression let(Let letexpr) {
     // Desugar each binding.
     ScratchSpace workSpace = ScratchSpace();
     for (int i = 0; i < letexpr.valueBindings.length; i++) {
@@ -312,11 +315,8 @@ class ExpressionDesugarer {
         scrutineeType is StringType) {
       // Decision tree compilation.
       Binder scrutinee = freshBinder(match.origin, scrutineeType);
-      return DLet(
-          scrutinee,
-          desugar(match.scrutinee),
-          decisionTree.desugar(
-              Variable(scrutinee), match.cases, match.location));
+      return DLet(scrutinee, desugar(match.scrutinee),
+          decisionTree.desugar(scrutinee, match.cases, match.location));
     }
 
     if (scrutineeType is TupleType) {
@@ -478,6 +478,12 @@ class ClosureResult {
   ClosureResult(this.variables, this.binders);
 }
 
+class CaseNormalisationResult {
+  List<Case> cases;
+  Case defaultCase;
+  CaseNormalisationResult(this.cases, this.defaultCase);
+}
+
 class DecisionTreeCompiler {
   ExpressionDesugarer expression;
   ModuleEnvironment environment;
@@ -504,24 +510,24 @@ class DecisionTreeCompiler {
 
   int stringCompare(String x, String y) => x.compareTo(y);
 
-  Expression desugar(Variable scrutinee, List<Case> cases,
-      [Location location]) {
-    Datatype type = scrutinee.declarator.type;
+  Expression desugar(Binder scrutinee, List<Case> cases, [Location location]) {
+    Datatype type = scrutinee.type;
+    CaseNormalisationResult result;
     if (type is BoolType) {
-      cases = normalise(cases, type, boolCompare, 2);
+      result = normalise(cases, type, boolCompare, 2, location);
     } else if (type is IntType) {
-      cases = normalise(cases, type, intCompare, null);
+      result = normalise(cases, type, intCompare, null, location);
     } else if (type is StringType) {
-      cases = normalise(cases, type, stringCompare, null);
+      result = normalise(cases, type, stringCompare, null, location);
     } else {
       unhandled("DecisionTreeCompiler.desugar", type);
     }
-    return compile(scrutinee, cases, 0, cases.length,
-        expression.pattern.matchFailure(location));
+    return compile(
+        scrutinee, result.cases, 0, cases.length - 1, result.defaultCase);
   }
 
-  List<Case> normalise<T>(List<Case> cases, Datatype type,
-      int Function(T, T) compare, int inhabitants) {
+  CaseNormalisationResult normalise<T>(List<Case> cases, Datatype type,
+      int Function(T, T) compare, int inhabitants, Location location) {
     List<Case> result = new List<Case>();
     Case catchAll;
     bool exhaustive = false;
@@ -557,42 +563,43 @@ class DecisionTreeCompiler {
     result.sort((Case x, Case y) => compare(
         ((x.pattern) as BaseValuePattern<T>).value,
         ((y.pattern) as BaseValuePattern<T>).value));
-    // Add the catch all case, if any.
-    if (catchAll != null) {
-      result.add(catchAll);
-    }
 
     // TODO emit incomplete pattern match warning?
     if (!exhaustive && inhabitants != null) {
       exhaustive = seen.length == inhabitants;
     }
 
-    return result;
+    if (catchAll == null) {
+      catchAll =
+          Case(WildcardPattern(), expression.pattern.matchFailure(location));
+    }
+
+    return CaseNormalisationResult(result, catchAll);
   }
 
   // Compiles a sorted list of base patterns into a well-balanced binary search
   // tree.
-  Expression compile(Variable scrutinee, List<Case> cases, int start, int end,
-      Expression continuation) {
-    int length = end - start + 1;
+  Expression compile(Binder scrutinee, List<Case> cases, int start, int end,
+      Case defaultCase) {
+    int mid = (start + (end - start)) ~/ 2;
+    Case c;
     // Two base cases:
-    // 1) compile _ [] continuation = continuation.
-    if (length == 0) return continuation;
-    // 2) compile scrutinee [case] continuation = if (eq? scrutinee w) desugar case.body else continuation.
-    //                                          where w = [|case.pattern.value|].
-    if (length == 1) {
-      int mid = length ~/ 2;
-      Case c = cases[mid];
+    // 1) compile scrutinee [] defaultCase = compile scrutinee [defaultCase] _
+    if (start > end) {
+      return immediate(defaultCase, scrutinee);
+    } else {
+      // print("$mid");
+      c = cases[mid];
+    }
+    // 2) compile scrutinee [case] _ = if (eq? scrutinee w) desugar case.body else continuation.
+    //                                 where w = [|case.pattern.value|].
+    if (start < end) {
       Pattern pat = c.pattern;
 
-      // Immediate match.
-      if (pat is VariablePattern) {
-        // Bind the scrutinee.
-        Binder binder = pat.binder;
-        return DLet(binder, scrutinee, expression.desugar(c.expression));
-      } else if (pat is WildcardPattern) {
-        return expression.desugar(c.expression);
-      }
+      // // Immediate match.
+      // if (pat is VariablePattern || pat is WildcardPattern) {
+      //   return immediate(c, scrutinee);
+      // }
 
       // Potential match.
       Expression w;
@@ -607,9 +614,9 @@ class DecisionTreeCompiler {
       } else {
         unhandled("DecisionTreeCompiler.compile", pat);
       }
-      Expression condition = Apply(eq, <Expression>[scrutinee, w]);
+      Expression condition = Apply(eq, <Expression>[Variable(scrutinee), w]);
 
-      return If(condition, expression.desugar(c.expression), continuation);
+      return If(condition, expression.desugar(c.expression), immediate(defaultCase, scrutinee));
     }
 
     // Inductive case:
@@ -618,15 +625,13 @@ class DecisionTreeCompiler {
     //                                  w = [|cmid.pattern.value|];
     //                         left cases = [ c | c <- cases, c.pattern.value < cmid.pattern.value ]
     //                        right cases = [ c | c <- cases, c.pattern.value > cmid.pattern.value ]
-    int mid = length ~/ 2;
-    Case c = cases[mid];
     Pattern pat = c.pattern;
 
-    // Immediate match.
-    if (pat is VariablePattern || pat is WildcardPattern) {
-      // Delegate to the base case.
-      return compile(scrutinee, cases, mid, mid, continuation);
-    }
+    // // Immediate match.
+    // if (pat is VariablePattern || pat is WildcardPattern) {
+    //   // Delegate to the base case.
+    //   return immediate(c, scrutinee);
+    // }
 
     // Potential match.
     Expression w;
@@ -646,15 +651,31 @@ class DecisionTreeCompiler {
       unhandled("DecisionTreeCompiler.compile", pat);
     }
 
-    List<Expression> arguments = <Expression>[scrutinee, w];
+    List<Expression> arguments = <Expression>[Variable(scrutinee), w];
     If testExp = If(
         Apply(eq, arguments),
         expression.desugar(c.expression),
         If(
             Apply(less, arguments),
-            compile(scrutinee, cases, start, mid - 1, continuation),
-            compile(scrutinee, cases, mid + 1, end, continuation)));
+            compile(scrutinee, cases, start, mid - 1, defaultCase),
+            compile(scrutinee, cases, mid + 1, end, defaultCase)));
     return testExp;
+  }
+
+  Expression immediate(Case c, Binder scrutinee) {
+    Pattern pat = c.pattern;
+    if (pat is VariablePattern) {
+      // Bind the scrutinee.
+      Binder binder = pat.binder;
+      return DLet(
+          binder, Variable(scrutinee), expression.desugar(c.expression));
+    } else if (pat is WildcardPattern) {
+      return expression.desugar(c.expression);
+    } else {
+      unhandled("DecisionTreeCompiler.immediate", pat);
+    }
+
+    return null; // Impossible!
   }
 }
 
