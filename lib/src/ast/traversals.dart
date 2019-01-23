@@ -364,6 +364,8 @@ class ComputeSigInfo extends Reduction<SigInfo<String>> {
     return SigInfo<String>(
         false, new Set<String>()..add(ident), new Set<String>());
   }
+
+  SigInfo<String> typeConstr(SigInfo<String> _, List<SigInfo<String>> arguments, {Location location}) => arguments.fold(m.empty, m.compose);
 }
 
 // class TrueBiasedMonoid implements Monoid<bool> {
