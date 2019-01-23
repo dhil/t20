@@ -2,10 +2,10 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'dart:io' show exit, stderr;
+import 'dart:io' show exit, File, IOSink, stderr;
 import 'package:kernel/ast.dart' show Component;
-import 'package:kernel/ast_from_binary.dart';
-import 'package:kenrel/ast_to_binary.dart';
+import 'package:kernel/binary/ast_from_binary.dart';
+import 'package:kernel/binary/ast_to_binary.dart';
 
 // Error classes.
 class PatternMatchFailure extends Object {
