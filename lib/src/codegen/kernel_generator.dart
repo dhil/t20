@@ -305,7 +305,8 @@ class AlgebraicDatatypeKernelGenerator {
   Class eliminator(Class typeClass, List<Class> dataClasses, Class visitor,
       Class matchClosure) {
     // Visitor implementation.
-    List<TypeParameter> typeParameters = visitor.typeParameters.sublist(0);
+    List<TypeParameter> typeParameters =
+        type.copyTypeParameters(visitor.typeParameters);
     List<DartType> typeArguments = typeArgumentsOf(typeParameters);
     Supertype supertype = Supertype(visitor, typeArguments);
 
@@ -339,10 +340,13 @@ class AlgebraicDatatypeKernelGenerator {
 
     // Create the visit methods.
     DartType resultType = typeArguments.last;
+    List<DartType> dataNodeTypeArguments =
+        typeArguments.sublist(0, typeArguments.length - 1);
     for (int i = 0; i < dataClasses.length; i++) {
       Class dataClass = dataClasses[i];
+      DartType dataNodeType = InterfaceType(dataClass, dataNodeTypeArguments);
       Procedure visitMethod =
-          dataMethod(dataClass, resultType, "visit${dataClass.name}");
+          dataMethod(dataNodeType, resultType, "visit${dataClass.name}");
       // Build the body.
       VariableDeclaration node = visitMethod.function.positionalParameters[0];
       VariableDeclaration result =
@@ -413,6 +417,7 @@ class AlgebraicDatatypeKernelGenerator {
         isAbstract: true,
         typeParameters: typeParameters,
         supertype: objectType);
+    // TODO add default constructor?
     return cls;
   }
 
@@ -503,8 +508,9 @@ class AlgebraicDatatypeKernelGenerator {
     TypeParameter resultTypeParameter = type.freshTypeParameter("\$R");
     // Copy the type parameters from [typeClass] and add [resultTypeParameter]
     // to the tail.
-    List<TypeParameter> typeParameters = typeClass.typeParameters.sublist(0)
-      ..add(resultTypeParameter);
+    List<TypeParameter> typeParameters = type
+        .copyTypeParameters(typeClass.typeParameters)
+          ..add(resultTypeParameter);
 
     // Class template.
     String name = "${typeClass.name}$suffix";
@@ -516,8 +522,8 @@ class AlgebraicDatatypeKernelGenerator {
 
     // Create the default constructor.
     DartType returnType = InterfaceType(cls, typeArgumentsOf(typeParameters));
-    FunctionNode funNode =
-        FunctionNode(EmptyStatement(), returnType: returnType);
+    FunctionNode funNode = FunctionNode(EmptyStatement(),
+        returnType: returnType);
     Constructor clsConstructor = Constructor(funNode,
         name: Name(""),
         isSynthetic: true,
@@ -526,32 +532,42 @@ class AlgebraicDatatypeKernelGenerator {
     // Attach the default constructor.
     cls.constructors.add(clsConstructor);
 
+    // print("Interface template: ${cls.name}<${cls.typeParameters}>");
     return cls;
   }
 
   Class matchClosureInterface(Class typeClass, List<Class> dataClasses) {
     // Match closure interface.
     Class matchClosure = interfaceClassTemplate(typeClass, "MatchClosure");
-    TypeParameter resultTypeParameter = matchClosure.typeParameters.last;
+    List<TypeParameter> typeParameters = matchClosure.typeParameters;
+    TypeParameter resultTypeParameter = typeParameters.last;
+    List<DartType> dataNodeTypeArguments =
+        typeArgumentsOf(typeParameters.sublist(0, typeParameters.length - 1));
 
     // Add a method for each data constructor.
     DartType resultType = TypeParameterType(resultTypeParameter);
     for (int i = 0; i < dataClasses.length; i++) {
       Class dataClass = dataClasses[i];
-      Procedure method = dataMethod(dataClass, resultType, dataClass.name);
+      DartType dataNodeType = InterfaceType(dataClass, dataNodeTypeArguments);
+      Procedure method = dataMethod(dataNodeType, resultType, dataClass.name);
       matchClosure.procedures.add(method);
     }
 
     // Add a method for default / catch-all cases.
+    DartType nodeType = InterfaceType(typeClass, dataNodeTypeArguments);
     matchClosure.procedures
-        .add(dataMethod(typeClass, resultType, "defaultCase"));
+        .add(dataMethod(nodeType, TypeParameterType(resultTypeParameter), "defaultCase"));
     return matchClosure;
   }
 
   Class visitorInterface(Class typeClass, List<Class> dataClasses) {
     // Visitor interface.
     Class visitor = interfaceClassTemplate(typeClass, "Visitor");
-    TypeParameter resultTypeParameter = visitor.typeParameters.last;
+    List<TypeParameter> typeParameters = visitor.typeParameters;
+    // print("${visitor.name}<$typeParameters>");
+    TypeParameter resultTypeParameter = typeParameters.last;
+    List<DartType> dataNodeTypeArguments =
+        typeArgumentsOf(typeParameters.sublist(0, typeParameters.length - 1));
 
     // Add an accept method to [typeClass] and [dataClasses].
     DartType visitorResultType = TypeParameterType(resultTypeParameter);
@@ -569,24 +585,25 @@ class AlgebraicDatatypeKernelGenerator {
       if (!identical(cls, typeClass)) {
         // Each visit method has return type [R], where [R] is a class-wide type
         // parameter.
+        DartType nodeType = InterfaceType(cls, dataNodeTypeArguments);
         String name = "visit${cls.name}";
-        visitInterfaceTarget = dataMethod(cls, visitorResultType, name);
+        visitInterfaceTarget = dataMethod(nodeType, visitorResultType, name);
         visitor.procedures.add(visitInterfaceTarget);
       }
 
       // Construct and attach an accept method.
-      cls.procedures.add(acceptMethod(visitor, visitInterfaceTarget, cls,
+      cls.procedures.add(acceptMethod(visitor, cls.typeParameters, visitInterfaceTarget, cls,
           isAbstract: identical(cls, typeClass)));
     }
     return visitor;
   }
 
   Procedure acceptMethod(
-      Class visitor, Procedure interfaceTarget, Class dataClass,
+      Class visitor, List<TypeParameter> typeParameters, Procedure interfaceTarget, Class dataClass,
       {bool isAbstract = false}) {
     TypeParameter resultTypeParameter = type.freshTypeParameter("\$R");
 
-    List<DartType> typeArguments = typeArgumentsOf(visitor.typeParameters);
+    List<DartType> typeArguments = typeArgumentsOf(typeParameters);
     TypeParameterType visitorResultType =
         TypeParameterType(resultTypeParameter);
     typeArguments.add(visitorResultType);
@@ -617,11 +634,11 @@ class AlgebraicDatatypeKernelGenerator {
         isAbstract: isAbstract);
   }
 
-  Procedure dataMethod(Class cls, DartType resultType, String name,
+  Procedure dataMethod(DartType dataNodeType, DartType resultType, String name,
       {bool isAbstract = false}) {
     // Create the method parameter.
-    DartType nodeType = InterfaceType(cls, typeArgumentsOf(cls.typeParameters));
-    VariableDeclaration parameter = VariableDeclaration("node", type: nodeType);
+    VariableDeclaration parameter =
+        VariableDeclaration("node", type: dataNodeType);
 
     // Create the method function node and procedure.
     FunctionNode funNode = FunctionNode(ReturnStatement(NullLiteral()),
@@ -834,7 +851,7 @@ class ModuleKernelGenerator {
     for (int i = 0; i < segmod.datatypes.length; i++) {
       List<Class> classes = adt.compile(segmod.datatypes[i]);
       if (classes != null) {
-        library ??= emptyLibrary(module.name);
+        library ??= emptyLibrary(module);
         library.classes.addAll(classes);
       }
     }
@@ -865,13 +882,13 @@ class ModuleKernelGenerator {
         Procedure procedure = function(decl);
         // Virtual functions may compile to [null].
         if (procedure != null) {
-          library ??= emptyLibrary(module.name);
+          library ??= emptyLibrary(module);
           library.procedures.add(procedure);
         }
       } else if (decl is ValueDeclaration) {
         Field field = value(decl);
         if (field != null) {
-          library ??= emptyLibrary(module.name);
+          library ??= emptyLibrary(module);
           library.fields.add(field);
         }
       } else {
@@ -904,8 +921,8 @@ class ModuleKernelGenerator {
     return SegregationResult(datatypes, declarations, module.templates);
   }
 
-  Library emptyLibrary(String name) {
-    return Library(Uri(scheme: "file", path: "."), name: name);
+  Library emptyLibrary(TopModule module) {
+    return Library(module.location.uri, name: module.name);
   }
 
   void dataConstructor(DataConstructor constructor) {
@@ -1007,6 +1024,7 @@ class ModuleKernelGenerator {
                   fdecl,
                   zdecl
                 ],
+                typeParameters: <TypeParameter>[a],
                 returnType: TypeParameterType(a));
 
             // The procedure node.
@@ -1463,4 +1481,10 @@ class DartTypeGenerator {
 
   TypeParameter freshTypeParameter(String name, {DartType bound}) =>
       TypeParameter(name, bound ?? dynamicType, dynamicType);
+
+  TypeParameter copyTypeParameter(TypeParameter typeParameter) => TypeParameter(
+      typeParameter.name, typeParameter.bound, typeParameter.defaultType);
+
+  List<TypeParameter> copyTypeParameters(List<TypeParameter> typeParameters) =>
+      typeParameters.map(copyTypeParameter).toList();
 }
