@@ -417,7 +417,16 @@ class AlgebraicDatatypeKernelGenerator {
         isAbstract: true,
         typeParameters: typeParameters,
         supertype: objectType);
-    // TODO add default constructor?
+
+    // Create the default class constructor.
+    DartType returnType = InterfaceType(cls, typeArgumentsOf(typeParameters));
+    FunctionNode funNode = FunctionNode(EmptyStatement(), returnType: returnType);
+    Constructor clsConstructor = Constructor(funNode,
+        name: Name(""), isSynthetic: true, initializers: <Initializer>[objectInitializer]);
+
+    // Attach the constructor.
+    cls.constructors.add(clsConstructor);
+
     return cls;
   }
 
@@ -431,9 +440,11 @@ class AlgebraicDatatypeKernelGenerator {
   }
 
   Class dataConstructor(DataConstructor constructor, Class parentClass) {
+    List<TypeParameter> typeParameters =
+        type.copyTypeParameters(parentClass.typeParameters);
     List<DartType> typeArguments = new List<DartType>();
-    for (int i = 0; i < parentClass.typeParameters.length; i++) {
-      typeArguments.add(TypeParameterType(parentClass.typeParameters[i]));
+    for (int i = 0; i < typeParameters.length; i++) {
+      typeArguments.add(TypeParameterType(typeParameters[i]));
     }
     Supertype supertype = Supertype(parentClass, typeArguments);
 
@@ -441,7 +452,7 @@ class AlgebraicDatatypeKernelGenerator {
     Class cls = Class(
         name: constructor.binder.toString(),
         supertype: supertype,
-        typeParameters: parentClass.typeParameters);
+        typeParameters: typeParameters);
 
     // Create class fields, field initializers, and constructor parameters.
     List<Initializer> initializers = new List<Initializer>();
@@ -465,7 +476,9 @@ class AlgebraicDatatypeKernelGenerator {
     DartType returnType = InterfaceType(cls, typeArguments);
     FunctionNode funNode = FunctionNode(EmptyStatement(),
         positionalParameters: parameters, returnType: returnType);
-    initializers.add(objectInitializer);
+    SuperInitializer superInitializer =
+        SuperInitializer(parentClass.constructors[0], Arguments.empty());
+    initializers.add(superInitializer);
     Constructor clsConstructor = Constructor(funNode,
         name: Name(""), isSynthetic: true, initializers: initializers);
 
@@ -486,6 +499,7 @@ class AlgebraicDatatypeKernelGenerator {
       StringLiteral(constructor.binder.sourceName)
     ];
     if (constructor.parameters.length > 0) {
+      components.add(StringLiteral("("));
       for (int i = 0; i < constructor.parameters.length; i++) {
         kernel.Expression exp =
             PropertyGet(ThisExpression(), Name("\$${i + 1}"));
@@ -494,6 +508,7 @@ class AlgebraicDatatypeKernelGenerator {
           components.add(StringLiteral(", "));
         }
       }
+      components.add(StringLiteral(")"));
     }
 
     FunctionNode funNode = FunctionNode(
@@ -1218,7 +1233,8 @@ class ExpressionKernelGenerator {
     }
 
     if (v.binder.bindingOccurrence is DataConstructor) {
-      DataConstructor constructor = v.binder.bindingOccurrence as DataConstructor;
+      DataConstructor constructor =
+          v.binder.bindingOccurrence as DataConstructor;
       // Instantiate nullary constructors immediately.
       if (constructor.isNullary) {
         return invoke.constructor(constructor, const <kernel.Expression>[]);
