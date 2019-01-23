@@ -523,7 +523,7 @@ class DecisionTreeCompiler {
       unhandled("DecisionTreeCompiler.desugar", type);
     }
     return compile(
-        scrutinee, result.cases, 0, cases.length - 1, result.defaultCase);
+        scrutinee, result.cases, 0, result.cases.length - 1, result.defaultCase);
   }
 
   CaseNormalisationResult normalise<T>(List<Case> cases, Datatype type,
@@ -581,62 +581,23 @@ class DecisionTreeCompiler {
   // tree.
   Expression compile(Binder scrutinee, List<Case> cases, int start, int end,
       Case defaultCase) {
-    int mid = (start + (end - start)) ~/ 2;
+    int mid = (start + end) ~/ 2;
     Case c;
-    // Two base cases:
-    // 1) compile scrutinee [] defaultCase = compile scrutinee [defaultCase] _
+    Pattern pat;
+    // Base case: Handle the default case.
+    // 1) compile scrutinee [] defaultCase = immediate defaultCase scrutinee
     if (start > end) {
       return immediate(defaultCase, scrutinee);
     } else {
-      // print("$mid");
       c = cases[mid];
-    }
-    // 2) compile scrutinee [case] _ = if (eq? scrutinee w) desugar case.body else continuation.
-    //                                 where w = [|case.pattern.value|].
-    if (start < end) {
-      Pattern pat = c.pattern;
-
-      // // Immediate match.
-      // if (pat is VariablePattern || pat is WildcardPattern) {
-      //   return immediate(c, scrutinee);
-      // }
-
-      // Potential match.
-      Expression w;
-      Expression eq;
-      if (pat is IntPattern) {
-        w = IntLit(pat.value, pat.location);
-        eq =
-            Variable(environment.prelude.manifest.findByName("int-eq?").binder);
-      } else if (pat is StringPattern) {
-        w = StringLit(pat.value, pat.location);
-        eq = Variable(environment.string.manifest.findByName("eq?").binder);
-      } else {
-        unhandled("DecisionTreeCompiler.compile", pat);
-      }
-      Expression condition = Apply(eq, <Expression>[Variable(scrutinee), w]);
-
-      return If(condition, expression.desugar(c.expression), immediate(defaultCase, scrutinee));
+      pat = c.pattern;
     }
 
-    // Inductive case:
-    // compile scrutinee cases = (if (= scrutinee w) (compile scrutinee [cmid]) else (if (< scrutinee w) (compile scrutinee left(cases)) else (compile scrutinee right(cases)))).
-    //                         where  cmid = cases[cases.length / 2]
-    //                                  w = [|cmid.pattern.value|];
-    //                         left cases = [ c | c <- cases, c.pattern.value < cmid.pattern.value ]
-    //                        right cases = [ c | c <- cases, c.pattern.value > cmid.pattern.value ]
-    Pattern pat = c.pattern;
-
-    // // Immediate match.
-    // if (pat is VariablePattern || pat is WildcardPattern) {
-    //   // Delegate to the base case.
-    //   return immediate(c, scrutinee);
-    // }
-
-    // Potential match.
+    // Get primitive operators for equality testing.
+    assert(pat is BoolPattern || pat is IntPattern || pat is StringPattern);
     Expression w;
-    Expression less;
     Expression eq;
+    Expression less;
 
     if (pat is IntPattern) {
       w = IntLit(pat.value, pat.location);
@@ -651,6 +612,24 @@ class DecisionTreeCompiler {
       unhandled("DecisionTreeCompiler.compile", pat);
     }
 
+    // Second base case. Treating this case specially is sort of a
+    // micro-optimisation as it may reduce the height of the resulting decision
+    // tree by one.
+    // 2) compile scrutinee [case] defaultCase = if (eq? scrutinee w) (desugar case.body) (immediate defaultCase scrutinee).
+    //                                           where w = [|case.pattern.value|].
+    if (start == end) {
+      // Potential match.
+      Expression condition = Apply(eq, <Expression>[Variable(scrutinee), w]);
+      return If(condition, expression.desugar(c.expression), immediate(defaultCase, scrutinee));
+    }
+
+    // Inductive case:
+    // 3) compile scrutinee cases = (if (eq? scrutinee w) (desugar cmid.expression) else (if (less? scrutinee w) (compile scrutinee left(cases)) (compile scrutinee right(cases)))).
+    //                        where  cmid = cases[ cases.length / 2 ]
+    //                                  w = [|cmid.pattern.value|];
+    //                         left cases = [ c | c <- cases, c.pattern.value < cmid.pattern.value ]
+    //                        right cases = [ c | c <- cases, c.pattern.value > cmid.pattern.value ]
+    // Potential match.
     List<Expression> arguments = <Expression>[Variable(scrutinee), w];
     If testExp = If(
         Apply(eq, arguments),
