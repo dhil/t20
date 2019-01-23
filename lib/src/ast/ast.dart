@@ -343,6 +343,8 @@ class DataConstructor extends ModuleMember
 
   T accept<T>(ModuleVisitor<T> v) => v.visitDataConstructor(this);
 
+  bool get isNullary => parameters.length == 0;
+
   Class asKernelNode;
 }
 
@@ -351,7 +353,14 @@ class DatatypeDescriptor extends ModuleMember
     implements Declaration, TypeDescriptor, KernelNode {
   Binder binder;
   List<Quantifier> parameters;
-  List<DataConstructor> constructors;
+
+  List<DataConstructor> _constructors;
+  List<DataConstructor> get constructors => _constructors;
+  void set constructors(List<DataConstructor> constructors) {
+    _setParentMany(constructors, this);
+    _constructors = constructors;
+  }
+
   Set<Derivable> deriving;
 
   TypeConstructor get type {
@@ -370,10 +379,9 @@ class DatatypeDescriptor extends ModuleMember
   DatatypeDescriptor(Binder binder, this.parameters,
       List<DataConstructor> constructors, this.deriving, Location location)
       : this.binder = binder,
-        this.constructors = constructors,
         super(ModuleTag.DATATYPE_DEF, location) {
     _setBindingOccurrence(binder, this);
-    _setParentMany(constructors, this);
+    this.constructors = constructors;
   }
   DatatypeDescriptor.partial(
       Binder binder, List<Quantifier> parameters, Location location)
@@ -399,12 +407,16 @@ class DatatypeDescriptor extends ModuleMember
 }
 
 class DatatypeDeclarations extends ModuleMember {
-  List<DatatypeDescriptor> declarations;
+  List<DatatypeDescriptor> _declarations;
+  List<DatatypeDescriptor> get declarations => _declarations;
+  void set declarations(List<DatatypeDescriptor> declarations) {
+    _setParentMany(declarations, this);
+    _declarations = declarations;
+  }
 
   DatatypeDeclarations(List<DatatypeDescriptor> declarations, Location location)
-      : this.declarations = declarations,
-        super(ModuleTag.DATATYPE_DEFS, location) {
-    _setParentMany(declarations, this);
+      : super(ModuleTag.DATATYPE_DEFS, location) {
+    this.declarations = declarations;
   }
 
   T accept<T>(ModuleVisitor<T> v) => v.visitDatatypes(this);

@@ -1,0 +1,9 @@
+;; Print a list.
+
+(define-datatype (List 'a)
+  [cons 'a (List 'a)]
+  [nil])
+
+(: main (-> 1 1))
+(define (main _)
+  (ignore nil))

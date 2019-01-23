@@ -1,7 +1,26 @@
+;; Some examples using finite iteration.
+
+(: nth-power-of (-> Int Int Int))
+(define (nth-power-of a n)
+  (let ([f (lambda (acc) (* acc a))])
+    (Prelude.iterate n f 1)))
+
+(: fact (-> Int Int))
+(define (fact n)
+  (let* ([g (lambda ([, n f])
+              (, [+ 1 n] [* f (+ 1 n)]))]
+         [(, _ result) (Prelude.iterate n g (, 0 1))])
+    result))
+
+(: fib (-> Int Int))
+(define (fib n)
+  (let* ([g (lambda ([, a b])
+              (, b (+ a b)))]
+         [(, result _) (Prelude.iterate n g (, 0 1))])
+    result))
+
 (: main (-> 1 1))
 (define (main _)
-  (iterate 5
-    (lambda (_)
-      (let ([_ (print "Hello")])
-          (,)))
-    (,)))
+  (let ([_ (print (String.concat "2^6    = " (show (nth-power-of 2 6))))]
+        [_ (print (String.concat "fact 3 = " (show (fact 3))))])
+    (print (String.concat "fib 5  = " (show (fib 6))))))

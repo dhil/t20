@@ -247,7 +247,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
     List<Name> declaredNames = new List<Name>();
     for (int i = 0; i < parameters.length; i++) {
       Triple<BuildContext, List<Name>, Pattern> result =
-          buildPattern(parameters[i], context) as Triple<
+          buildPattern(parameters[i], ctxt0) as Triple<
               BuildContext,
               List<Name>,
               Pattern>; // This cast seems to be necessary to silence the
@@ -263,7 +263,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   }
 
   List<Name> checkDuplicates(List<Name> names) {
-    if (names == null) return const <Name>[];
+    if (names == null) return <Name>[];
     Set<int> uniqueNames = new Set<int>();
     List<Name> dups = new List<Name>();
     for (int i = 0; i < names.length; i++) {
@@ -320,7 +320,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
       LocatedError error, Location location) {
     errors.add(error);
     return Pair<BuildContext, Pattern>(
-        OutputBuildContext(const <Name>[], emptyContext),
+        OutputBuildContext(<Name>[], emptyContext),
         new ErrorPattern(error, location));
   }
 
@@ -737,7 +737,8 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
       if (module == null) return null;
       return module.manifest.findByName(name.sourceName);
     } else {
-      return ctxt.getDeclaration(name);
+      Declaration result = ctxt.getDeclaration(name);
+      return result;
     }
   }
 
@@ -853,7 +854,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
                 // Build the pattern under the current (declaration) context.
                 Triple<BuildContext, List<Name>, Pattern> result =
                     buildPattern(bindings[i].fst, ctxt0);
-                // TODO allow shadowing of sequential names.
+
                 if (declaredNames == null) {
                   declaredNames = result.snd;
                 } else {
@@ -989,7 +990,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   Build<Pattern> boolPattern(bool b, {Location location}) =>
       (BuildContext ctxt) {
         // Construct the output context.
-        BuildContext ctxt0 = new OutputBuildContext(const <Name>[], ctxt);
+        BuildContext ctxt0 = new OutputBuildContext(<Name>[], ctxt);
         // Construct the bool pattern node.
         BoolPattern pattern = new BoolPattern(b, location);
         return Pair<BuildContext, Pattern>(ctxt0, pattern);
@@ -997,7 +998,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
 
   Build<Pattern> intPattern(int n, {Location location}) => (BuildContext ctxt) {
         // Construct the output context.
-        BuildContext ctxt0 = new OutputBuildContext(const <Name>[], ctxt);
+        BuildContext ctxt0 = new OutputBuildContext(<Name>[], ctxt);
         // Construct the int pattern node.
         IntPattern pattern = new IntPattern(n, location);
         return Pair<BuildContext, Pattern>(ctxt0, pattern);
@@ -1006,7 +1007,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   Build<Pattern> stringPattern(String s, {Location location}) =>
       (BuildContext ctxt) {
         // Construct the output context.
-        BuildContext ctxt0 = new OutputBuildContext(const <Name>[], ctxt);
+        BuildContext ctxt0 = new OutputBuildContext(<Name>[], ctxt);
         // Construct the string pattern node.
         StringPattern pattern = new StringPattern(s, location);
         return Pair<BuildContext, Pattern>(ctxt0, pattern);
@@ -1014,7 +1015,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
 
   Build<Pattern> wildcard({Location location}) => (BuildContext ctxt) {
         // Construct the output context.
-        BuildContext ctxt0 = new OutputBuildContext(const <Name>[], ctxt);
+        BuildContext ctxt0 = new OutputBuildContext(<Name>[], ctxt);
         // Construct the wild card pattern node.
         WildcardPattern pattern = new WildcardPattern(location);
         return Pair<BuildContext, Pattern>(ctxt0, pattern);
@@ -1080,7 +1081,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         List<Name> declaredNames = new List<Name>();
         for (int i = 0; i < components.length; i++) {
           Triple<BuildContext, List<Name>, Pattern> result =
-              buildPattern(components[i], ctxt)
+              buildPattern(components[i], ctxt0)
                   as Triple<BuildContext, List<Name>, Pattern>;
           components0.add(result.thd);
           declaredNames.addAll(result.snd);

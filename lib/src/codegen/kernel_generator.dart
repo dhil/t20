@@ -1203,7 +1203,7 @@ class ExpressionKernelGenerator {
 
   kernel.Expression tuple(Tuple tuple) {
     if (tuple.isUnit) {
-      return ListLiteral(<kernel.Expression>[], isConst: true);
+      return NullLiteral();
     }
 
     List<kernel.Expression> components = tuple.components.map(compile).toList();
@@ -1215,6 +1215,17 @@ class ExpressionKernelGenerator {
     // return value or as an input to a higher-order function.
     if (environment.isPrimitive(v.binder) && requiresEtaExpansion(v.binder)) {
       return etaPrimitive(v.binder);
+    }
+
+    if (v.binder.bindingOccurrence is DataConstructor) {
+      DataConstructor constructor = v.binder.bindingOccurrence as DataConstructor;
+      // Instantiate nullary constructors immediately.
+      if (constructor.isNullary) {
+        return invoke.constructor(constructor, const <kernel.Expression>[]);
+      } else {
+        // TODO, needs eta expansion.
+        unhandled("ExpressionKernelGenerator.getVariable", constructor);
+      }
     }
 
     if (environment.isGlobal(v.binder)) {
