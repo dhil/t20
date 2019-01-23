@@ -74,7 +74,7 @@ abstract class T20Node {
   T20Node get parent => _parent;
   void set parent(T20Node node) => _parent = node;
 
-  TopModule get origin => this is TopModule ? this : parent?.origin;
+  TopModule get origin => parent?.origin;
 }
 
 void _setParent(T20Node node, T20Node parent) => node?.parent = parent;
@@ -222,10 +222,9 @@ class VirtualValueDeclaration extends ValueDeclaration {
 
   VirtualValueDeclaration.stub(Signature signature, Binder binder)
       : super(signature, binder, null, signature.location);
-  factory VirtualValueDeclaration(
-      TopModule origin, String name, Datatype type) {
+  factory VirtualValueDeclaration(String name, Datatype type) {
     Location location = Location.primitive();
-    Binder binder = Binder.primitive(origin, name);
+    Binder binder = Binder.primitive(name);
     Signature signature = new Signature(binder, type, location);
     VirtualValueDeclaration valDecl =
         new VirtualValueDeclaration.stub(signature, binder);
@@ -278,10 +277,9 @@ class VirtualFunctionDeclaration extends FunctionDeclaration {
 
   VirtualFunctionDeclaration.stub(Signature signature, Binder binder)
       : super(signature, binder, null, null, signature.location);
-  factory VirtualFunctionDeclaration(
-      TopModule origin, String name, Datatype type) {
+  factory VirtualFunctionDeclaration(String name, Datatype type) {
     Location location = Location.primitive();
-    Binder binder = Binder.primitive(origin, name);
+    Binder binder = Binder.primitive(name);
     Signature signature = new Signature(binder, type, location);
     VirtualFunctionDeclaration funDecl =
         new VirtualFunctionDeclaration.stub(signature, binder);
@@ -491,16 +489,24 @@ class Manifest {
 
 class TopModule extends ModuleMember {
   Manifest manifest;
-  List<ModuleMember> members;
   String name;
+  TopModule get origin => this;
 
   TopModule(List<ModuleMember> members, this.name, Location location)
-      : this.members = members,
-        super(ModuleTag.TOP, location) {
-    _setParentMany(members, this);
+      : super(ModuleTag.TOP, location) {
+    this.members = members;
     manifest = Manifest(this);
   }
 
+  // Members.
+  List<ModuleMember> _members;
+  List<ModuleMember> get members => _members;
+  void set members(List<ModuleMember> members) {
+    _setParentMany(members, this);
+    _members = members;
+  }
+
+  // Main function.
   Declaration main;
   bool get hasMain => main != null;
 
@@ -675,15 +681,24 @@ class StringLit extends Constant<String> {
 }
 
 class Apply extends Expression {
-  Expression abstractor;
-  List<Expression> arguments;
+  Expression _abstractor;
+  Expression get abstractor => _abstractor;
+  void set abstractor(Expression abstractor) {
+    _setParent(abstractor, this);
+    _abstractor = abstractor;
+  }
+
+  List<Expression> _arguments;
+  List<Expression> get arguments => _arguments;
+  void set arguments(List<Expression> arguments) {
+    _setParentMany(arguments, this);
+    _arguments = arguments;
+  }
 
   Apply(Expression abstractor, List<Expression> arguments, [Location location])
-      : this.abstractor = abstractor,
-        this.arguments = arguments,
-        super(ExpTag.APPLY, location) {
-    _setParent(abstractor, this);
-    _setParentMany(arguments, this);
+      : super(ExpTag.APPLY, location) {
+    this.abstractor = abstractor;
+    this.arguments = arguments;
   }
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitApply(this);
@@ -792,11 +807,6 @@ abstract class LambdaAbstraction<Param extends T20Node, Body extends T20Node>
     _setParent(body, this);
   }
 
-  String toString() {
-    String parameters0 = ListUtils.stringify(" ", parameters);
-    return "(lambda ($parameters0) (...))";
-  }
-
   Datatype _type;
   void set type(Datatype type) => _type = type;
   Datatype get type => _type;
@@ -807,6 +817,11 @@ class Lambda extends LambdaAbstraction<Pattern, Expression> {
       : super(parameters, body, location);
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitLambda(this);
+
+  String toString() {
+    String parameters0 = ListUtils.stringify(" ", parameters);
+    return "(lambda ($parameters0) (...))";
+  }
 }
 
 class Case extends T20Node {
@@ -1096,15 +1111,14 @@ class VariablePattern extends Pattern
 
   T accept<T>(PatternVisitor<T> v) => v.visitVariable(this);
 
-  String toString() => "$binder";
+  String toString() => binder.toString();
 
-  Datatype _type = const DynamicType();
-  Datatype get type => _type;
-  void set type(Datatype type) => _type = type;
+  Datatype get type => binder.type ?? const DynamicType();
+  void set type(Datatype type) => binder.type = type;
 }
 
 class WildcardPattern extends Pattern {
-  WildcardPattern(Location location) : super(PatternTag.WILDCARD, location);
+  WildcardPattern([Location location]) : super(PatternTag.WILDCARD, location);
 
   T accept<T>(PatternVisitor<T> v) => v.visitWildcard(this);
 
@@ -1112,7 +1126,7 @@ class WildcardPattern extends Pattern {
 
   Datatype _type = const DynamicType();
   Datatype get type => _type;
-  Datatype set type(Datatype type) => _type = type;
+  void set type(Datatype type) => _type = type;
 }
 
 //===== Desugared AST nodes.
@@ -1129,17 +1143,15 @@ class FormalParameter extends T20Node
     _setBindingOccurrence(binder, this);
   }
 
+  String toString() => binder.toString();
+
   VariableDeclaration asKernelNode;
 }
 
 class DLambda extends LambdaAbstraction<FormalParameter, Expression> {
   DLambda(List<FormalParameter> parameters, Expression body,
       [Location location])
-      : super(parameters, body, location) {
-    // Set parent pointers.
-    body.parent = this;
-    _setParentMany(parameters, this);
-  }
+      : super(parameters, body, location);
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitDLambda(this);
 
@@ -1148,6 +1160,11 @@ class DLambda extends LambdaAbstraction<FormalParameter, Expression> {
         parameters.map((FormalParameter p) => p.type).toList();
     Datatype codomain = body.type;
     return ArrowType(domain, codomain);
+  }
+
+  String toString() {
+    String parameters0 = ListUtils.stringify(" ", parameters);
+    return "(dlambda ($parameters0) (...))";
   }
 }
 
@@ -1290,7 +1307,8 @@ class MatchClosureDefaultCase extends T20Node
   }
 }
 
-class MatchClosure extends Expression implements BoilerplateTemplate, KernelNode {
+class MatchClosure extends Expression
+    implements BoilerplateTemplate, KernelNode {
   TypeConstructor typeConstructor;
   List<ClosureVariable> context; // Binders for free variables.
   List<MatchClosureCase> cases;

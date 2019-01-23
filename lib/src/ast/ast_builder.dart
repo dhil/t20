@@ -171,29 +171,29 @@ class ASTBuilder {
     return result;
   }
 
-  Result<Datatype, LocatedError> buildDatatype(Sexp type,
-      {ModuleEnvironment moduleEnv,
-      TopModule origin,
-      bool isVirtual = false,
-      BuildContext context}) {
-    if (context == null) {
-      context = BuildContext.empty();
-    }
-    if (origin == null) {
-      throw ArgumentError.notNull("origin");
-    }
-    _ASTBuilder builder = new _ASTBuilder(
-        initialEnv: moduleEnv, origin: origin, isVirtual: isVirtual);
-    Datatype datatype =
-        new TypeElaborator(builder).elaborate(type)(context).snd;
-    Result<Datatype, LocatedError> result;
-    if (builder.errors.length > 0) {
-      result = Result<Datatype, LocatedError>.failure(builder.errors);
-    } else {
-      result = Result<Datatype, LocatedError>.success(datatype);
-    }
-    return result;
-  }
+  // Result<Datatype, LocatedError> buildDatatype(Sexp type,
+  //     {ModuleEnvironment moduleEnv,
+  //     TopModule origin,
+  //     bool isVirtual = false,
+  //     BuildContext context}) {
+  //   if (context == null) {
+  //     context = BuildContext.empty();
+  //   }
+  //   if (origin == null) {
+  //     throw ArgumentError.notNull("origin");
+  //   }
+  //   _ASTBuilder builder = new _ASTBuilder(
+  //       initialEnv: moduleEnv, origin: origin, isVirtual: isVirtual);
+  //   Datatype datatype =
+  //       new TypeElaborator(builder).elaborate(type)(context).snd;
+  //   Result<Datatype, LocatedError> result;
+  //   if (builder.errors.length > 0) {
+  //     result = Result<Datatype, LocatedError>.failure(builder.errors);
+  //   } else {
+  //     result = Result<Datatype, LocatedError>.success(datatype);
+  //   }
+  //   return result;
+  // }
 }
 
 typedef Build<T> = Pair<BuildContext, T> Function(BuildContext);
@@ -210,10 +210,8 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   ModuleEnvironment _moduleEnv;
   FunctionDeclaration mainCandidate;
 
-  _ASTBuilder(
-      {ModuleEnvironment initialEnv, TopModule origin, bool isVirtual = false})
+  _ASTBuilder({ModuleEnvironment initialEnv, bool isVirtual = false})
       : _moduleEnv = initialEnv,
-        _thisModule = origin,
         _isVirtual = isVirtual;
 
   Pair<BuildContext, T> trivial<T>(Build<T> builder) {
@@ -297,9 +295,9 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
 
   Binder binderOf(Name name) {
     if (name == null) {
-      return Binder.fresh(_thisModule);
+      return Binder.fresh();
     } else {
-      return Binder.fromSource(_thisModule, name.sourceName, name.location);
+      return Binder.fromSource(name.sourceName, name.location);
     }
   }
 
@@ -443,7 +441,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
                   derivable.surfaceName(desc.binder.sourceName);
               Datatype type = derivable.computeType(desc);
               VirtualFunctionDeclaration decl =
-                  VirtualFunctionDeclaration(_thisModule, surfaceName, type);
+                  VirtualFunctionDeclaration(surfaceName, type);
 
               deriving0.add(derivable);
               sharedContext = sharedContext.putDeclaration(
@@ -665,7 +663,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         // Construct the output context.
         ctxt = ctxt.putTypeDescriptor(name, desc);
 
-        return Pair<BuildContext, ModuleMember>(ctxt, null);
+        return Pair<BuildContext, ModuleMember>(ctxt, desc);
       };
 
   Build<ModuleMember> signature(Name name, Build<Datatype> type,

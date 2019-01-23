@@ -103,7 +103,8 @@ class _TypeChecker {
     switch (member.tag) {
       case ModuleTag.CONSTR:
       case ModuleTag.DATATYPE_DEFS:
-      case ModuleTag.OPEN:
+      // case ModuleTag.OPEN:
+      case ModuleTag.TYPENAME:
         return InferenceResult(ctxt, typeUtils.unitType);
         break;
       case ModuleTag.TOP:
@@ -224,7 +225,7 @@ class _TypeChecker {
         // }
         break;
       case ExpTag.TYPE_ASCRIPTION:
-        throw "Not yet impleemented.";
+        throw "Not yet implemented.";
         break;
       default:
         unhandled("inferExpression", exp.tag);

@@ -76,10 +76,10 @@ class FrontendCompiler {
     module = moduleDesugarer.desugar(module);
 
     // Dump DAST, if requested.
-    if (settings.dumpAst) {
+    if (settings.dumpDast) {
       stderr.writeln(astUtils.stringOfNode(module));
     }
-    
+
     if (settings.exitAfter == "desugar") {
       return null;
     }

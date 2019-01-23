@@ -301,7 +301,7 @@ List<Quantifier> freshenQuantifiers(List<Quantifier> qs) {
 
     // Build fake surface name.
     String surfaceName = List.filled(repetitions, next).join();
-    Binder binder = Binder.primitive(qs[i].binder.origin, surfaceName);
+    Binder binder = Binder.primitive(surfaceName);
     result.add(Quantifier.of(binder));
   }
 

@@ -58,8 +58,18 @@ class ModuleEnvironment {
       module != null && identical(module, kernel);
 
   Origin originOf(Binder binder) {
-    if (binder.origin == null)
+    if (binder.origin == null) {
+      void trace(dynamic node) {
+        if (identical(node, null)) {
+          print("-> null");
+        } else {
+          print("-> $node");
+          trace(node.parent);
+        }
+      }
+      trace(binder.bindingOccurrence);
       throw "Logical error: The binder ${binder} has no origin.";
+    }
     if (identical(binder.origin, prelude)) return Origin.PRELUDE;
     if (identical(binder.origin, kernel)) return Origin.KERNEL;
     if (identical(binder.origin, dartList)) return Origin.DART_LIST;

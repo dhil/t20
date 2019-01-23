@@ -98,7 +98,7 @@ class FoldLeft implements Derivable {
 
   Datatype computeType(TypeDescriptor desc) {
     // (acc K -> acc) acc K -> acc
-    Quantifier acc = Quantifier.fresh(desc.binder.origin);
+    Quantifier acc = Quantifier.fresh();
     List<Quantifier> quantifiers = new List<Quantifier>()
       ..addAll(desc.parameters)
       ..add(acc);
@@ -126,7 +126,7 @@ class FoldRight implements Derivable {
 
   Datatype computeType(TypeDescriptor desc) {
     // (K acc -> acc) K acc -> acc
-    Quantifier acc = Quantifier.fresh(desc.binder.origin);
+    Quantifier acc = Quantifier.fresh();
     List<Quantifier> quantifiers = new List<Quantifier>()
       ..addAll(desc.parameters)
       ..add(acc);
@@ -154,7 +154,7 @@ class Catamorphism implements Derivable {
 
   Datatype computeType(TypeDescriptor desc) {
     // (K acc -> acc) K acc -> acc
-    Quantifier acc = Quantifier.fresh(desc.binder.origin);
+    Quantifier acc = Quantifier.fresh();
     List<Quantifier> quantifiers = new List<Quantifier>()
       ..addAll(desc.parameters)
       ..add(acc);

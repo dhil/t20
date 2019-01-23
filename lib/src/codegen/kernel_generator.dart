@@ -522,8 +522,8 @@ class AlgebraicDatatypeKernelGenerator {
 
     // Create the default constructor.
     DartType returnType = InterfaceType(cls, typeArgumentsOf(typeParameters));
-    FunctionNode funNode = FunctionNode(EmptyStatement(),
-        returnType: returnType);
+    FunctionNode funNode =
+        FunctionNode(EmptyStatement(), returnType: returnType);
     Constructor clsConstructor = Constructor(funNode,
         name: Name(""),
         isSynthetic: true,
@@ -555,8 +555,8 @@ class AlgebraicDatatypeKernelGenerator {
 
     // Add a method for default / catch-all cases.
     DartType nodeType = InterfaceType(typeClass, dataNodeTypeArguments);
-    matchClosure.procedures
-        .add(dataMethod(nodeType, TypeParameterType(resultTypeParameter), "defaultCase"));
+    matchClosure.procedures.add(dataMethod(
+        nodeType, TypeParameterType(resultTypeParameter), "defaultCase"));
     return matchClosure;
   }
 
@@ -592,14 +592,15 @@ class AlgebraicDatatypeKernelGenerator {
       }
 
       // Construct and attach an accept method.
-      cls.procedures.add(acceptMethod(visitor, cls.typeParameters, visitInterfaceTarget, cls,
+      cls.procedures.add(acceptMethod(
+          visitor, cls.typeParameters, visitInterfaceTarget, cls,
           isAbstract: identical(cls, typeClass)));
     }
     return visitor;
   }
 
-  Procedure acceptMethod(
-      Class visitor, List<TypeParameter> typeParameters, Procedure interfaceTarget, Class dataClass,
+  Procedure acceptMethod(Class visitor, List<TypeParameter> typeParameters,
+      Procedure interfaceTarget, Class dataClass,
       {bool isAbstract = false}) {
     TypeParameter resultTypeParameter = type.freshTypeParameter("\$R");
 
@@ -1289,6 +1290,7 @@ class ExpressionKernelGenerator {
           case "int-eq?":
           case "int-greater?":
           case "int-less?":
+          case "show":
             return true;
             break;
           default:
@@ -1323,6 +1325,7 @@ class InvocationKernelGenerator {
     }
 
     // Some primitive functions have a direct encoding into Kernel.
+    // print("apply: ${binder.sourceName} $arguments");
     switch (environment.originOf(binder)) {
       case Origin.PRELUDE:
         // Short-circuiting boolean operations.
@@ -1339,6 +1342,9 @@ class InvocationKernelGenerator {
           case "*":
           case "/":
           case "mod":
+          case "int-eq?":
+          case "int-less?":
+          case "int-greater?":
             // Binary integer operations needs to be treated specially. Let <>
             // denote a binary operator, then `(<> x y)' gets encoded as
             // `x.<>(y)'.
@@ -1361,7 +1367,13 @@ class InvocationKernelGenerator {
             }
 
             return MethodInvocation(arguments[0], Name(operatorName),
-                Arguments(arguments.sublist(1, 2)));
+                Arguments(<kernel.Expression>[arguments[1]]));
+            break;
+          // Show stringifies an arbitrary object.
+          case "show":
+            assert(arguments.length == 1);
+            return MethodInvocation(
+                arguments[0], Name("toString"), Arguments.empty());
             break;
           default: // Ignore.
         }

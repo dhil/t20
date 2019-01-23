@@ -7,11 +7,11 @@ import 'package:kernel/ast.dart' show VariableDeclaration;
 import '../location.dart';
 import '../utils.dart' show Gensym;
 
-import 'ast.dart' show Datatype, Declaration, TopModule, KernelNode;
+import 'ast.dart' show Datatype, Declaration, TopModule, KernelNode, T20Node;
 import 'identifiable.dart';
 
 class Binder implements Identifiable, KernelNode {
-  TopModule origin;
+  TopModule get origin => (bindingOccurrence as T20Node)?.origin;
   Declaration bindingOccurrence;
   final String _sourceName;
   final Location _location;
@@ -28,14 +28,16 @@ class Binder implements Identifiable, KernelNode {
   Location get location => _location ?? Location.dummy();
   String get sourceName => _sourceName ?? "<synthetic>";
 
-  Binder.fromSource(TopModule origin, String sourceName, Location location)
-  : this.raw(origin, null, Gensym.freshInt(), sourceName, location, null);
-  Binder.fresh(TopModule origin) : this.fromSource(origin, null, null);
-  Binder.primitive(TopModule origin, String name)
-      : this.fromSource(origin, name, null);
-  Binder.raw(this.origin, this.bindingOccurrence, this._ident, this._sourceName,
-             this._location, this._type);
-  Binder.refresh(Binder binder) : this.raw(binder.origin, null, Gensym.freshInt(), binder._sourceName, Location.dummy(), binder.type);
+  Binder.fromSource(String sourceName, Location location)
+      : this.raw(null, Gensym.freshInt(), sourceName, location, null);
+  Binder.fresh() : this.fromSource(null, null);
+  Binder.primitive(String name)
+      : this.fromSource(name, null);
+  Binder.raw(this.bindingOccurrence, this._ident, this._sourceName,
+      this._location, this._type);
+  Binder.refresh(Binder binder)
+      : this.raw(binder.bindingOccurrence, Gensym.freshInt(), binder._sourceName,
+            Location.dummy(), binder.type);
 
   String toString() {
     if (_sourceName == null) {

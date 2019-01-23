@@ -23,6 +23,10 @@ abstract class _EmbeddedModule {
 class _Prelude extends _EmbeddedModule {
   String get name => ModuleConstants.PRELUDE;
   String get asTextual => '''
+;; Type aliases.
+(define-typename 1 (*))
+(define-typename 2 Bool)
+
 ;; Arithmetics.
 (: + (-> Int Int Int))
 (define-stub (+ _ _))
@@ -86,6 +90,12 @@ class _Prelude extends _EmbeddedModule {
 (: print (-> String (*)))
 (define-stub (print _ _))
 
+(: show (-> 'a String))
+(define-stub (show _))
+
+(: ignore (-> 'a (*)))
+(define (ignore _) (,))
+
 ;; Iteration.
 (: iterate (-> Int [-> 'a 'a] 'a 'a))
 (define-stub (iterate _ _ _))
@@ -122,7 +132,7 @@ class _DartList extends _EmbeddedModule {
 ;; dart.core::List object.
 (define-datatype (Dart-List 'a))
 
-(define-datatype Void) ;; TODO define as (define-typename Void (*))
+(define-typename Void (*))
 
 (: add! (=> ([Ground 'a]) [-> 'a (Dart-List 'a) Void]))
 (define-stub (add! _ _))
