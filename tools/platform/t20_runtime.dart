@@ -2,6 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+library t20_runtime;
+
 import 'dart:io' show exit, File, IOSink, stderr;
 import 'package:kernel/ast.dart' show Component;
 import 'package:kernel/binary/ast_from_binary.dart';
