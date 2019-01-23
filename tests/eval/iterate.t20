@@ -1,0 +1,7 @@
+(: main (-> 1 1))
+(define (main _)
+  (iterate 5
+    (lambda (_)
+      (let ([_ (print "Hello")])
+          (,)))
+    (,)))

@@ -1,0 +1,3 @@
+(: main (-> (*) (*)))
+(define (main _)
+  (print "Hello World!"))
