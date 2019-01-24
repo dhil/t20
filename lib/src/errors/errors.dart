@@ -476,11 +476,18 @@ class SubsumptionError extends TypeError {
 }
 
 class LocatedSubsumptionError extends LocatedError implements TypeError {
-  final SubsumptionError error;
+  final TypeError error;
 
   LocatedSubsumptionError(this.error, Location location) : super(location);
 
   String toString() => error.toString();
+}
+
+class KernelModuleNotLoadedError extends LocatedError implements TypeError {
+  KernelModuleNotLoadedError(Location location) : super(location);
+
+  String toString() =>
+      "Cannot type the main function as the Kernel module has not been loaded yet.";
 }
 
 class CodeGenerationError extends T20Error {

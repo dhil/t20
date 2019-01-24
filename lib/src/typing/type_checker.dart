@@ -6,18 +6,43 @@ import '../ast/ast.dart';
 import '../errors/errors.dart';
 import '../fp.dart' show Pair, Triple;
 import '../location.dart';
+import '../module_environment.dart';
 import '../result.dart';
 
 import 'ordered_context.dart';
 import 'substitution.dart' show Substitution;
 import 'type_utils.dart' as typeUtils;
 
+class MainTypingPolicy {
+  Datatype type;
+  MainTypingPolicy._(this.type);
+
+  factory MainTypingPolicy(ModuleEnvironment environment, {bool demoMode}) {
+    if (demoMode) {
+      return MainTypingPolicy._(
+          ArrowType(<Datatype>[], typeUtils.unitType));
+    } else {
+      if (environment.kernel != null) {
+        Declaration component =
+            environment.kernel.manifest.findByName("Component");
+        print("$component");
+        Datatype componentType = component.type;
+        return MainTypingPolicy._(
+            ArrowType(<Datatype>[componentType], componentType));
+      } else {
+        return MainTypingPolicy._(null);
+      }
+    }
+  }
+}
+
 class TypeChecker {
   final bool _trace;
-  TypeChecker([this._trace = false]);
+  final MainTypingPolicy policy;
+  TypeChecker(this.policy, [this._trace = false]);
 
   Result<ModuleMember, TypeError> typeCheck(ModuleMember module) {
-    _TypeChecker typeChecker = _TypeChecker(_trace);
+    _TypeChecker typeChecker = _TypeChecker(_trace, policy);
     typeChecker.typeCheck(module);
     Result<ModuleMember, TypeError> result;
     if (typeChecker.errors.length > 0) {
@@ -59,8 +84,9 @@ class CheckPatternResult {
 class _TypeChecker {
   List<TypeError> errors = new List<TypeError>();
   final bool trace;
+  final MainTypingPolicy policy;
 
-  _TypeChecker(this.trace);
+  _TypeChecker(this.trace, this.policy);
 
   Datatype error(TypeError err, Location location) {
     errors.add(err);
@@ -90,10 +116,13 @@ class _TypeChecker {
   }
 
   OrderedContext checkMain(FunctionDeclaration main, OrderedContext ctxt) {
-    // Placeholder main type.
-    Datatype mainType =
-        ArrowType(<Datatype>[typeUtils.unitType], typeUtils.unitType);
-    return safeSubsumes(main.location, main.type, mainType, ctxt);
+    if (policy.type != null) {
+      Datatype mainType = policy.type;
+      return safeSubsumes(main.location, main.type, mainType, ctxt);
+    } else {
+      errors.add(KernelModuleNotLoadedError(main.location));
+      return ctxt;
+    }
   }
 
   InferenceResult inferModule(ModuleMember member, OrderedContext ctxt) {
@@ -896,6 +925,11 @@ class _TypeChecker {
     try {
       ctxt = subsumes(a, b, ctxt);
     } on SubsumptionError catch (e) {
+      errors.add(LocatedSubsumptionError(e, location));
+      if (trace) {
+        rethrow;
+      }
+    } on ConstructorMismatchError catch (e) {
       errors.add(LocatedSubsumptionError(e, location));
       if (trace) {
         rethrow;

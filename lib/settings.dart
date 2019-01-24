@@ -21,6 +21,7 @@ class UnrecognisedOptionValue extends FormatException {
 }
 
 class NamedOptions {
+  static String get demo_mode => "demo-mode";
   static String get dump_ast => "dump-ast";
   static String get dump_dast => "dump-dast";
   static String get help => "help";
@@ -41,14 +42,19 @@ ArgParser _setupArgParser() {
 
   ArgParser parser = new ArgParser();
 
+  parser.addFlag(NamedOptions.demo_mode,
+      abbr: 'd',
+      negatable: false,
+      defaultsTo: false,
+      help: "Run in demo mode (affects the typing of `main' functions).");
   parser.addFlag(NamedOptions.dump_ast,
       negatable: false,
       defaultsTo: false,
-      help: "Dump the syntax tree to stderr.");
+      help: "Dump the elaborated tree to stderr.");
   parser.addFlag(NamedOptions.dump_dast,
       negatable: false,
       defaultsTo: false,
-      help: "Dump the elaborated syntax tree to stderr.");
+      help: "Dump the desugared syntax tree to stderr.");
   parser.addOption(NamedOptions.exit_after,
       defaultsTo: null,
       help: "Exit after running a particular component.",
@@ -101,6 +107,7 @@ ArgResults _parse(List<String> args) {
 
 class Settings {
   // Boolean flags.
+  final bool demoMode;
   final bool dumpAst;
   final bool dumpDast;
   final String exitAfter;
@@ -109,7 +116,6 @@ class Settings {
   final bool showVersion;
   final String platformDill;
   final MultiOption trace;
-  final bool typeCheck;
   final bool verbose;
 
   // Other settings.
@@ -118,6 +124,7 @@ class Settings {
 
   factory Settings.fromCLI(List<String> args, {bool allowNoSources = false}) {
     ArgResults results = _parse(args);
+    bool demoMode = results[NamedOptions.demo_mode] as bool;
     bool dumpAst = results[NamedOptions.dump_ast] as bool;
     bool dumpDast = results[NamedOptions.dump_dast] as bool;
     String exitAfter = results[NamedOptions.exit_after] as String;
@@ -129,7 +136,6 @@ class Settings {
     String platformDill = results[NamedOptions.platform] as String;
     MultiOption trace = new MultiOption(
         results[NamedOptions.trace] as List<String>, verbose ?? false);
-    bool typeCheck = results[NamedOptions.type_check] as bool;
 
     if (!_validateExitAfter(exitAfter)) {
       throw UnrecognisedOptionValue(NamedOptions.exit_after, exitAfter);
@@ -147,13 +153,14 @@ class Settings {
       throw new UsageError();
     }
 
-    return Settings._(dumpAst, dumpDast, exitAfter, O, outputFile, showHelp,
-        showVersion, sourceFiles, trace, typeCheck, verbose, platformDill);
+    return Settings._(demoMode, dumpAst, dumpDast, exitAfter, O, outputFile, showHelp,
+        showVersion, sourceFiles, trace, verbose, platformDill);
   }
 
   factory Settings() => Settings.fromCLI(<String>[], allowNoSources: true);
 
   const Settings._(
+      this.demoMode,
       this.dumpAst,
       this.dumpDast,
       this.exitAfter,
@@ -163,7 +170,6 @@ class Settings {
       this.showVersion,
       this.sourceFiles,
       this.trace,
-      this.typeCheck,
       this.verbose,
       this.platformDill);
 

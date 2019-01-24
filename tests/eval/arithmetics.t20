@@ -2,6 +2,6 @@
 (define (forty-two)
   (+ 2 (- 100 (* 2 30))))
 
-(: main (-> 1 1))
-(define (main _)
+(: main (-> 1))
+(define (main)
   (print (show (forty-two))))

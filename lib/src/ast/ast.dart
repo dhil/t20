@@ -506,10 +506,23 @@ class Manifest {
     return _index[name];
   }
 
-  void compute() => _index = Map.fromIterable(
-      module.members.where((ModuleMember member) => member is Declaration),
-      key: (dynamic decl) => (decl as Declaration).binder.sourceName,
-      value: (dynamic decl) => decl as Declaration);
+  void compute() {
+    Map<String, Declaration> index = new Map<String, Declaration>();
+    for (int i = 0; i < module.members.length; i++) {
+      ModuleMember member = module.members[i];
+      if (member is Declaration) {
+        Declaration decl = member as Declaration;
+        index[decl.binder.sourceName] = decl;
+      } else if (member is DatatypeDeclarations) {
+        DatatypeDeclarations decls = member;
+        for (int i = 0; i < decls.declarations.length; i++) {
+          DatatypeDescriptor descriptor = decls.declarations[i];
+          index[descriptor.binder.sourceName] = descriptor;
+        }
+      } // else ignore.
+    }
+    _index = index;
+  }
 
   Summary get summary => Summary(module);
 }

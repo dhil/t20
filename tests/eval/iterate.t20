@@ -19,8 +19,8 @@
          [(, result _) (Prelude.iterate n g (, 0 1))])
     result))
 
-(: main (-> 1 1))
-(define (main _)
+(: main (-> 1))
+(define (main)
   (let ([_ (print (String.concat "2^6    = " (show (nth-power-of 2 6))))]
         [_ (print (String.concat "fact 3 = " (show (fact 3))))])
     (print (String.concat "fib 5  = " (show (fib 6))))))

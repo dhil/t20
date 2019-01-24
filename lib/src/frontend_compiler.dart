@@ -22,12 +22,13 @@ import 'result.dart';
 import 'syntax/parse_sexp.dart' show Parser;
 import 'syntax/sexp.dart' show Sexp;
 
-import 'typing/type_checker.dart' show TypeChecker;
+import 'typing/type_checker.dart' show MainTypingPolicy, TypeChecker;
 
 class FrontendCompiler {
   ModuleEnvironment moduleEnv;
   Settings settings;
   ModuleDesugarer moduleDesugarer;
+  MainTypingPolicy typingPolicy;
 
   FrontendCompiler(ModuleEnvironment initialEnv, this.settings)
       : moduleEnv = initialEnv;
@@ -57,15 +58,13 @@ class FrontendCompiler {
     }
 
     // Type check.
-    Result<ModuleMember, TypeError> typeResult;
-    if (settings.typeCheck) {
-      typeResult = new TypeChecker(settings.trace["typechecker"])
-          .typeCheck(elabResult.result);
-    }
+    typingPolicy ??= MainTypingPolicy(environment, demoMode: settings.demoMode);
+    Result<ModuleMember, TypeError> typeResult =
+        new TypeChecker(typingPolicy, settings.trace["typechecker"])
+            .typeCheck(elabResult.result);
 
     // Exit now, if requested or the input was erroneous.
-    if (typeResult != null && !typeResult.wasSuccessful ||
-        settings.exitAfter == "typechecker") {
+    if (!typeResult.wasSuccessful || settings.exitAfter == "typechecker") {
       return typeResult.errors;
     }
 
