@@ -365,11 +365,10 @@ class AlgebraicDatatypeKernelGenerator {
       // Try-catch.
       Statement tryBody = Block(<Statement>[
         ExpressionStatement(VariableSet(result, runCase)),
-        IfStatement(
-            Not(MethodInvocation(VariableGet(result), Name("=="),
-                Arguments(<kernel.Expression>[NullLiteral()]))),
-            ExpressionStatement(VariableSet(result, runDefaultCase)),
-            EmptyStatement())
+        IfStatement(MethodInvocation(VariableGet(result), Name("=="),
+                                     Arguments(<kernel.Expression>[NullLiteral()])),
+        ExpressionStatement(
+            VariableSet(result, runDefaultCase)), EmptyStatement())
       ]);
       VariableDeclaration exn = VariableDeclaration("exn");
       kernel.Expression t20error = ConstructorInvocation(
@@ -420,9 +419,12 @@ class AlgebraicDatatypeKernelGenerator {
 
     // Create the default class constructor.
     DartType returnType = InterfaceType(cls, typeArgumentsOf(typeParameters));
-    FunctionNode funNode = FunctionNode(EmptyStatement(), returnType: returnType);
+    FunctionNode funNode =
+        FunctionNode(EmptyStatement(), returnType: returnType);
     Constructor clsConstructor = Constructor(funNode,
-        name: Name(""), isSynthetic: true, initializers: <Initializer>[objectInitializer]);
+        name: Name(""),
+        isSynthetic: true,
+        initializers: <Initializer>[objectInitializer]);
 
     // Attach the constructor.
     cls.constructors.add(clsConstructor);
@@ -768,6 +770,9 @@ class MatchClosureKernelGenerator {
     // Attach the constructor.
     cls.constructors.add(cloConstructor);
 
+    // Store the class.
+    closure.asKernelNode = cls;
+
     return cls;
   }
 
@@ -798,6 +803,7 @@ class MatchClosureKernelGenerator {
     String caseName = case0.constructor.binder.toString();
     VariableDeclaration node = VariableDeclaration("node",
         type: InterfaceType(dataClass, typeArguments));
+    case0.binder.asKernelNode = node;
     kernel.Expression body = expression.compile(case0.body);
     FunctionNode funNode = FunctionNode(ReturnStatement(body),
         positionalParameters: <VariableDeclaration>[node],

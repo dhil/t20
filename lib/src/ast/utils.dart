@@ -470,6 +470,7 @@ class StringifyPattern extends BufferedWriter implements PatternVisitor<void> {
       space();
       for (int i = 0; i < constr.components.length; i++) {
         constr.components[i].accept<void>(this);
+        if (i + 1 < constr.components.length) space();
       }
     }
     rparen();

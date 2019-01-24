@@ -2,11 +2,12 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import '../errors/errors.dart' show unhandled;
 import 'ast.dart';
 import 'monoids.dart' show Monoid, SetMonoid;
 
-List<Variable> freeVariables(Expression exp) {
-  return ComputeExpressionFreeVariables().compute(exp);
+List<Variable> freeVariables(T20Node node) {
+  return ComputeExpressionFreeVariables().compute(node);
 }
 
 class ComputePatternBoundNames extends PatternVisitor<void> {
@@ -50,12 +51,19 @@ class ComputeExpressionFreeVariables extends ExpressionVisitor<void> {
   ComputePatternBoundNames pattern;
   ComputeExpressionFreeVariables() : this.pattern = ComputePatternBoundNames();
 
-  List<Variable> compute(Expression exp) {
+  List<Variable> compute(T20Node node) {
     freeVariables = new Map<int, List<Variable>>();
-    exp.accept<void>(this);
+    if (node is Expression) {
+      node.accept<void>(this);
+    } else if (node is Case) {
+      visitCase(node);
+    } else {
+      unhandled("ComputeExpressionFreeVariables.compute", node);
+    }
+
     return freeVariables.values
         .fold(Iterable<Variable>.empty(),
-            (Iterable<Variable> xs, Iterable<Variable> ys) => xs.followedBy(ys))
+              (Iterable<Variable> xs, Iterable<Variable> ys) => xs.followedBy(ys))
         .toList();
   }
 
@@ -151,5 +159,10 @@ class ComputeExpressionFreeVariables extends ExpressionVisitor<void> {
   void visitEliminate(Eliminate elim) {
     elim.scrutinee.accept<void>(this);
     elim.closure.accept<void>(this);
+  }
+
+  void visitCase(Case case0) {
+    case0.expression.accept<void>(this);
+    subtract(pattern.compute(case0.pattern));
   }
 }

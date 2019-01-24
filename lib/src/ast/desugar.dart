@@ -409,7 +409,7 @@ class MatchCompiler {
           // Desugar the right hand side expression.
           Expression exp = expression.desugar(case0.expression);
           // Monotonically increase the information about free variables.
-          fvs.addAll(freeVariables(exp));
+          fvs.addAll(freeVariables(case0));
 
           // Compile the case.
           cases.add(regularCase(scrutineeType, pat, exp, resultType));
