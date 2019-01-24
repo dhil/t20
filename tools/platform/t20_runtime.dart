@@ -2961,3 +2961,94 @@ class KernelBottomupFolder<R> implements Visitor<R> {
     throw new UnsupportedError("defaultBasicLiteral");
   }
 }
+
+
+class CaseSplitter extends Visitor1<Node, Node> {
+  @override
+  defaultNode(Node node, _) {
+    if (node is TreeNode) {
+      return handleAnyTreeNode(node, null);
+    }
+    return node;
+  }
+
+  @override
+  defaultBasicLiteral(BasicLiteral node, _) {
+    return handleAnyTreeNode(node, null);
+  }
+
+  @override
+  defaultConstant(Constant node, _) => node;
+
+  @override
+  defaultConstantReference(Constant node, _) => node;
+
+  @override
+  defaultDartType(DartType node, _) => node;
+
+  @override
+  defaultExpression(Expression node, _) {
+    return handleAnyTreeNode(node, null);
+  }
+
+  @override
+  defaultInitializer(Initializer node, _) {
+    return handleAnyTreeNode(node, null);
+  }
+
+  @override
+  defaultMember(Member node, _) {
+    return handleAnyTreeNode(node, null);
+  }
+
+  @override
+  defaultMemberReference(Member node, _) {
+    return handleAnyTreeNode(node, null);
+  }
+
+  @override
+  defaultStatement(Statement node, _) {
+    return handleAnyTreeNode(node, null);
+  }
+
+  @override
+  defaultTreeNode(TreeNode node, _) {
+    return handleAnyTreeNode(node, null);
+  }
+
+  final dynamic expression;
+  final dynamic statement;
+
+  Node handleAnyTreeNode(TreeNode node, _) {
+    Node transformed;
+    if (node is Expression) {
+      transformed = expression(node);
+    } else if (node is Statement) {
+      transformed = statement(node);
+    } else {
+      transformed = node;
+    }
+
+    // Should be added after the "functional" part if we may destroy the
+    // original tree.
+    if (node is! Component && node != transformed) {
+      // Components don't have parents.
+      node.replaceWith(transformed);
+    }
+
+    return transformed;
+  }
+
+  CaseSplitter(this.statement, this.expression);
+}
+
+// (transform-component! component id silly-intliteral-transform)
+// (define (silly-intliteral-transform exp)
+//    (match exp
+//     [(IntLiteral value) (IntLiteral (+ 1 value))]
+//     [node node]))
+Component transformComponentBang(Component component, Statement Function(Statement) transformStatement, Expression Function(Expression) transformExpression) {
+  KernelBottomupFolder<Node> folder =
+      new KernelBottomupFolder(new CaseSplitter(transformStatement, transformExpression), (a, b) => null, null);
+  return folder.visitComponent(component);
+}
