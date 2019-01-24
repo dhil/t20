@@ -148,7 +148,7 @@ class T20Error extends Object {
 
 class Obvious extends Object {
   final int id;
-  Obvious(this.id) : super();
+  Obvious([this.id = 2]) : super();
 
   String toString() => "Obvious($id)";
 }
@@ -197,7 +197,7 @@ Component runTransformation(
 class KernelMatchClosure<R> implements Visitor<R> {
   final int id;
 
-  const KernelMatchClosure(this.id);
+  const KernelMatchClosure([this.id = 2]);
 
   R defaultCase(Node node) => throw PatternMatchFailure();
 
@@ -2029,31 +2029,22 @@ class KernelBottomupFolder<R> implements Visitor<R> {
   @override
   R visitRedirectingFactoryConstructorReference(
       RedirectingFactoryConstructor node) {
-    return visit(node, (R result) {
-      return function.visitRedirectingFactoryConstructorReference(node, result);
-    });
+    return null;
   }
 
   @override
   R visitProcedureReference(Procedure node) {
     return null;
-//    return visit(node, (R result) {
-//      return function.visitProcedureReference(node, result);
-//    });
   }
 
   @override
   R visitConstructorReference(Constructor node) {
-    return visit(node, (R result) {
-      return function.visitConstructorReference(node, result);
-    });
+    return null;
   }
 
   @override
   R visitFieldReference(Field node) {
-    return visit(node, (R result) {
-      return function.visitFieldReference(node, result);
-    });
+    return null;
   }
 
   @override
@@ -2063,94 +2054,68 @@ class KernelBottomupFolder<R> implements Visitor<R> {
 
   @override
   R visitUnevaluatedConstantReference(UnevaluatedConstant node) {
-    return visit(node, (R result) {
-      return function.visitUnevaluatedConstantReference(node, result);
-    });
+    return null;
   }
 
   @override
   R visitTypeLiteralConstantReference(TypeLiteralConstant node) {
-    return visit(node, (R result) {
-      return function.visitTypeLiteralConstantReference(node, result);
-    });
+    return null;
   }
 
   @override
   R visitTearOffConstantReference(TearOffConstant node) {
-    return visit(node, (R result) {
-      return function.visitTearOffConstantReference(node, result);
-    });
+    return null;
   }
 
   @override
   R visitPartialInstantiationConstantReference(
       PartialInstantiationConstant node) {
-    return visit(node, (R result) {
-      return function.visitPartialInstantiationConstantReference(node, result);
-    });
+    return null;
   }
 
   @override
   R visitInstanceConstantReference(InstanceConstant node) {
-    return visit(node, (R result) {
-      return function.visitInstanceConstantReference(node, result);
-    });
+    return null;
   }
 
   @override
   R visitListConstantReference(ListConstant node) {
-    return visit(node, (R result) {
-      return function.visitListConstantReference(node, result);
-    });
+    return null;
   }
 
   @override
   R visitMapConstantReference(MapConstant node) {
-    return visit(node, (R result) {
-      return function.visitMapConstantReference(node, result);
-    });
+    return null;
   }
 
   @override
   R visitSymbolConstantReference(SymbolConstant node) {
-    return visit(node, (R result) {
-      return function.visitSymbolConstantReference(node, result);
-    });
+    return null;
   }
 
   @override
   R visitStringConstantReference(StringConstant node) {
-    return visit(node, (R result) {
-      return function.visitStringConstantReference(node, result);
-    });
+    return null;
   }
 
   @override
   R visitDoubleConstantReference(DoubleConstant node) {
-    return visit(node, (R result) {
-      return function.visitDoubleConstantReference(node, result);
-    });
+    return null;
   }
 
   @override
   R visitIntConstantReference(IntConstant node) {
-    return visit(node, (R result) {
-      return function.visitIntConstantReference(node, result);
-    });
+    return null;
   }
 
   @override
   R visitBoolConstantReference(BoolConstant node) {
-    return visit(node, (R result) {
-      return function.visitBoolConstantReference(node, result);
-    });
+    return null;
   }
 
   @override
   R visitNullConstantReference(NullConstant node) {
-    return visit(node, (R result) {
-      return function.visitNullConstantReference(node, result);
-    });
+    return null;
   }
 
   @override
@@ -2160,16 +2125,12 @@ class KernelBottomupFolder<R> implements Visitor<R> {
 
   @override
   R visitTypedefReference(Typedef node) {
-    return visit(node, (R result) {
-      return function.visitTypedefReference(node, result);
-    });
+    return null;
   }
 
   @override
   R visitClassReference(Class node) {
-    return visit(node, (R result) {
-      return function.visitClassReference(node, result);
-    });
+    return null;
   }
 
   @override

@@ -12,6 +12,7 @@ import '../module_environment.dart';
 import '../typing/type_utils.dart' as typeUtils;
 import '../utils.dart' show Gensym;
 
+import 'kernel_magic.dart';
 import 'platform.dart';
 
 VariableDeclaration translateBinder(Binder binder) {
@@ -305,7 +306,8 @@ class AlgebraicDatatypeKernelGenerator {
     // class and data classes.
     Class visitorClass = visitorInterface(typeClass, dataClasses);
     // 4) Generate a match closure class.
-    Class matchClosureClass = matchClosureInterface(typeClass, dataClasses);
+    Class matchClosureClass =
+        matchClosureInterface(typeClass, dataClasses, visitorClass);
     // 5) Generate an eliminator class.
     Class eliminatorClass =
         eliminator(typeClass, dataClasses, visitorClass, matchClosureClass);
@@ -375,7 +377,7 @@ class AlgebraicDatatypeKernelGenerator {
       // Match case invocation.
       kernel.Expression runCase = MethodInvocation(
           PropertyGet(ThisExpression(), match.name),
-          Name("${dataClass.name}"),
+          Name("visit${dataClass.name}"),
           Arguments(<kernel.Expression>[VariableGet(node)]));
       kernel.Expression runDefaultCase = MethodInvocation(
           PropertyGet(ThisExpression(), match.name),
@@ -541,7 +543,7 @@ class AlgebraicDatatypeKernelGenerator {
   }
 
   Class interfaceClassTemplate(Class typeClass, String suffix,
-      {bool isAbstract = true, Supertype supertype}) {
+      {bool isAbstract = true, Class parentClass}) {
     // Create a fresh type parameter for the "return type" of the template.
     TypeParameter resultTypeParameter = type.freshTypeParameter("\$R");
     // Copy the type parameters from [typeClass] and add [resultTypeParameter]
@@ -550,12 +552,25 @@ class AlgebraicDatatypeKernelGenerator {
         .copyTypeParameters(typeClass.typeParameters)
           ..add(resultTypeParameter);
 
+    SuperInitializer superInitializer;
+    Supertype supertype;
+    if (parentClass == null) {
+      supertype = objectType;
+      superInitializer = objectInitializer;
+    } else {
+      // TODO: Generalise this logic. Some questionable assumptions are made
+      // regarded the parent class's interface.
+      supertype = Supertype(parentClass, typeArgumentsOf(typeParameters));
+      superInitializer =
+          SuperInitializer(parentClass.constructors[0], Arguments.empty());
+    }
+
     // Class template.
     String name = "${typeClass.name}$suffix";
     Class cls = Class(
         name: name,
         typeParameters: typeParameters,
-        supertype: supertype ?? objectType,
+        supertype: supertype,
         isAbstract: isAbstract);
 
     // Create the default constructor.
@@ -574,9 +589,11 @@ class AlgebraicDatatypeKernelGenerator {
     return cls;
   }
 
-  Class matchClosureInterface(Class typeClass, List<Class> dataClasses) {
+  Class matchClosureInterface(
+      Class typeClass, List<Class> dataClasses, Class visitor) {
     // Match closure interface.
-    Class matchClosure = interfaceClassTemplate(typeClass, "MatchClosure");
+    Class matchClosure =
+        interfaceClassTemplate(typeClass, "MatchClosure", parentClass: visitor);
     List<TypeParameter> typeParameters = matchClosure.typeParameters;
     TypeParameter resultTypeParameter = typeParameters.last;
     List<DartType> dataNodeTypeArguments =
@@ -587,7 +604,18 @@ class AlgebraicDatatypeKernelGenerator {
     for (int i = 0; i < dataClasses.length; i++) {
       Class dataClass = dataClasses[i];
       DartType dataNodeType = InterfaceType(dataClass, dataNodeTypeArguments);
-      Procedure method = dataMethod(dataNodeType, resultType, dataClass.name);
+      Procedure method =
+          dataMethod(dataNodeType, resultType, "visit${dataClass.name}");
+      // Modify the body.
+      ConstructorInvocation patternFailure = ConstructorInvocation(
+          platform
+              .getClass(PlatformPathBuilder.package("t20_runtime")
+                  .target("PatternMatchFailure")
+                  .build())
+              .constructors[0],
+          Arguments.empty());
+      method.function.body = ExpressionStatement(Throw(patternFailure));
+
       matchClosure.procedures.add(method);
     }
 
@@ -725,7 +753,14 @@ class MatchClosureKernelGenerator {
     DatatypeDescriptor descriptor =
         closure.typeConstructor.declarator as DatatypeDescriptor;
     // Setup the [supertype] of this concrete match [closure] class.
-    Class parentClass = descriptor.matchClosureClass;
+    Class parentClass;
+    if (environment.originOf(descriptor.binder) == Origin.KERNEL) {
+      parentClass = platform.getClass(PlatformPathBuilder.package("t20_runtime")
+          .target("KernelMatchClosure")
+          .build());
+    } else {
+      parentClass = descriptor.matchClosureClass;
+    }
     DartType resultType = type.compile(closure.type);
 
     // Type parameters for this class.
@@ -742,7 +777,13 @@ class MatchClosureKernelGenerator {
     Supertype supertype = Supertype(parentClass, typeArguments0);
 
     // Construct the type of the type constructor.
-    DartType nodeType = InterfaceType(descriptor.asKernelNode, typeArguments);
+    DartType nodeType;
+    if (environment.originOf(descriptor.binder) == Origin.KERNEL) {
+      KernelRepr magic = KernelRepr(platform);
+      nodeType = magic.typeConstructor(closure.typeConstructor);
+    } else {
+      nodeType = InterfaceType(descriptor.asKernelNode, typeArguments);
+    }
 
     // The captured variables are compiled as instance fields.
     List<Field> fields = new List<Field>();
@@ -820,8 +861,16 @@ class MatchClosureKernelGenerator {
 
   Procedure constructorCase(MatchClosureCase case0,
       List<DartType> typeArguments, DartType returnType) {
-    Class dataClass = case0.constructor.asKernelNode;
-    String caseName = case0.constructor.binder.toString();
+    Class dataClass;
+    String caseName;
+    if (environment.originOf(case0.constructor.binder) == Origin.KERNEL) {
+      KernelRepr magic = KernelRepr(platform);
+      dataClass = magic.getDataClass(case0.constructor);
+      caseName = dataClass.name;
+    } else {
+      dataClass = case0.constructor.asKernelNode;
+      caseName = case0.constructor.binder.toString();
+    }
     VariableDeclaration node = VariableDeclaration("node",
         type: InterfaceType(dataClass, typeArguments));
     case0.binder.asKernelNode = node;
@@ -829,7 +878,7 @@ class MatchClosureKernelGenerator {
     FunctionNode funNode = FunctionNode(ReturnStatement(body),
         positionalParameters: <VariableDeclaration>[node],
         returnType: returnType);
-    return Procedure(Name(caseName), ProcedureKind.Method, funNode);
+    return Procedure(Name("visit$caseName"), ProcedureKind.Method, funNode);
   }
 
   Procedure defaultCase(MatchClosureDefaultCase defaultCase0, DartType nodeType,
@@ -858,6 +907,8 @@ class MatchClosureKernelGenerator {
   List<TypeParameter> typeParametersOf(List<Datatype> types) {
     List<TypeVariable> typeVariables =
         typeUtils.extractTypeVariablesMany(types);
+    if (typeVariables == null) return <TypeParameter>[];
+
     List<TypeParameter> typeParameters = new List<TypeParameter>();
     for (int i = 0; i < typeVariables.length; i++) {
       TypeVariable typeVariable = typeVariables[i];
@@ -894,7 +945,6 @@ class ModuleKernelGenerator {
 
   Library compile(TopModule module) {
     // Do nothing for the (virtual) kernel module.
-    if (environment.isKernelModule(module)) return null;
 
     // Target library.
     Library library;
@@ -904,25 +954,30 @@ class ModuleKernelGenerator {
     SegregationResult segmod = segregate(module);
 
     // Firstly, process datatype declarations.
-    for (int i = 0; i < segmod.datatypes.length; i++) {
-      List<Class> classes = adt.compile(segmod.datatypes[i]);
-      if (classes != null) {
-        library ??= emptyLibrary(module);
-        library.classes.addAll(classes);
+    if (!environment.isKernelModule(module)) {
+      for (int i = 0; i < segmod.datatypes.length; i++) {
+        List<Class> classes = adt.compile(segmod.datatypes[i]);
+        if (classes != null) {
+          library ??= emptyLibrary(module);
+          library.classes.addAll(classes);
+        }
       }
     }
 
     // Secondly, process boilerplate templates (as they depend on the datatype
     // declarations).
-    for (int i = 0; i < segmod.templates.length; i++) {
-      BoilerplateTemplate template = segmod.templates[i];
-      // Invariant: If |templates| > 0 then the [module] must define at least
-      // one data type, and hence the [library] must be non-null.
-      if (template is MatchClosure) {
-        Class cls = mclosure.compile(template);
-        library.classes.add(cls);
-      } else {
-        unhandled("ModuleKernelGenerator.compile", template);
+    if (!environment.isKernelModule(module)) {
+      for (int i = 0; i < segmod.templates.length; i++) {
+        BoilerplateTemplate template = segmod.templates[i];
+        // Invariant: If |templates| > 0 then the [module] must define at least
+        // one data type, and hence the [library] must be non-null.
+        library ??= emptyLibrary(module);
+        if (template is MatchClosure) {
+          Class cls = mclosure.compile(template);
+          library.classes.add(cls);
+        } else {
+          unhandled("ModuleKernelGenerator.compile", template);
+        }
       }
     }
 
@@ -1040,57 +1095,60 @@ class ModuleKernelGenerator {
             //   return x;
             // }.
 
-            // The arguments.
-            TypeParameter a = type.freshTypeParameter("A",
-                bound: InterfaceType(
-                    platform.coreTypes.objectClass, <DartType>[]));
-            DartType intType =
-                InterfaceType(platform.coreTypes.intClass, <DartType>[]);
-            VariableDeclaration ndecl = VariableDeclaration("n", type: intType);
-            DartType fnType = FunctionType(
-                <DartType>[TypeParameterType(a)], TypeParameterType(a));
-            VariableDeclaration fdecl = VariableDeclaration("f", type: fnType);
-            VariableDeclaration zdecl =
-                VariableDeclaration("z", type: TypeParameterType(a));
+            fun.asKernelNode = platform.getProcedure(PlatformPathBuilder.package("t20_runtime").target("iterate").build());
+            break;
 
-            // The body.
-            VariableDeclaration xdecl = VariableDeclaration("x",
-                type: TypeParameterType(a), initializer: VariableGet(zdecl));
-            VariableDeclaration idecl = VariableDeclaration("i",
-                type: intType, initializer: IntLiteral(0));
-            kernel.Expression condition = MethodInvocation(VariableGet(idecl),
-                Name("<"), Arguments(<kernel.Expression>[VariableGet(ndecl)]));
-            kernel.Expression update = VariableSet(
-                idecl,
-                MethodInvocation(VariableGet(idecl), Name("+"),
-                    Arguments(<kernel.Expression>[IntLiteral(1)])));
-            Statement loopBody = ExpressionStatement(VariableSet(
-                xdecl,
-                MethodInvocation(VariableGet(fdecl), Name("call"),
-                    Arguments(<kernel.Expression>[VariableGet(xdecl)]))));
-            ForStatement loop = ForStatement(<VariableDeclaration>[idecl],
-                condition, <kernel.Expression>[update], loopBody);
-            Block body = Block(
-                <Statement>[xdecl, loop, ReturnStatement(VariableGet(xdecl))]);
+            // // The arguments.
+            // TypeParameter a = type.freshTypeParameter("A",
+            //     bound: InterfaceType(
+            //         platform.coreTypes.objectClass, <DartType>[]));
+            // DartType intType =
+            //     InterfaceType(platform.coreTypes.intClass, <DartType>[]);
+            // VariableDeclaration ndecl = VariableDeclaration("n", type: intType);
+            // DartType fnType = FunctionType(
+            //     <DartType>[TypeParameterType(a)], TypeParameterType(a));
+            // VariableDeclaration fdecl = VariableDeclaration("f", type: fnType);
+            // VariableDeclaration zdecl =
+            //     VariableDeclaration("z", type: TypeParameterType(a));
 
-            // The function node.
-            FunctionNode funNode = FunctionNode(body,
-                positionalParameters: <VariableDeclaration>[
-                  ndecl,
-                  fdecl,
-                  zdecl
-                ],
-                typeParameters: <TypeParameter>[a],
-                returnType: TypeParameterType(a));
+            // // The body.
+            // VariableDeclaration xdecl = VariableDeclaration("x",
+            //     type: TypeParameterType(a), initializer: VariableGet(zdecl));
+            // VariableDeclaration idecl = VariableDeclaration("i",
+            //     type: intType, initializer: IntLiteral(0));
+            // kernel.Expression condition = MethodInvocation(VariableGet(idecl),
+            //     Name("<"), Arguments(<kernel.Expression>[VariableGet(ndecl)]));
+            // kernel.Expression update = VariableSet(
+            //     idecl,
+            //     MethodInvocation(VariableGet(idecl), Name("+"),
+            //         Arguments(<kernel.Expression>[IntLiteral(1)])));
+            // Statement loopBody = ExpressionStatement(VariableSet(
+            //     xdecl,
+            //     MethodInvocation(VariableGet(fdecl), Name("call"),
+            //         Arguments(<kernel.Expression>[VariableGet(xdecl)]))));
+            // ForStatement loop = ForStatement(<VariableDeclaration>[idecl],
+            //     condition, <kernel.Expression>[update], loopBody);
+            // Block body = Block(
+            //     <Statement>[xdecl, loop, ReturnStatement(VariableGet(xdecl))]);
 
-            // The procedure node.
-            Procedure node = Procedure(
-                Name(fun.binder.toString()), ProcedureKind.Method, funNode,
-                isStatic: true);
+            // // The function node.
+            // FunctionNode funNode = FunctionNode(body,
+            //     positionalParameters: <VariableDeclaration>[
+            //       ndecl,
+            //       fdecl,
+            //       zdecl
+            //     ],
+            //     typeParameters: <TypeParameter>[a],
+            //     returnType: TypeParameterType(a));
 
-            // Store the node.
-            fun.asKernelNode = node;
-            return node;
+            // // The procedure node.
+            // Procedure node = Procedure(
+            //     Name(fun.binder.toString()), ProcedureKind.Method, funNode,
+            //     isStatic: true);
+
+            // // Store the node.
+            // fun.asKernelNode = node;
+            // return node;
             break;
           default: // Ignore.
         }
@@ -1098,6 +1156,14 @@ class ModuleKernelGenerator {
       case Origin.STRING:
       case Origin.DART_LIST:
         // Ignore.
+        break;
+      case Origin.KERNEL:
+        if (fun.binder.sourceName == "transform-component!") {
+          fun.asKernelNode = platform.getProcedure(
+              PlatformPathBuilder.package("t20_runtime")
+                  .target("transformComponentBang")
+                  .build());
+        }
         break;
       default:
         unhandled("ModuleKernelGenerator.virtualFunction",
@@ -1129,9 +1195,11 @@ class ExpressionKernelGenerator {
   final DartTypeGenerator type;
 
   ExpressionKernelGenerator(
-      this.platform, ModuleEnvironment environment, DartTypeGenerator type)
+      Platform platform, ModuleEnvironment environment, DartTypeGenerator type)
       : this.environment = environment,
-        this.invoke = InvocationKernelGenerator(environment, type),
+        this.invoke =
+            InvocationKernelGenerator(environment, type, KernelRepr(platform)),
+        this.platform = platform,
         this.type = type;
 
   kernel.Expression compile(Expression exp) {
@@ -1306,7 +1374,9 @@ class ExpressionKernelGenerator {
       DataConstructor constructor = proj.constructor;
       // Need to handle projections from Kernel objects specially.
       if (environment.originOf(constructor.binder) == Origin.KERNEL) {
-        unhandled("ExpressionKernelGenereator.project", constructor);
+        KernelRepr magic = KernelRepr(platform);
+        Name propertyName = magic.project(constructor, proj.label);
+        return PropertyGet(receiver, propertyName);
       }
       return PropertyGet(receiver, Name("\$${proj.label}"));
     }
@@ -1334,10 +1404,23 @@ class ExpressionKernelGenerator {
     }
     ConstructorInvocation matchClosureInvocation = ConstructorInvocation(
         elim.closure.asKernelNode.constructors[0], Arguments(variables));
+
+    Constructor eliminatorConstructor;
+    if (environment.originOf(elim.constructor.declarator.binder) ==
+        Origin.KERNEL) {
+      Class cls = platform.getClass(PlatformPathBuilder.package("t20_runtime")
+          .target("KernelEliminator")
+          .build());
+      eliminatorConstructor = cls.constructors[0];
+    } else {
+      eliminatorConstructor =
+          (elim.constructor.declarator as DatatypeDescriptor)
+              .eliminatorClass
+              .constructors[0];
+    }
+
     ConstructorInvocation eliminatorInvocation = ConstructorInvocation(
-        (elim.constructor.declarator as DatatypeDescriptor)
-            .eliminatorClass
-            .constructors[0],
+        eliminatorConstructor,
         Arguments(<kernel.Expression>[matchClosureInvocation]));
     return MethodInvocation(getVariable(elim.scrutinee), Name("accept"),
         Arguments(<kernel.Expression>[eliminatorInvocation]));
@@ -1378,8 +1461,9 @@ class ExpressionKernelGenerator {
 class InvocationKernelGenerator {
   final ModuleEnvironment environment;
   final DartTypeGenerator type;
+  final KernelRepr magic;
 
-  InvocationKernelGenerator(this.environment, this.type);
+  InvocationKernelGenerator(this.environment, this.type, this.magic);
 
   // TODO include argument types as a parallel list?
   kernel.Expression primitive(
@@ -1479,7 +1563,7 @@ class InvocationKernelGenerator {
         throw "Not yet implemented.";
         break;
       case Origin.KERNEL:
-        throw "Logical error: $binder is a non-constructor originating from the virtual Kernel module.";
+        // Ignore.
         break;
       case Origin.CUSTOM:
         throw "Logical error: $binder does not originate from a virtual module.";
@@ -1501,8 +1585,12 @@ class InvocationKernelGenerator {
   InvocationExpression constructor(
       DataConstructor constructor, List<kernel.Expression> arguments,
       {bool isPrimitive = false}) {
-    if (isPrimitive) {
-      unhandled("InvocationKernelGenerator.constructor", constructor);
+    if (environment.isPrimitive(constructor.binder)) {
+      if (environment.originOf(constructor.binder) == Origin.KERNEL) {
+        return magic.invoke(constructor, arguments);
+      } else {
+        unhandled("InvocationKernelGenerator.constructor", constructor);
+      }
     }
 
     Class dataClass = constructor.asKernelNode;

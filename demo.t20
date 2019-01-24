@@ -1,0 +1,13 @@
+;; Demo program.
+(: id (-> 'a 'a))
+(define (id x) x)
+
+(: transform-int-literals (-> Kernel.Expression Kernel.Expression))
+(define (transform-int-literals exp)
+  (match exp
+    [(Kernel.IntLiteral n) (Kernel.IntLiteral 42)]
+    [node node]))
+
+(: main (-> Kernel.Component Kernel.Component))
+(define (main component)
+  (Kernel.transform-component! component id transform-int-literals))

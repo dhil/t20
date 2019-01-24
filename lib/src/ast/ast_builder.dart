@@ -743,8 +743,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
       QualifiedName qname = name;
       TopModule module = _moduleEnv.find(qname.module);
       if (module == null) return null;
-      Object decl = module.manifest.findByName(name.sourceName);
-      return decl is TypeDescriptor ? decl : null;
+      return module.manifest.findTypeDescriptorByName(name.sourceName);
     } else {
       return ctxt.getTypeDescriptor(name);
     }
@@ -1202,7 +1201,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           {Location location}) =>
       (BuildContext ctxt) {
         // Check whether the constructor name is defined.
-    TypeDescriptor desc = findTypeDescriptor(name, ctxt);
+        TypeDescriptor desc = findTypeDescriptor(name, ctxt);
         if (desc == null) {
           LocatedError err = UnboundNameError(name.sourceName, name.location);
           return typeError(err, location);

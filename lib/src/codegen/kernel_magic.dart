@@ -20,16 +20,7 @@ class KernelRepr {
 
   InvocationExpression invoke(
       DataConstructor dataConstructor, List<Expression> arguments) {
-    Constructor clsConstructor;
-    switch (dataConstructor.binder.sourceName) {
-      case "IntLiteral":
-        clsConstructor = platform
-            .getClass(PlatformPathBuilder.kernel.target("IntLiteral").build())
-            .constructors[0];
-        break;
-      default:
-        unhandled("KernelRepr.invoke", dataConstructor.binder.sourceName);
-    }
+    Constructor clsConstructor = getDataClass(dataConstructor).constructors[0];
 
     return ConstructorInvocation(clsConstructor, Arguments(arguments));
   }
@@ -43,5 +34,36 @@ class KernelRepr {
     assert(label > 0);
     // Computes the name for PropertyGet.
     return propertyMap[dataConstructor.binder.sourceName][label - 1];
+  }
+
+  DartType typeConstructor(TypeConstructor constructor) {
+    Class cls;
+    switch (constructor.declarator.binder.sourceName) {
+      case "Expression":
+        cls = platform.getClass(PlatformPathBuilder.kernel
+            .library("ast")
+            .target("Expression")
+            .build());
+        break;
+      default:
+        unhandled("KernelRepr.typeConstructor",
+            constructor.declarator.binder.sourceName);
+    }
+    return InterfaceType(cls, <DartType>[]);
+  }
+
+  Class getDataClass(DataConstructor dataConstructor) {
+    Class cls;
+    switch (dataConstructor.binder.sourceName) {
+      case "IntLiteral":
+        cls = platform.getClass(PlatformPathBuilder.kernel
+            .library("ast")
+            .target("IntLiteral")
+            .build());
+        break;
+      default:
+        unhandled("KernelRepr.invoke", dataConstructor.binder.sourceName);
+    }
+    return cls;
   }
 }

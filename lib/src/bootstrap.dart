@@ -218,6 +218,9 @@ class _Kernel extends _EmbeddedModule {
 ;; Components.
 (define-datatype Component
   [Component (Dart-List Library)])
+
+(: transform-component! (-> Component [-> Statement Statement] [-> Expression Expression] Component))
+(define-stub (transform-component! _ _ _))
 ''';
 }
 

@@ -239,7 +239,6 @@ abstract class AbstractFunctionDeclaration<Param extends T20Node,
         Body extends T20Node> extends ModuleMember
     with DeclarationMixin
     implements Declaration {
-
   Binder _binder;
   Binder get binder => _binder;
   void set binder(Binder binder) {
@@ -474,8 +473,13 @@ class Summary {
         case ModuleTag.DATATYPE_DEFS:
           DatatypeDeclarations datatypes = member as DatatypeDeclarations;
           for (int j = 0; j < datatypes.declarations.length; j++) {
-            TypeDescriptor descriptor = datatypes.declarations[j];
+            DatatypeDescriptor descriptor = datatypes.declarations[j];
             _typeDescriptors[descriptor.binder.intern] = descriptor;
+            for (int k = 0; k < descriptor.constructors.length; k++) {
+              // TODO needs cleaning up.
+              DataConstructor dataConstructor = descriptor.constructors[k];
+              _valueBindings[dataConstructor.binder.intern] = dataConstructor;
+            }
           }
           break;
         case ModuleTag.TYPENAME:
@@ -499,6 +503,7 @@ class Manifest {
   final TopModule module;
 
   Map<String, Declaration> _index;
+  Map<String, TypeDescriptor> _typeIndex;
 
   Manifest(this.module);
 
@@ -507,22 +512,37 @@ class Manifest {
     return _index[name];
   }
 
+  TypeDescriptor findTypeDescriptorByName(String name) {
+    if (_typeIndex == null) compute();
+    return _typeIndex[name];
+  }
+
   void compute() {
     Map<String, Declaration> index = new Map<String, Declaration>();
+    Map<String, TypeDescriptor> typeIndex = new Map<String, TypeDescriptor>();
+
     for (int i = 0; i < module.members.length; i++) {
       ModuleMember member = module.members[i];
-      if (member is Declaration) {
+      if (member is TypeDescriptor) {
+        TypeDescriptor descriptor = member as TypeDescriptor;
+        typeIndex[descriptor.binder.sourceName] = descriptor;
+      } else if (member is Declaration) {
         Declaration decl = member as Declaration;
         index[decl.binder.sourceName] = decl;
       } else if (member is DatatypeDeclarations) {
         DatatypeDeclarations decls = member;
         for (int i = 0; i < decls.declarations.length; i++) {
           DatatypeDescriptor descriptor = decls.declarations[i];
-          index[descriptor.binder.sourceName] = descriptor;
+          typeIndex[descriptor.binder.sourceName] = descriptor;
+          for (int j = 0; j < descriptor.constructors.length; j++) {
+            DataConstructor dataConstructor = descriptor.constructors[j];
+            index[dataConstructor.binder.sourceName] = dataConstructor;
+          }
         }
       } // else ignore.
     }
     _index = index;
+    _typeIndex = typeIndex;
   }
 
   Summary get summary => Summary(module);
@@ -1257,7 +1277,12 @@ class DLet extends Expression with DeclarationMixin implements Declaration {
 class LetFunction
     extends AbstractFunctionDeclaration<FormalParameter, Expression>
     implements KernelNode {
-  Procedure asKernelNode;
+
+  Procedure _asKernelNode;
+  Procedure get asKernelNode => _asKernelNode;
+  void set asKernelNode(Procedure p) {
+    _asKernelNode = p;
+  }
 
   LetFunction(Signature signature, Binder binder,
       List<FormalParameter> parameters, Expression body, Location location)

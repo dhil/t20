@@ -22,8 +22,8 @@ class MainTypingPolicy {
       return MainTypingPolicy._(ArrowType(<Datatype>[], typeUtils.unitType));
     } else {
       if (environment.kernel != null) {
-        Declaration component =
-            environment.kernel.manifest.findByName("Component");
+        TypeDescriptor component =
+            environment.kernel.manifest.findTypeDescriptorByName("Component");
         Datatype componentType = component.type;
         return MainTypingPolicy._(
             ArrowType(<Datatype>[componentType], componentType));
