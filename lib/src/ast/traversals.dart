@@ -240,6 +240,7 @@ abstract class Catamorphism<Name, Mod, Exp, Pat, Typ>
       parameters.fold(name2pat.apply(name), pat.compose);
   Pat tuplePattern(List<Pat> components, {Location location}) =>
       components.fold(pat.empty, pat.compose);
+  Pat obviousPattern({Location location}) => pat.empty;
   Pat errorPattern(LocatedError error, {Location location}) => pat.empty;
 
   Typ intType({Location location}) => typ.empty;

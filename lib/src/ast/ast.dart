@@ -973,6 +973,7 @@ abstract class PatternVisitor<T> {
   T visitTuple(TuplePattern t);
   T visitVariable(VariablePattern v);
   T visitWildcard(WildcardPattern w);
+  T visitObvious(ObviousPattern o);
 }
 
 abstract class Pattern extends T20Node {
@@ -990,6 +991,7 @@ enum PatternTag {
   ERROR,
   HAS_TYPE,
   INT,
+  OBVIOUS,
   STRING,
   TUPLE,
   VAR,
@@ -1163,6 +1165,18 @@ class WildcardPattern extends Pattern {
   T accept<T>(PatternVisitor<T> v) => v.visitWildcard(this);
 
   String toString() => "_";
+
+  Datatype _type = const DynamicType();
+  Datatype get type => _type;
+  void set type(Datatype type) => _type = type;
+}
+
+class ObviousPattern extends Pattern {
+  ObviousPattern([Location location]) : super(PatternTag.OBVIOUS, location);
+
+  T accept<T>(PatternVisitor<T> v) => v.visitObvious(this);
+
+  String toString() => "#obvious!";
 
   Datatype _type = const DynamicType();
   Datatype get type => _type;

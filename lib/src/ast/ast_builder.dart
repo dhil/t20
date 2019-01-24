@@ -206,7 +206,6 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   final List<Signature> lacksAccompanyingDefinition = new List<Signature>();
   final BuildContext emptyContext = new BuildContext.empty();
   final bool _isVirtual;
-  TopModule _thisModule;
   ModuleEnvironment _moduleEnv;
   FunctionDeclaration mainCandidate;
 
@@ -262,7 +261,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   }
 
   List<Name> checkDuplicates(List<Name> names) {
-    if (names == null) return const <Name>[];
+    if (names == null) return <Name>[];
     Set<int> uniqueNames = new Set<int>();
     List<Name> dups = new List<Name>();
     for (int i = 0; i < names.length; i++) {
@@ -319,7 +318,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
       LocatedError error, Location location) {
     errors.add(error);
     return Pair<BuildContext, Pattern>(
-        OutputBuildContext(const <Name>[], emptyContext),
+        OutputBuildContext(<Name>[], emptyContext),
         new ErrorPattern(error, location));
   }
 
@@ -580,12 +579,8 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   Build<ModuleMember> module(List<Build<ModuleMember>> members, String name,
           {Location location}) =>
       (BuildContext ctxt) {
-        assert(_thisModule == null);
         // Construct the module.
         List<ModuleMember> members0 = new List<ModuleMember>();
-        _thisModule = _isVirtual
-            ? VirtualModule(name, members: members0, location: location)
-            : TopModule(members0, name, location);
 
         // Build each member.
         for (int i = 0; i < members.length; i++) {
@@ -621,8 +616,11 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           }
         }
 
-        _thisModule.main = mainCandidate;
-        return Pair<BuildContext, ModuleMember>(ctxt, _thisModule);
+        TopModule module = _isVirtual
+                           ? VirtualModule(name, members: members0, location: location)
+                           : TopModule(members0, name, location);
+        module.main = mainCandidate;
+        return Pair<BuildContext, ModuleMember>(ctxt, module);
       };
 
   Build<ModuleMember> typename(
@@ -942,8 +940,12 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           if (dups.length > 0) {
             return reportDuplicates(dups, expressionError);
           }
-          // Build the right hand side.
-          Expression rhs = forgetfulBuild<Expression>(cases[i].snd, ctxt0);
+          // Build the right hand side. It may be [null] if the pattern is
+          // `#obvious!'.
+          Expression rhs;
+          if (cases[i].snd != null) {
+            rhs = forgetfulBuild<Expression>(cases[i].snd, ctxt0);
+          }
 
           // Construct the case.
           cases0.add(new Case(result.thd, rhs));
@@ -991,7 +993,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   Build<Pattern> boolPattern(bool b, {Location location}) =>
       (BuildContext ctxt) {
         // Construct the output context.
-        BuildContext ctxt0 = new OutputBuildContext(const <Name>[], ctxt);
+        BuildContext ctxt0 = new OutputBuildContext(<Name>[], ctxt);
         // Construct the bool pattern node.
         BoolPattern pattern = new BoolPattern(b, location);
         return Pair<BuildContext, Pattern>(ctxt0, pattern);
@@ -999,7 +1001,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
 
   Build<Pattern> intPattern(int n, {Location location}) => (BuildContext ctxt) {
         // Construct the output context.
-        BuildContext ctxt0 = new OutputBuildContext(const <Name>[], ctxt);
+        BuildContext ctxt0 = new OutputBuildContext(<Name>[], ctxt);
         // Construct the int pattern node.
         IntPattern pattern = new IntPattern(n, location);
         return Pair<BuildContext, Pattern>(ctxt0, pattern);
@@ -1008,7 +1010,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   Build<Pattern> stringPattern(String s, {Location location}) =>
       (BuildContext ctxt) {
         // Construct the output context.
-        BuildContext ctxt0 = new OutputBuildContext(const <Name>[], ctxt);
+        BuildContext ctxt0 = new OutputBuildContext(<Name>[], ctxt);
         // Construct the string pattern node.
         StringPattern pattern = new StringPattern(s, location);
         return Pair<BuildContext, Pattern>(ctxt0, pattern);
@@ -1016,7 +1018,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
 
   Build<Pattern> wildcard({Location location}) => (BuildContext ctxt) {
         // Construct the output context.
-        BuildContext ctxt0 = new OutputBuildContext(const <Name>[], ctxt);
+        BuildContext ctxt0 = new OutputBuildContext(<Name>[], ctxt);
         // Construct the wild card pattern node.
         WildcardPattern pattern = new WildcardPattern(location);
         return Pair<BuildContext, Pattern>(ctxt0, pattern);
@@ -1103,6 +1105,9 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
 
         return Pair<BuildContext, Pattern>(ctxt1, tuple);
       };
+
+  Build<Pattern> obviousPattern({Location location}) => (BuildContext ctxt) =>
+      Pair<BuildContext, Pattern>(ctxt, ObviousPattern(location));
 
   Build<Pattern> errorPattern(LocatedError error, {Location location}) =>
       (BuildContext ctxt) {

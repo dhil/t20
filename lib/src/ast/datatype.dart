@@ -10,7 +10,7 @@ import '../unionfind.dart' as unionfind;
 import '../unionfind.dart' show Point;
 import '../utils.dart' show Gensym;
 
-import 'ast.dart' show TopModule;
+import 'ast.dart' show TopModule, TypeAliasDescriptor;
 import 'binder.dart';
 import 'identifiable.dart';
 import 'monoids.dart' show Monoid, StringMonoid;
@@ -375,9 +375,7 @@ class ForallType extends Datatype {
     return type;
   }
 
-  T accept<T>(TypeVisitor<T> v) {
-    return v.visitForallType(this);
-  }
+  T accept<T>(TypeVisitor<T> v) => v.visitForallType(this);
 }
 
 class TypeConstructor extends Datatype implements Identifiable {
@@ -389,9 +387,9 @@ class TypeConstructor extends Datatype implements Identifiable {
   TypeConstructor() : super(TypeTag.CONSTR);
   TypeConstructor.from(this.declarator, this.arguments) : super(TypeTag.CONSTR);
 
-  T accept<T>(TypeVisitor<T> v) {
-    return v.visitTypeConstructor(this);
-  }
+  T accept<T>(TypeVisitor<T> v) => v.visitTypeConstructor(this);
+
+  bool get isAlias => declarator is TypeAliasDescriptor;
 }
 
 class ErrorType extends Datatype {
@@ -399,9 +397,7 @@ class ErrorType extends Datatype {
 
   ErrorType(this.error, Location location) : super(TypeTag.ERROR);
 
-  T accept<T>(TypeVisitor<T> v) {
-    return v.visitError(this);
-  }
+  T accept<T>(TypeVisitor<T> v) => v.visitError(this);
 }
 
 class DynamicType extends Datatype {

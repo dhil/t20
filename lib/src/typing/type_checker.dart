@@ -19,8 +19,7 @@ class MainTypingPolicy {
 
   factory MainTypingPolicy(ModuleEnvironment environment, {bool demoMode}) {
     if (demoMode) {
-      return MainTypingPolicy._(
-          ArrowType(<Datatype>[], typeUtils.unitType));
+      return MainTypingPolicy._(ArrowType(<Datatype>[], typeUtils.unitType));
     } else {
       if (environment.kernel != null) {
         Declaration component =
@@ -355,10 +354,29 @@ class _TypeChecker {
       //ScopedEntry marker = Marker(Skolem());
       for (int i = 0; i < match.cases.length; i++) {
         Case case0 = match.cases[i];
-        CheckPatternResult result =
-            checkPattern(case0.pattern, scrutineeType, ctxt);
-        //ctxt = result.context.insertLast(marker);
-        ctxt = result.context;
+        if (case0.pattern is ObviousPattern) {
+          ObviousPattern pat = case0.pattern;
+          // The obvious case does (currently) not have a right hand side.
+          if (scrutineeType is TypeConstructor && !scrutineeType.isAlias) {
+            pat.type = Skolem();
+            ctxt.insertLast(Existential(pat.type));
+            if (branchType == null) {
+              Skolem skolem = Skolem();
+              branchType = skolem;
+              ctxt = ctxt.insertLast(Existential(skolem));
+            }
+          } else {
+            // Error.
+            errors.add(
+                ObviousPatternError(scrutineeType.toString(), pat.location));
+          }
+          continue;
+        } else {
+          CheckPatternResult result =
+              checkPattern(case0.pattern, scrutineeType, ctxt);
+          //ctxt = result.context.insertLast(marker);
+          ctxt = result.context;
+        }
         if (branchType == null) {
           // First case.
           InferenceResult result = inferExpression(case0.expression, ctxt);

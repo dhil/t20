@@ -513,6 +513,7 @@ class StringifyPattern extends BufferedWriter implements PatternVisitor<void> {
 
   void visitVariable(VariablePattern v) => write(stringOfBinder(v.binder));
   void visitWildcard(WildcardPattern w) => write("_");
+  void visitObvious(ObviousPattern _) => write("#obvious!");
 }
 
 // Reductions.
@@ -677,4 +678,5 @@ abstract class ReducePattern<T> extends PatternVisitor<T> {
 
   T visitVariable(VariablePattern _) => m.empty;
   T visitWildcard(WildcardPattern _) => m.empty;
+  T visitObvious(ObviousPattern _) => m.empty;
 }

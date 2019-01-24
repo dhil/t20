@@ -60,6 +60,7 @@ abstract class PatternAlgebra<Name, Pat, Typ> {
   Pat varPattern(Name name, {Location location});
   Pat constrPattern(Name name, List<Pat> parameters, {Location location});
   Pat tuplePattern(List<Pat> components, {Location location});
+  Pat obviousPattern({Location location});
 
   Pat errorPattern(LocatedError error, {Location location});
 }

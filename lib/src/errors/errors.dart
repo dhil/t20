@@ -490,6 +490,14 @@ class KernelModuleNotLoadedError extends LocatedError implements TypeError {
       "Cannot type the main function as the Kernel module has not been loaded yet.";
 }
 
+class ObviousPatternError extends LocatedError implements TypeError {
+  final String scrutineeType;
+
+  ObviousPatternError(this.scrutineeType, Location location) : super(location);
+
+  String toString() => "It is non-obvious what to do about $scrutineeType";
+}
+
 class CodeGenerationError extends T20Error {
   String toString() => "Code generation failed";
 }

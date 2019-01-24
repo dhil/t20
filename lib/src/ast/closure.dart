@@ -43,6 +43,7 @@ class ComputePatternBoundNames extends PatternVisitor<void> {
 
   void visitVariable(VariablePattern v) => result.add(v.binder);
   void visitWildcard(WildcardPattern _) => null;
+  void visitObvious(ObviousPattern _) => null;
 }
 
 class ComputeExpressionFreeVariables extends ExpressionVisitor<void> {

@@ -250,6 +250,19 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
     // return new PatternElaborator(name, pat, typ).elaborate(sexp);
   }
 
+  // Slightly hacky to put it here rather than inside PatternElaborator.
+  Pat obvious(Sexp sexp) {
+    assert(sexp != null);
+    if (sexp is Atom) {
+      Atom atom = sexp;
+      if (atom.value.compareTo("#obivous!") == 0) {
+        return alg.obviousPattern(location: sexp.location);
+      }
+    }
+
+    return alg.errorPattern(BadSyntaxError(sexp.location));
+  }
+
   Typ signatureDatatype(Sexp sexp, [bool desugar = false]) {
     assert(sexp != null);
     Typ type = new TypeElaborator<Name, Typ>(alg).elaborate(sexp);
@@ -1092,14 +1105,12 @@ class ExpressionElaborator<Name, Exp, Pat, Typ>
           Pat lhs = pattern(clause[0]);
           Exp rhs = expression(clause[1]);
           cases[i - 2] = new Pair<Pat, Exp>(lhs, rhs);
+        } else if (clause.length == 1) {
+          Pat pat = obvious(clause[0]);
+          cases[i - 2] = new Pair<Pat, Exp>(pat, null);
         } else {
-          if (clause.length > 2) {
-            return alg.errorExp(BadSyntaxError(
+          return alg.errorExp(BadSyntaxError(
                 clause[2].location, <String>[clause.closingBracket()]));
-          } else {
-            return alg.errorExp(BadSyntaxError(clause.location,
-                const <String>["pattern and an asscoicated case body"]));
-          }
         }
       } else {
         return alg.errorExp(BadSyntaxError(list[i].location,
