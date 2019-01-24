@@ -84,7 +84,6 @@ import 'package:kernel/ast.dart'
         NullLiteral,
         PartialInstantiationConstant,
         Procedure,
-        ProcedureKind,
         PropertyGet,
         PropertySet,
         RedirectingFactoryConstructor,
@@ -129,7 +128,6 @@ import 'package:kernel/ast.dart'
         YieldStatement;
 import 'package:kernel/binary/ast_from_binary.dart';
 import 'package:kernel/binary/ast_to_binary.dart';
-import 'package:kernel/text/ast_to_text.dart' show componentToString;
 import 'package:kernel/visitor.dart'
     show ExpressionVisitor1, StatementVisitor1, DartTypeVisitor1, Visitor;
 
@@ -1979,26 +1977,28 @@ class Visitor1<R, T> extends TreeVisitor1<R, T>
   R visitNamedType(NamedType node, T arg) => defaultNode(node, arg);
 }
 
-class KernelBottomupFolder<R> implements Visitor<R> {
-  final Visitor1<R, R> function;
+class KernelBottomupFolder<R, A> implements Visitor<R> {
+  final Visitor1<R, A> function;
 
-  final R Function(R, R) compose;
+  final A Function(A, R) compose;
 
-  final R unit;
+  final A unit;
 
   final List<R> results = <R>[];
 
   KernelBottomupFolder(this.function, this.compose, this.unit);
 
-  R visit(Node node, R Function(R) functionOnNode) {
+  R visit(Node node, R Function(A) functionOnNode) {
     int resultsCount = results.length;
     node.visitChildren(this);
-    R result = unit;
+
+    A composed = unit;
     for (int i = resultsCount; i < results.length; ++i) {
-      result = compose(result, results[i]);
+      composed = compose(composed, results[i]);
     }
     results.length = resultsCount;
-    result = functionOnNode(result);
+
+    R result = functionOnNode(composed);
     results.add(result);
     return result;
   }
@@ -2010,22 +2010,22 @@ class KernelBottomupFolder<R> implements Visitor<R> {
 
   @override
   R visitNamedType(NamedType node) {
-    return visit(node, (R result) {
-      return function.visitNamedType(node, result);
+    return visit(node, (A arg) {
+      return function.visitNamedType(node, arg);
     });
   }
 
   @override
   R visitSupertype(Supertype node) {
-    return visit(node, (R result) {
-      return function.visitSupertype(node, result);
+    return visit(node, (A arg) {
+      return function.visitSupertype(node, arg);
     });
   }
 
   @override
   R visitName(Name node) {
-    return visit(node, (R result) {
-      return function.visitName(node, result);
+    return visit(node, (A arg) {
+      return function.visitName(node, arg);
     });
   }
 
@@ -2138,92 +2138,92 @@ class KernelBottomupFolder<R> implements Visitor<R> {
 
   @override
   R visitUnevaluatedConstant(UnevaluatedConstant node) {
-    return visit(node, (R result) {
-      return function.visitUnevaluatedConstant(node, result);
+    return visit(node, (A arg) {
+      return function.visitUnevaluatedConstant(node, arg);
     });
   }
 
   @override
   R visitTypeLiteralConstant(TypeLiteralConstant node) {
-    return visit(node, (R result) {
-      return function.visitTypeLiteralConstant(node, result);
+    return visit(node, (A arg) {
+      return function.visitTypeLiteralConstant(node, arg);
     });
   }
 
   @override
   R visitTearOffConstant(TearOffConstant node) {
-    return visit(node, (R result) {
-      return function.visitTearOffConstant(node, result);
+    return visit(node, (A arg) {
+      return function.visitTearOffConstant(node, arg);
     });
   }
 
   @override
   R visitPartialInstantiationConstant(PartialInstantiationConstant node) {
-    return visit(node, (R result) {
-      return function.visitPartialInstantiationConstant(node, result);
+    return visit(node, (A arg) {
+      return function.visitPartialInstantiationConstant(node, arg);
     });
   }
 
   @override
   R visitInstanceConstant(InstanceConstant node) {
-    return visit(node, (R result) {
-      return function.visitInstanceConstant(node, result);
+    return visit(node, (A arg) {
+      return function.visitInstanceConstant(node, arg);
     });
   }
 
   @override
   R visitListConstant(ListConstant node) {
-    return visit(node, (R result) {
-      return function.visitListConstant(node, result);
+    return visit(node, (A arg) {
+      return function.visitListConstant(node, arg);
     });
   }
 
   @override
   R visitMapConstant(MapConstant node) {
-    return visit(node, (R result) {
-      return function.visitMapConstant(node, result);
+    return visit(node, (A arg) {
+      return function.visitMapConstant(node, arg);
     });
   }
 
   @override
   R visitSymbolConstant(SymbolConstant node) {
-    return visit(node, (R result) {
-      return function.visitSymbolConstant(node, result);
+    return visit(node, (A arg) {
+      return function.visitSymbolConstant(node, arg);
     });
   }
 
   @override
   R visitStringConstant(StringConstant node) {
-    return visit(node, (R result) {
-      return function.visitStringConstant(node, result);
+    return visit(node, (A arg) {
+      return function.visitStringConstant(node, arg);
     });
   }
 
   @override
   R visitDoubleConstant(DoubleConstant node) {
-    return visit(node, (R result) {
-      return function.visitDoubleConstant(node, result);
+    return visit(node, (A arg) {
+      return function.visitDoubleConstant(node, arg);
     });
   }
 
   @override
   R visitIntConstant(IntConstant node) {
-    return visit(node, (R result) {
-      return function.visitIntConstant(node, result);
+    return visit(node, (A arg) {
+      return function.visitIntConstant(node, arg);
     });
   }
 
   @override
   R visitBoolConstant(BoolConstant node) {
-    return visit(node, (R result) {
-      return function.visitBoolConstant(node, result);
+    return visit(node, (A arg) {
+      return function.visitBoolConstant(node, arg);
     });
   }
 
   @override
   R visitNullConstant(NullConstant node) {
-    return visit(node, (R result) {
-      return function.visitNullConstant(node, result);
+    return visit(node, (A arg) {
+      return function.visitNullConstant(node, arg);
     });
   }
 
@@ -2234,57 +2234,57 @@ class KernelBottomupFolder<R> implements Visitor<R> {
 
   @override
   R visitTypedefType(TypedefType node) {
-    return visit(node, (R result) {
-      return function.visitTypedefType(node, result);
+    return visit(node, (A arg) {
+      return function.visitTypedefType(node, arg);
     });
   }
 
   @override
   R visitTypeParameterType(TypeParameterType node) {
-    return visit(node, (R result) {
-      return function.visitTypeParameterType(node, result);
+    return visit(node, (A arg) {
+      return function.visitTypeParameterType(node, arg);
     });
   }
 
   @override
   R visitFunctionType(FunctionType node) {
-    return visit(node, (R result) {
-      return function.visitFunctionType(node, result);
+    return visit(node, (A arg) {
+      return function.visitFunctionType(node, arg);
     });
   }
 
   @override
   R visitInterfaceType(InterfaceType node) {
-    return visit(node, (R result) {
-      return function.visitInterfaceType(node, result);
+    return visit(node, (A arg) {
+      return function.visitInterfaceType(node, arg);
     });
   }
 
   @override
   R visitBottomType(BottomType node) {
-    return visit(node, (R result) {
-      return function.visitBottomType(node, result);
+    return visit(node, (A arg) {
+      return function.visitBottomType(node, arg);
     });
   }
 
   @override
   R visitVoidType(VoidType node) {
-    return visit(node, (R result) {
-      return function.visitVoidType(node, result);
+    return visit(node, (A arg) {
+      return function.visitVoidType(node, arg);
     });
   }
 
   @override
   R visitDynamicType(DynamicType node) {
-    return visit(node, (R result) {
-      return function.visitDynamicType(node, result);
+    return visit(node, (A arg) {
+      return function.visitDynamicType(node, arg);
     });
   }
 
   @override
   R visitInvalidType(InvalidType node) {
-    return visit(node, (R result) {
-      return function.visitInvalidType(node, result);
+    return visit(node, (A arg) {
+      return function.visitInvalidType(node, arg);
     });
   }
 
@@ -2305,134 +2305,134 @@ class KernelBottomupFolder<R> implements Visitor<R> {
 
   @override
   R visitComponent(Component node) {
-    return visit(node, (R result) {
-      return function.visitComponent(node, result);
+    return visit(node, (A arg) {
+      return function.visitComponent(node, arg);
     });
   }
 
   @override
   R visitMapEntry(MapEntry node) {
-    return visit(node, (R result) {
-      return function.visitMapEntry(node, result);
+    return visit(node, (A arg) {
+      return function.visitMapEntry(node, arg);
     });
   }
 
   @override
   R visitCatch(Catch node) {
-    return visit(node, (R result) {
-      return function.visitCatch(node, result);
+    return visit(node, (A arg) {
+      return function.visitCatch(node, arg);
     });
   }
 
   @override
   R visitSwitchCase(SwitchCase node) {
-    return visit(node, (R result) {
-      return function.visitSwitchCase(node, result);
+    return visit(node, (A arg) {
+      return function.visitSwitchCase(node, arg);
     });
   }
 
   @override
   R visitNamedExpression(NamedExpression node) {
-    return visit(node, (R result) {
-      return function.visitNamedExpression(node, result);
+    return visit(node, (A arg) {
+      return function.visitNamedExpression(node, arg);
     });
   }
 
   @override
   R visitArguments(Arguments node) {
-    return visit(node, (R result) {
-      return function.visitArguments(node, result);
+    return visit(node, (A arg) {
+      return function.visitArguments(node, arg);
     });
   }
 
   @override
   R visitFunctionNode(FunctionNode node) {
-    return visit(node, (R result) {
-      return function.visitFunctionNode(node, result);
+    return visit(node, (A arg) {
+      return function.visitFunctionNode(node, arg);
     });
   }
 
   @override
   R visitTypeParameter(TypeParameter node) {
-    return visit(node, (R result) {
-      return function.visitTypeParameter(node, result);
+    return visit(node, (A arg) {
+      return function.visitTypeParameter(node, arg);
     });
   }
 
   @override
   R visitTypedef(Typedef node) {
-    return visit(node, (R result) {
-      return function.visitTypedef(node, result);
+    return visit(node, (A arg) {
+      return function.visitTypedef(node, arg);
     });
   }
 
   @override
   R visitLibraryPart(LibraryPart node) {
-    return visit(node, (R result) {
-      return function.visitLibraryPart(node, result);
+    return visit(node, (A arg) {
+      return function.visitLibraryPart(node, arg);
     });
   }
 
   @override
   R visitCombinator(Combinator node) {
-    return visit(node, (R result) {
-      return function.visitCombinator(node, result);
+    return visit(node, (A arg) {
+      return function.visitCombinator(node, arg);
     });
   }
 
   @override
   R visitLibraryDependency(LibraryDependency node) {
-    return visit(node, (R result) {
-      return function.visitLibraryDependency(node, result);
+    return visit(node, (A arg) {
+      return function.visitLibraryDependency(node, arg);
     });
   }
 
   @override
   R visitLibrary(Library node) {
-    return visit(node, (R result) {
-      return function.visitLibrary(node, result);
+    return visit(node, (A arg) {
+      return function.visitLibrary(node, arg);
     });
   }
 
   @override
   R visitAssertInitializer(AssertInitializer node) {
-    return visit(node, (R result) {
-      return function.visitAssertInitializer(node, result);
+    return visit(node, (A arg) {
+      return function.visitAssertInitializer(node, arg);
     });
   }
 
   @override
   R visitLocalInitializer(LocalInitializer node) {
-    return visit(node, (R result) {
-      return function.visitLocalInitializer(node, result);
+    return visit(node, (A arg) {
+      return function.visitLocalInitializer(node, arg);
     });
   }
 
   @override
   R visitRedirectingInitializer(RedirectingInitializer node) {
-    return visit(node, (R result) {
-      return function.visitRedirectingInitializer(node, result);
+    return visit(node, (A arg) {
+      return function.visitRedirectingInitializer(node, arg);
     });
   }
 
   @override
   R visitSuperInitializer(SuperInitializer node) {
-    return visit(node, (R result) {
-      return function.visitSuperInitializer(node, result);
+    return visit(node, (A arg) {
+      return function.visitSuperInitializer(node, arg);
     });
   }
 
   @override
   R visitFieldInitializer(FieldInitializer node) {
-    return visit(node, (R result) {
-      return function.visitFieldInitializer(node, result);
+    return visit(node, (A arg) {
+      return function.visitFieldInitializer(node, arg);
     });
   }
 
   @override
   R visitInvalidInitializer(InvalidInitializer node) {
-    return visit(node, (R result) {
-      return function.visitInvalidInitializer(node, result);
+    return visit(node, (A arg) {
+      return function.visitInvalidInitializer(node, arg);
     });
   }
 
@@ -2443,36 +2443,36 @@ class KernelBottomupFolder<R> implements Visitor<R> {
 
   @override
   R visitClass(Class node) {
-    return visit(node, (R result) {
-      return function.visitClass(node, result);
+    return visit(node, (A arg) {
+      return function.visitClass(node, arg);
     });
   }
 
   @override
   R visitRedirectingFactoryConstructor(RedirectingFactoryConstructor node) {
-    return visit(node, (R result) {
-      return function.visitRedirectingFactoryConstructor(node, result);
+    return visit(node, (A arg) {
+      return function.visitRedirectingFactoryConstructor(node, arg);
     });
   }
 
   @override
   R visitField(Field node) {
-    return visit(node, (R result) {
-      return function.visitField(node, result);
+    return visit(node, (A arg) {
+      return function.visitField(node, arg);
     });
   }
 
   @override
   R visitProcedure(Procedure node) {
-    return visit(node, (R result) {
-      return function.visitProcedure(node, result);
+    return visit(node, (A arg) {
+      return function.visitProcedure(node, arg);
     });
   }
 
   @override
   R visitConstructor(Constructor node) {
-    return visit(node, (R result) {
-      return function.visitConstructor(node, result);
+    return visit(node, (A arg) {
+      return function.visitConstructor(node, arg);
     });
   }
 
@@ -2483,141 +2483,141 @@ class KernelBottomupFolder<R> implements Visitor<R> {
 
   @override
   R visitFunctionDeclaration(FunctionDeclaration node) {
-    return visit(node, (R result) {
-      return function.visitFunctionDeclaration(node, result);
+    return visit(node, (A arg) {
+      return function.visitFunctionDeclaration(node, arg);
     });
   }
 
   @override
   R visitVariableDeclaration(VariableDeclaration node) {
-    return visit(node, (R result) {
-      return function.visitVariableDeclaration(node, result);
+    return visit(node, (A arg) {
+      return function.visitVariableDeclaration(node, arg);
     });
   }
 
   @override
   R visitYieldStatement(YieldStatement node) {
-    return visit(node, (R result) {
-      return function.visitYieldStatement(node, result);
+    return visit(node, (A arg) {
+      return function.visitYieldStatement(node, arg);
     });
   }
 
   @override
   R visitTryFinally(TryFinally node) {
-    return visit(node, (R result) {
-      return function.visitTryFinally(node, result);
+    return visit(node, (A arg) {
+      return function.visitTryFinally(node, arg);
     });
   }
 
   @override
   R visitTryCatch(TryCatch node) {
-    return visit(node, (R result) {
-      return function.visitTryCatch(node, result);
+    return visit(node, (A arg) {
+      return function.visitTryCatch(node, arg);
     });
   }
 
   @override
   R visitReturnStatement(ReturnStatement node) {
-    return visit(node, (R result) {
-      return function.visitReturnStatement(node, result);
+    return visit(node, (A arg) {
+      return function.visitReturnStatement(node, arg);
     });
   }
 
   @override
   R visitIfStatement(IfStatement node) {
-    return visit(node, (R result) {
-      return function.visitIfStatement(node, result);
+    return visit(node, (A arg) {
+      return function.visitIfStatement(node, arg);
     });
   }
 
   @override
   R visitContinueSwitchStatement(ContinueSwitchStatement node) {
-    return visit(node, (R result) {
-      return function.visitContinueSwitchStatement(node, result);
+    return visit(node, (A arg) {
+      return function.visitContinueSwitchStatement(node, arg);
     });
   }
 
   @override
   R visitSwitchStatement(SwitchStatement node) {
-    return visit(node, (R result) {
-      return function.visitSwitchStatement(node, result);
+    return visit(node, (A arg) {
+      return function.visitSwitchStatement(node, arg);
     });
   }
 
   @override
   R visitForInStatement(ForInStatement node) {
-    return visit(node, (R result) {
-      return function.visitForInStatement(node, result);
+    return visit(node, (A arg) {
+      return function.visitForInStatement(node, arg);
     });
   }
 
   @override
   R visitForStatement(ForStatement node) {
-    return visit(node, (R result) {
-      return function.visitForStatement(node, result);
+    return visit(node, (A arg) {
+      return function.visitForStatement(node, arg);
     });
   }
 
   @override
   R visitDoStatement(DoStatement node) {
-    return visit(node, (R result) {
-      return function.visitDoStatement(node, result);
+    return visit(node, (A arg) {
+      return function.visitDoStatement(node, arg);
     });
   }
 
   @override
   R visitWhileStatement(WhileStatement node) {
-    return visit(node, (R result) {
-      return function.visitWhileStatement(node, result);
+    return visit(node, (A arg) {
+      return function.visitWhileStatement(node, arg);
     });
   }
 
   @override
   R visitBreakStatement(BreakStatement node) {
-    return visit(node, (R result) {
-      return function.visitBreakStatement(node, result);
+    return visit(node, (A arg) {
+      return function.visitBreakStatement(node, arg);
     });
   }
 
   @override
   R visitLabeledStatement(LabeledStatement node) {
-    return visit(node, (R result) {
-      return function.visitLabeledStatement(node, result);
+    return visit(node, (A arg) {
+      return function.visitLabeledStatement(node, arg);
     });
   }
 
   @override
   R visitAssertStatement(AssertStatement node) {
-    return visit(node, (R result) {
-      return function.visitAssertStatement(node, result);
+    return visit(node, (A arg) {
+      return function.visitAssertStatement(node, arg);
     });
   }
 
   @override
   R visitEmptyStatement(EmptyStatement node) {
-    return visit(node, (R result) {
-      return function.visitEmptyStatement(node, result);
+    return visit(node, (A arg) {
+      return function.visitEmptyStatement(node, arg);
     });
   }
 
   @override
   R visitAssertBlock(AssertBlock node) {
-    return visit(node, (R result) {
-      return function.visitAssertBlock(node, result);
+    return visit(node, (A arg) {
+      return function.visitAssertBlock(node, arg);
     });
   }
 
   @override
   R visitBlock(Block node) {
-    return visit(node, (R result) {
-      return function.visitBlock(node, result);
+    return visit(node, (A arg) {
+      return function.visitBlock(node, arg);
     });
   }
 
   @override
   R visitExpressionStatement(ExpressionStatement node) {
-    return visit(node, (R result) {
-      return function.visitExpressionStatement(node, result);
+    return visit(node, (A arg) {
+      return function.visitExpressionStatement(node, arg);
     });
   }
 
@@ -2628,295 +2628,295 @@ class KernelBottomupFolder<R> implements Visitor<R> {
 
   @override
   R visitCheckLibraryIsLoaded(CheckLibraryIsLoaded node) {
-    return visit(node, (R result) {
-      return function.visitCheckLibraryIsLoaded(node, result);
+    return visit(node, (A arg) {
+      return function.visitCheckLibraryIsLoaded(node, arg);
     });
   }
 
   @override
   R visitLoadLibrary(LoadLibrary node) {
-    return visit(node, (R result) {
-      return function.visitLoadLibrary(node, result);
+    return visit(node, (A arg) {
+      return function.visitLoadLibrary(node, arg);
     });
   }
 
   @override
   R visitInstantiation(Instantiation node) {
-    return visit(node, (R result) {
-      return function.visitInstantiation(node, result);
+    return visit(node, (A arg) {
+      return function.visitInstantiation(node, arg);
     });
   }
 
   @override
   R visitLet(Let node) {
-    return visit(node, (R result) {
-      return function.visitLet(node, result);
+    return visit(node, (A arg) {
+      return function.visitLet(node, arg);
     });
   }
 
   @override
   R visitNullLiteral(NullLiteral node) {
-    return visit(node, (R result) {
-      return function.visitNullLiteral(node, result);
+    return visit(node, (A arg) {
+      return function.visitNullLiteral(node, arg);
     });
   }
 
   @override
   R visitBoolLiteral(BoolLiteral node) {
-    return visit(node, (R result) {
-      return function.visitBoolLiteral(node, result);
+    return visit(node, (A arg) {
+      return function.visitBoolLiteral(node, arg);
     });
   }
 
   @override
   R visitDoubleLiteral(DoubleLiteral node) {
-    return visit(node, (R result) {
-      return function.visitDoubleLiteral(node, result);
+    return visit(node, (A arg) {
+      return function.visitDoubleLiteral(node, arg);
     });
   }
 
   @override
   R visitIntLiteral(IntLiteral node) {
-    return visit(node, (R result) {
-      return function.visitIntLiteral(node, result);
+    return visit(node, (A arg) {
+      return function.visitIntLiteral(node, arg);
     });
   }
 
   @override
   R visitStringLiteral(StringLiteral node) {
-    return visit(node, (R result) {
-      return function.visitStringLiteral(node, result);
+    return visit(node, (A arg) {
+      return function.visitStringLiteral(node, arg);
     });
   }
 
   @override
   R visitConstantExpression(ConstantExpression node) {
-    return visit(node, (R result) {
-      return function.visitConstantExpression(node, result);
+    return visit(node, (A arg) {
+      return function.visitConstantExpression(node, arg);
     });
   }
 
   @override
   R visitFunctionExpression(FunctionExpression node) {
-    return visit(node, (R result) {
-      return function.visitFunctionExpression(node, result);
+    return visit(node, (A arg) {
+      return function.visitFunctionExpression(node, arg);
     });
   }
 
   @override
   R visitAwaitExpression(AwaitExpression node) {
-    return visit(node, (R result) {
-      return function.visitAwaitExpression(node, result);
+    return visit(node, (A arg) {
+      return function.visitAwaitExpression(node, arg);
     });
   }
 
   @override
   R visitMapLiteral(MapLiteral node) {
-    return visit(node, (R result) {
-      return function.visitMapLiteral(node, result);
+    return visit(node, (A arg) {
+      return function.visitMapLiteral(node, arg);
     });
   }
 
   @override
   R visitSetLiteral(SetLiteral node) {
-    return visit(node, (R result) {
-      return function.visitSetLiteral(node, result);
+    return visit(node, (A arg) {
+      return function.visitSetLiteral(node, arg);
     });
   }
 
   @override
   R visitListLiteral(ListLiteral node) {
-    return visit(node, (R result) {
-      return function.visitListLiteral(node, result);
+    return visit(node, (A arg) {
+      return function.visitListLiteral(node, arg);
     });
   }
 
   @override
   R visitThrow(Throw node) {
-    return visit(node, (R result) {
-      return function.visitThrow(node, result);
+    return visit(node, (A arg) {
+      return function.visitThrow(node, arg);
     });
   }
 
   @override
   R visitRethrow(Rethrow node) {
-    return visit(node, (R result) {
-      return function.visitRethrow(node, result);
+    return visit(node, (A arg) {
+      return function.visitRethrow(node, arg);
     });
   }
 
   @override
   R visitThisExpression(ThisExpression node) {
-    return visit(node, (R result) {
-      return function.visitThisExpression(node, result);
+    return visit(node, (A arg) {
+      return function.visitThisExpression(node, arg);
     });
   }
 
   @override
   R visitTypeLiteral(TypeLiteral node) {
-    return visit(node, (R result) {
-      return function.visitTypeLiteral(node, result);
+    return visit(node, (A arg) {
+      return function.visitTypeLiteral(node, arg);
     });
   }
 
   @override
   R visitSymbolLiteral(SymbolLiteral node) {
-    return visit(node, (R result) {
-      return function.visitSymbolLiteral(node, result);
+    return visit(node, (A arg) {
+      return function.visitSymbolLiteral(node, arg);
     });
   }
 
   @override
   R visitAsExpression(AsExpression node) {
-    return visit(node, (R result) {
-      return function.visitAsExpression(node, result);
+    return visit(node, (A arg) {
+      return function.visitAsExpression(node, arg);
     });
   }
 
   @override
   R visitIsExpression(IsExpression node) {
-    return visit(node, (R result) {
-      return function.visitIsExpression(node, result);
+    return visit(node, (A arg) {
+      return function.visitIsExpression(node, arg);
     });
   }
 
   @override
   R visitStringConcatenation(StringConcatenation node) {
-    return visit(node, (R result) {
-      return function.visitStringConcatenation(node, result);
+    return visit(node, (A arg) {
+      return function.visitStringConcatenation(node, arg);
     });
   }
 
   @override
   R visitConditionalExpression(ConditionalExpression node) {
-    return visit(node, (R result) {
-      return function.visitConditionalExpression(node, result);
+    return visit(node, (A arg) {
+      return function.visitConditionalExpression(node, arg);
     });
   }
 
   @override
   R visitLogicalExpression(LogicalExpression node) {
-    return visit(node, (R result) {
-      return function.visitLogicalExpression(node, result);
+    return visit(node, (A arg) {
+      return function.visitLogicalExpression(node, arg);
     });
   }
 
   @override
   R visitNot(Not node) {
-    return visit(node, (R result) {
-      return function.visitNot(node, result);
+    return visit(node, (A arg) {
+      return function.visitNot(node, arg);
     });
   }
 
   @override
   R visitConstructorInvocation(ConstructorInvocation node) {
-    return visit(node, (R result) {
-      return function.visitConstructorInvocation(node, result);
+    return visit(node, (A arg) {
+      return function.visitConstructorInvocation(node, arg);
     });
   }
 
   @override
   R visitStaticInvocation(StaticInvocation node) {
-    return visit(node, (R result) {
-      return function.visitStaticInvocation(node, result);
+    return visit(node, (A arg) {
+      return function.visitStaticInvocation(node, arg);
     });
   }
 
   @override
   R visitSuperMethodInvocation(SuperMethodInvocation node) {
-    return visit(node, (R result) {
-      return function.visitSuperMethodInvocation(node, result);
+    return visit(node, (A arg) {
+      return function.visitSuperMethodInvocation(node, arg);
     });
   }
 
   @override
   R visitDirectMethodInvocation(DirectMethodInvocation node) {
-    return visit(node, (R result) {
-      return function.visitDirectMethodInvocation(node, result);
+    return visit(node, (A arg) {
+      return function.visitDirectMethodInvocation(node, arg);
     });
   }
 
   @override
   R visitMethodInvocation(MethodInvocation node) {
-    return visit(node, (R result) {
-      return function.visitMethodInvocation(node, result);
+    return visit(node, (A arg) {
+      return function.visitMethodInvocation(node, arg);
     });
   }
 
   @override
   R visitStaticSet(StaticSet node) {
-    return visit(node, (R result) {
-      return function.visitStaticSet(node, result);
+    return visit(node, (A arg) {
+      return function.visitStaticSet(node, arg);
     });
   }
 
   @override
   R visitStaticGet(StaticGet node) {
-    return visit(node, (R result) {
-      return function.visitStaticGet(node, result);
+    return visit(node, (A arg) {
+      return function.visitStaticGet(node, arg);
     });
   }
 
   @override
   R visitSuperPropertySet(SuperPropertySet node) {
-    return visit(node, (R result) {
-      return function.visitSuperPropertySet(node, result);
+    return visit(node, (A arg) {
+      return function.visitSuperPropertySet(node, arg);
     });
   }
 
   @override
   R visitSuperPropertyGet(SuperPropertyGet node) {
-    return visit(node, (R result) {
-      return function.visitSuperPropertyGet(node, result);
+    return visit(node, (A arg) {
+      return function.visitSuperPropertyGet(node, arg);
     });
   }
 
   @override
   R visitDirectPropertySet(DirectPropertySet node) {
-    return visit(node, (R result) {
-      return function.visitDirectPropertySet(node, result);
+    return visit(node, (A arg) {
+      return function.visitDirectPropertySet(node, arg);
     });
   }
 
   @override
   R visitDirectPropertyGet(DirectPropertyGet node) {
-    return visit(node, (R result) {
-      return function.visitDirectPropertyGet(node, result);
+    return visit(node, (A arg) {
+      return function.visitDirectPropertyGet(node, arg);
     });
   }
 
   @override
   R visitPropertySet(PropertySet node) {
-    return visit(node, (R result) {
-      return function.visitPropertySet(node, result);
+    return visit(node, (A arg) {
+      return function.visitPropertySet(node, arg);
     });
   }
 
   @override
   R visitPropertyGet(PropertyGet node) {
-    return visit(node, (R result) {
-      return function.visitPropertyGet(node, result);
+    return visit(node, (A arg) {
+      return function.visitPropertyGet(node, arg);
     });
   }
 
   @override
   R visitVariableSet(VariableSet node) {
-    return visit(node, (R result) {
-      return function.visitVariableSet(node, result);
+    return visit(node, (A arg) {
+      return function.visitVariableSet(node, arg);
     });
   }
 
   @override
   R visitVariableGet(VariableGet node) {
-    return visit(node, (R result) {
-      return function.visitVariableGet(node, result);
+    return visit(node, (A arg) {
+      return function.visitVariableGet(node, arg);
     });
   }
 
   @override
   R visitInvalidExpression(InvalidExpression node) {
-    return visit(node, (R result) {
-      return function.visitInvalidExpression(node, result);
+    return visit(node, (A arg) {
+      return function.visitInvalidExpression(node, arg);
     });
   }
 
@@ -2926,8 +2926,7 @@ class KernelBottomupFolder<R> implements Visitor<R> {
   }
 }
 
-
-class CaseSplitter extends Visitor1<Node, Node> {
+class CaseSplitter extends Visitor1<Node, void> {
   @override
   defaultNode(Node node, _) {
     if (node is TreeNode) {
@@ -3012,12 +3011,16 @@ class CaseSplitter extends Visitor1<Node, Node> {
 //    (match exp
 //     [(IntLiteral value) (IntLiteral (+ 1 value))]
 //     [node node]))
-Component transformComponentBang(Component component, Statement Function(Statement) transformStatement, Expression Function(Expression) transformExpression) {
-  KernelBottomupFolder<Node> folder =
-      new KernelBottomupFolder(new CaseSplitter(transformStatement, transformExpression), (a, b) => null, null);
+Component transformComponentBang(
+    Component component,
+    Statement Function(Statement) transformStatement,
+    Expression Function(Expression) transformExpression) {
+  KernelBottomupFolder<Node, void> folder = new KernelBottomupFolder(
+      new CaseSplitter(transformStatement, transformExpression),
+      (a, b) => null,
+      null);
   return folder.visitComponent(component);
 }
-
 
 // Expression transformLiteral(Expression node) {
 //   iterate(6, (i) => print(i.toString()), null);
