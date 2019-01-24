@@ -23,9 +23,10 @@ class BackendCompiler {
   Future<List<T20Error>> compile(
       ModuleEnvironment environment, List<TopModule> modules) async {
     // Generate code.
-    Component component =
-        new KernelGenerator(new Platform(settings.platformDill), environment)
-            .compile(modules);
+    Component component = new KernelGenerator(
+            new Platform(settings.platformDill), environment,
+            demoMode: settings.demoMode)
+        .compile(modules);
 
     // Exit now, if requested.
     if (component == null || settings.exitAfter == "codegen") {

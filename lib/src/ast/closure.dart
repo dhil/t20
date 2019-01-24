@@ -54,10 +54,15 @@ class ComputeExpressionFreeVariables extends ExpressionVisitor<void> {
 
   List<Variable> compute(T20Node node) {
     freeVariables = new Map<int, List<Variable>>();
+    // TODO this is rather hacky and needs to be cleaned up (and generalised).
     if (node is Expression) {
       node.accept<void>(this);
     } else if (node is Case) {
       visitCase(node);
+    } else if (node is MatchClosureCase) {
+      visitMatchClosureCase(node);
+    } else if (node is MatchClosureDefaultCase) {
+      visitMatchClosureDefaultCase(node);
     } else {
       unhandled("ComputeExpressionFreeVariables.compute", node);
     }
@@ -165,5 +170,16 @@ class ComputeExpressionFreeVariables extends ExpressionVisitor<void> {
   void visitCase(Case case0) {
     case0.expression.accept<void>(this);
     subtract(pattern.compute(case0.pattern));
+  }
+
+  void visitMatchClosureCase(MatchClosureCase case0) {
+    case0.body.accept<void>(this);
+    subtract1(case0.binder);
+  }
+
+  void visitMatchClosureDefaultCase(MatchClosureDefaultCase case0) {
+    if (case0.isObvious) return;
+    case0.body.accept<void>(this);
+    subtract1(case0.binder);
   }
 }

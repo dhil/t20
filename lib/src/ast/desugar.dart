@@ -388,7 +388,7 @@ class MatchCompiler {
       Case case0 = match.cases[i];
       Pattern pat = case0.pattern;
 
-      if (pat is WildcardPattern || pat is VariablePattern) {
+      if (pat is WildcardPattern || pat is VariablePattern || pat is ObviousPattern) {
         // Catch-all pattern.
         Binder xb;
         if (pat is VariablePattern) {
@@ -396,23 +396,24 @@ class MatchCompiler {
         } else {
           xb = freshBinder(pat.origin, pat.type);
         }
-        // Desugar the right hand side expression.
-        Expression exp = expression.desugar(case0.expression);
-        // Monotonically increase the information about free variables.
-        fvs.addAll(freeVariables(exp));
+        // Desugar the right hand side expression (if it is not an obvious
+        // pattern).
+        Expression exp = pat is ObviousPattern ? null : expression.desugar(case0.expression);
         // Compile the default case.
         defaultCase0 = defaultCase(xb, exp, resultType);
+        // Monotonically increase the information about free variables.
+        fvs.addAll(freeVariables(defaultCase0));
         break; // Exhaustive match.
       } else if (pat is ConstructorPattern) {
         DataConstructor constructor = pat.declarator;
         if (!seenConstructors.contains(constructor.binder.ident)) {
           // Desugar the right hand side expression.
           Expression exp = expression.desugar(case0.expression);
-          // Monotonically increase the information about free variables.
-          fvs.addAll(freeVariables(case0));
-
           // Compile the case.
-          cases.add(regularCase(scrutineeType, pat, exp, resultType));
+          MatchClosureCase compiledCase = regularCase(scrutineeType, pat, exp, resultType);
+          cases.add(compiledCase);
+          // Monotonically increase the information about free variables.
+          fvs.addAll(freeVariables(compiledCase));
           // Remember the constructor.
           seenConstructors.add(constructor.binder.ident);
           if (cases.length == n) break; // Exhaustive.
@@ -447,7 +448,7 @@ class MatchCompiler {
 
   MatchClosureDefaultCase defaultCase(
       Binder xb, Expression desugaredExp, Datatype resultType) {
-    return MatchClosureDefaultCase(xb, desugaredExp);
+    return MatchClosureDefaultCase(desugaredExp == null, xb, desugaredExp);
   }
 
   MatchClosureCase regularCase(Datatype inputType, ConstructorPattern pattern,

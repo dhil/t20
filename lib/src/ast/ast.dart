@@ -239,6 +239,7 @@ abstract class AbstractFunctionDeclaration<Param extends T20Node,
         Body extends T20Node> extends ModuleMember
     with DeclarationMixin
     implements Declaration {
+
   Binder _binder;
   Binder get binder => _binder;
   void set binder(Binder binder) {
@@ -1363,7 +1364,9 @@ class MatchClosureDefaultCase extends T20Node
   Binder binder;
   Expression body;
 
-  MatchClosureDefaultCase(Binder binder, Expression body)
+  final bool isObvious;
+
+  MatchClosureDefaultCase(this.isObvious, Binder binder, Expression body)
       : this.binder = binder,
         this.body = body {
     _setBindingOccurrence(binder, this);

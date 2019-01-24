@@ -29,11 +29,13 @@ InvocationExpression subscript(kernel.Expression receiver, int index) =>
         Arguments(<kernel.Expression>[IntLiteral(index)]));
 
 class KernelGenerator {
+  final bool demoMode;
   final Platform platform;
   final ModuleEnvironment environment;
   ModuleKernelGenerator module;
 
-  KernelGenerator(this.platform, ModuleEnvironment environment)
+  KernelGenerator(this.platform, ModuleEnvironment environment,
+      {this.demoMode = false})
       : this.environment = environment {
     this.module =
         ModuleKernelGenerator(platform, environment, new DartTypeGenerator());
@@ -62,7 +64,8 @@ class KernelGenerator {
 
     // Compile the main procedure.
     if (main != null && mainLib != null) {
-      main = new MainProcedureKernelGenerator(platform).compile(main);
+      main = new MainProcedureKernelGenerator(platform)
+          .compile(main, demoMode: demoMode);
       mainLib.procedures.add(main);
     }
 
@@ -99,7 +102,17 @@ class MainProcedureKernelGenerator {
 
   MainProcedureKernelGenerator(this.platform);
 
-  Procedure compile(Procedure mainProcedure) {
+  Procedure compile(Procedure mainProcedure, {bool demoMode = false}) {
+    VariableDeclaration args = VariableDeclaration("args",
+        type: InterfaceType(platform.coreTypes.listClass,
+            <DartType>[InterfaceType(platform.coreTypes.stringClass)]));
+    Statement body;
+    if (demoMode) {
+      body = demo(mainProcedure);
+    } else {
+      body = transformation(mainProcedure, args);
+    }
+
     // Generates:
     //   void main(List<String> args) async {
     //     String file = args[0];
@@ -112,12 +125,29 @@ class MainProcedureKernelGenerator {
     //     await sink.close();
     //   }
 
+    // Construct the main procedure.
+    Procedure main = Procedure(
+        Name("main"),
+        ProcedureKind.Method,
+        FunctionNode(body,
+            positionalParameters: <VariableDeclaration>[args],
+            returnType: const VoidType(),
+            asyncMarker: AsyncMarker.Async),
+        isStatic: true);
+    main = transform.transformProcedure(platform.coreTypes, main);
+
+    return main;
+  }
+
+  Statement demo(Procedure mainProcedure) {
+    return ExpressionStatement(
+        StaticInvocation(mainProcedure, Arguments.empty()));
+  }
+
+  Statement transformation(Procedure mainProcedure, VariableDeclaration args) {
     Class fileCls = platform.getClass(
         PlatformPathBuilder.dart.library("io").target("File").build());
 
-    VariableDeclaration args = VariableDeclaration("args",
-        type: InterfaceType(platform.coreTypes.listClass,
-            <DartType>[InterfaceType(platform.coreTypes.stringClass)]));
     VariableDeclaration file = VariableDeclaration("file0",
         initializer: subscript(VariableGet(args), 0),
         type: InterfaceType(platform.coreTypes.stringClass));
@@ -144,7 +174,7 @@ class MainProcedureKernelGenerator {
         Arguments(<kernel.Expression>[VariableGet(component)])));
 
     //VariableDeclaration componentArg = VariableDeclaration("componentArg");
-    kernel.Expression entryPoint = VariableGet(component); // MethodInvocation(
+    // kernel.Expression entryPoint = VariableGet(component); // MethodInvocation(
     // FunctionExpression(FunctionNode(
     //     ReturnStatement(VariableGet(componentArg)),
     //     positionalParameters: <VariableDeclaration>[componentArg])),
@@ -152,8 +182,10 @@ class MainProcedureKernelGenerator {
     // Arguments(<Expression>[VariableGet(componentArg)]));
 
     // c = entryPoint(c);
-    Statement runTransformation =
-        ExpressionStatement(StaticInvocation(mainProcedure, Arguments.empty()));
+    Statement runTransformation = ExpressionStatement(VariableSet(
+        component,
+        StaticInvocation(mainProcedure,
+            Arguments(<kernel.Expression>[VariableGet(component)]))));
     //    ExpressionStatement(VariableSet(component, entryPoint));
 
     // Class ioSink = platform.getClass(
@@ -163,7 +195,7 @@ class MainProcedureKernelGenerator {
             construct(
                 fileCls,
                 Arguments(
-                    <kernel.Expression>[StringLiteral("transformed.dill")]),
+                    <kernel.Expression>[StringLiteral("a.transformed.dill")]),
                 isFactory: true),
             Name("openWrite"),
             Arguments.empty()));
@@ -183,28 +215,16 @@ class MainProcedureKernelGenerator {
     Statement close = ExpressionStatement(AwaitExpression(
         MethodInvocation(VariableGet(sink), Name("close"), Arguments.empty())));
 
-    // Construct the main procedure.
-    Procedure main = Procedure(
-        Name("main"),
-        ProcedureKind.Method,
-        FunctionNode(
-            Block(<Statement>[
-              file,
-              component,
-              sink,
-              readComponent,
-              runTransformation,
-              writeComponent,
-              flush,
-              close
-            ]),
-            positionalParameters: <VariableDeclaration>[args],
-            returnType: const VoidType(),
-            asyncMarker: AsyncMarker.Async),
-        isStatic: true);
-    main = transform.transformProcedure(platform.coreTypes, main);
-
-    return main;
+    return Block(<Statement>[
+      file,
+      component,
+      sink,
+      readComponent,
+      runTransformation,
+      writeComponent,
+      flush,
+      close
+    ]);
   }
 
   InvocationExpression construct(Class cls, Arguments arguments,
@@ -365,10 +385,11 @@ class AlgebraicDatatypeKernelGenerator {
       // Try-catch.
       Statement tryBody = Block(<Statement>[
         ExpressionStatement(VariableSet(result, runCase)),
-        IfStatement(MethodInvocation(VariableGet(result), Name("=="),
-                                     Arguments(<kernel.Expression>[NullLiteral()])),
-        ExpressionStatement(
-            VariableSet(result, runDefaultCase)), EmptyStatement())
+        IfStatement(
+            MethodInvocation(VariableGet(result), Name("=="),
+                Arguments(<kernel.Expression>[NullLiteral()])),
+            ExpressionStatement(VariableSet(result, runDefaultCase)),
+            EmptyStatement())
       ]);
       VariableDeclaration exn = VariableDeclaration("exn");
       kernel.Expression t20error = ConstructorInvocation(
@@ -814,7 +835,20 @@ class MatchClosureKernelGenerator {
   Procedure defaultCase(MatchClosureDefaultCase defaultCase0, DartType nodeType,
       DartType returnType) {
     VariableDeclaration node = VariableDeclaration("node", type: nodeType);
-    kernel.Expression body = expression.compile(defaultCase0.body);
+    defaultCase0.binder.asKernelNode = node;
+
+    kernel.Expression body;
+    if (defaultCase0.isObvious) {
+      // TODO attach id.
+      Class obvious = platform.getClass(
+          PlatformPathBuilder.package("t20_runtime").target("Obvious").build());
+      ConstructorInvocation invokeObvious =
+          ConstructorInvocation(obvious.constructors[0], Arguments.empty());
+      body = Throw(invokeObvious);
+    } else {
+      body = expression.compile(defaultCase0.body);
+    }
+
     FunctionNode funNode = FunctionNode(ReturnStatement(body),
         positionalParameters: <VariableDeclaration>[node],
         returnType: returnType);
