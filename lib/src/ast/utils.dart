@@ -407,29 +407,54 @@ class StringifyExpression extends BufferedWriter
   }
 
   void visitMatchClosure(MatchClosure clo) {
-    // lparen();
-    // write("match-closure");
-    // space();
-    // lparen();
-    // for (int i = 0; i < clo.context.length; i++) {
-    //   write(stringOfBinder(clo.context[i]));
-    //   if (i + 1 < clo.context.length) space();
-    // }
-    // rparen();
-    // space();
-    // lparen();
-    // StringifyModule module = StringifyModule(buffer);
-    // for (int i = 0; i < clo.cases.length; i++) {
-    //   clo.cases[i].accept<void>(module);
-    //   if (i + 1 < clo.cases.length) space();
-    // }
-    // rparen();
-    // rparen();
-    throw "Not yet implemented.";
+    lparen();
+    write("match-closure");
+    space();
+    lparen();
+    for (int i = 0; i < clo.context.length; i++) {
+      write(stringOfBinder(clo.context[i].binder));
+      if (i + 1 < clo.context.length) space();
+    }
+    rparen();
+    space();
+    lparen();
+    StringifyExpression expression = StringifyExpression(buffer);
+    for (int i = 0; i < clo.cases.length; i++) {
+      MatchClosureCase case0 = clo.cases[i];
+      lparen();
+      write("case");
+      space();
+      write(stringOfBinder(case0.constructor.binder));
+      space();
+      write(stringOfBinder(case0.binder));
+      space();
+      case0.body.accept<void>(expression);
+      rparen();
+      if (i + 1 < clo.cases.length) space();
+    }
+    rparen();
+    if (clo.defaultCase != null) {
+      lparen();
+      write("default-case");
+      space();
+      write(stringOfBinder(clo.defaultCase.binder));
+      space();
+      clo.defaultCase.body.accept<void>(expression);
+      rparen();
+    }
+    rparen();
   }
 
   void visitEliminate(Eliminate elim) {
-    throw "Not yet implemented.";
+    lparen();
+    write("eliminate");
+    space();
+    write(elim.constructor.toString());
+    space();
+    elim.scrutinee.accept<void>(this);
+    space();
+    elim.closure.accept<void>(this);
+    rparen();
   }
 }
 
@@ -541,8 +566,7 @@ abstract class ReduceModule<T> extends ModuleVisitor<T> {
 
   T visitTypename(TypeAliasDescriptor decl) => m.empty;
 
-  T visitValue(ValueDeclaration decl) =>
-      decl.body.accept<T>(expression);
+  T visitValue(ValueDeclaration decl) => decl.body.accept<T>(expression);
 }
 
 abstract class ReduceExpression<T> extends ExpressionVisitor<T> {

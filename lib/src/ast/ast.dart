@@ -239,22 +239,37 @@ abstract class AbstractFunctionDeclaration<Param extends T20Node,
         Body extends T20Node> extends ModuleMember
     with DeclarationMixin
     implements Declaration {
-  Binder binder;
+  Binder _binder;
+  Binder get binder => _binder;
+  void set binder(Binder binder) {
+    _setBindingOccurrence(binder, this);
+    _binder = binder;
+  }
+
   Signature signature;
-  List<Param> parameters;
-  Body body;
+
+  List<Param> _parameters;
+  List<Param> get parameters => _parameters;
+  void set parameters(List<Param> parameters) {
+    _setParentMany(parameters, this);
+    _parameters = parameters;
+  }
+
+  Body _body;
+  Body get body => _body;
+  void set body(Body body) {
+    _setParent(body, this);
+    _body = body;
+  }
 
   AbstractFunctionDeclaration(Signature signature, Binder binder,
       List<Param> parameters, Body body, Location location)
-      : this.binder = binder,
-        this.body = body,
-        this.parameters = parameters,
-        this.signature = signature,
+      : this.signature = signature,
         super(ModuleTag.FUNC_DEF, location) {
-    _setBindingOccurrence(binder, this);
-    binder.type = signature.type;
-    _setParent(body, this);
-    _setParentMany(parameters, this);
+    this.binder = binder;
+    this.binder.type = signature.type;
+    this.body = body;
+    this.parameters = parameters;
   }
 
   String toString() {
@@ -1182,18 +1197,28 @@ class DLambda extends LambdaAbstraction<FormalParameter, Expression> {
 
 class DLet extends Expression with DeclarationMixin implements Declaration {
   Binder binder;
-  Expression body;
-  Expression continuation;
+
+  Expression _body;
+  Expression get body => _body;
+  void set body(Expression body) {
+    _setParent(body, this);
+    _body = body;
+  }
+
+  Expression _continuation;
+  Expression get continuation => _continuation;
+  void set continuation(Expression cont) {
+    _setParent(cont, this);
+    _continuation = cont;
+  }
 
   DLet(Binder binder, Expression body, Expression continuation,
       [Location location])
       : this.binder = binder,
-        this.body = body,
-        this.continuation = continuation,
         super(ExpTag.LET, location) {
     _setBindingOccurrence(binder, this);
-    _setParent(body, this);
-    _setParent(continuation, this);
+    this.body = body;
+    this.continuation = continuation;
   }
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitDLet(this);
@@ -1322,9 +1347,28 @@ class MatchClosureDefaultCase extends T20Node
 class MatchClosure extends Expression
     implements BoilerplateTemplate, KernelNode {
   TypeConstructor typeConstructor;
-  List<ClosureVariable> context; // Binders for free variables.
-  List<MatchClosureCase> cases;
-  MatchClosureDefaultCase defaultCase;
+
+  // Binders for free variables.
+  List<ClosureVariable> _context;
+  List<ClosureVariable> get context => _context;
+  void set context(List<ClosureVariable> context) {
+    _setParentMany(context, this);
+    _context = context;
+  }
+
+  List<MatchClosureCase> _cases;
+  List<MatchClosureCase> get cases => _cases;
+  void set cases(List<MatchClosureCase> cases) {
+    _setParentMany(cases, this);
+    _cases = cases;
+  }
+
+  MatchClosureDefaultCase _defaultCase;
+  MatchClosureDefaultCase get defaultCase => _defaultCase;
+  void set defaultCase(MatchClosureDefaultCase defaultCase) {
+    _setParent(defaultCase, this);
+    _defaultCase = defaultCase;
+  }
 
   MatchClosure(
       this.type,
@@ -1333,12 +1377,10 @@ class MatchClosure extends Expression
       MatchClosureDefaultCase defaultCase,
       List<ClosureVariable> context,
       Location location)
-      : this.cases = cases,
-        this.context = context,
-        this.defaultCase = defaultCase,
-        super(ExpTag.MATCH, location) {
-    _setParentMany(cases, this);
-    _setParent(defaultCase, this);
+      : super(ExpTag.MATCH, location) {
+    this.context = context;
+    this.cases = cases;
+    this.defaultCase = defaultCase;
   }
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitMatchClosure(this);
@@ -1365,13 +1407,35 @@ class ClosureVariable extends T20Node
 
 class Eliminate extends Expression {
   TypeConstructor constructor;
-  Variable scrutinee;
-  MatchClosure closure;
-  List<Variable> capturedVariables;
 
-  Eliminate(
-      this.scrutinee, this.closure, this.capturedVariables, this.constructor)
-      : super(ExpTag.ELIM, null);
+  Variable _scrutinee;
+  Variable get scrutinee => _scrutinee;
+  void set scrutinee(Variable v) {
+    _setParent(v, this);
+    _scrutinee = v;
+  }
+
+  MatchClosure _closure;
+  MatchClosure get closure => _closure;
+  void set closure(MatchClosure clo) {
+    _setParent(clo, this);
+    _closure = clo;
+  }
+
+  List<Variable> _capturedVariables;
+  List<Variable> get capturedVariables => _capturedVariables;
+  void set capturedVariables(List<Variable> vs) {
+    _setParentMany(vs, this);
+    _capturedVariables = vs;
+  }
+
+  Eliminate(Variable scrutinee, MatchClosure closure,
+      List<Variable> capturedVariables, this.constructor)
+      : super(ExpTag.ELIM, null) {
+    this.scrutinee = scrutinee;
+    this.closure = closure;
+    this.capturedVariables = capturedVariables;
+  }
 
   T accept<T>(ExpressionVisitor<T> v) => v.visitEliminate(this);
 

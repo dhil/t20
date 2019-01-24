@@ -206,7 +206,6 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   final List<Signature> lacksAccompanyingDefinition = new List<Signature>();
   final BuildContext emptyContext = new BuildContext.empty();
   final bool _isVirtual;
-  TopModule _thisModule;
   ModuleEnvironment _moduleEnv;
   FunctionDeclaration mainCandidate;
 
@@ -581,12 +580,8 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
   Build<ModuleMember> module(List<Build<ModuleMember>> members, String name,
           {Location location}) =>
       (BuildContext ctxt) {
-        assert(_thisModule == null);
         // Construct the module.
         List<ModuleMember> members0 = new List<ModuleMember>();
-        _thisModule = _isVirtual
-            ? VirtualModule(name, members: members0, location: location)
-            : TopModule(members0, name, location);
 
         // Build each member.
         for (int i = 0; i < members.length; i++) {
@@ -622,8 +617,12 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           }
         }
 
-        _thisModule.main = mainCandidate;
-        return Pair<BuildContext, ModuleMember>(ctxt, _thisModule);
+        TopModule module = _isVirtual
+          ? VirtualModule(name, members: members0, location: location)
+          : TopModule(members0, name, location);
+
+        module.main = mainCandidate;
+        return Pair<BuildContext, ModuleMember>(ctxt, module);
       };
 
   Build<ModuleMember> typename(

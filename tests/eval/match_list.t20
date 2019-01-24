@@ -1,0 +1,29 @@
+;; Match on list.
+
+(define-datatype (List 'a)
+  [cons 'a (List 'a)]
+  [nil])
+
+(: head (-> (List 'a) 'a))
+(define (head xs)
+  (match xs
+    [(cons x _) x]
+    [nil (error "Empty list.")]))
+
+;; (: tail (-> (List 'a) (List 'a)))
+;; (define (tail xs)
+;;   (match xs
+;;     [(cons _ xs) xs]
+;;     [nil (error "Empty list.")]))
+
+
+(: main (-> 1 1))
+(define (main _)
+  (let* ([xs (cons 1 (cons 2 (cons 3 nil)))]
+         [x (head xs)]
+         ;; [ys (tail xs)]
+         )
+    (let ([_ (print (show xs))]
+          [_ (print (show x))])
+      ;; (print (show ys)))))
+      (,))))

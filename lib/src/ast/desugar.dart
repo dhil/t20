@@ -301,6 +301,15 @@ class ExpressionDesugarer {
   }
 
   Expression match(Match match) {
+    // void trace(dynamic node) {
+    //     if (identical(node, null)) {
+    //       print("-> null");
+    //     } else {
+    //       print("-> $node");
+    //       trace(node.parent);
+    //     }
+    //   }
+    // trace(match);
     if (match.cases.length == 0) {
       // let x = scrutinee in matchFailure.
       Binder xb = freshBinder(match.origin, match.scrutinee.type);
@@ -429,6 +438,10 @@ class MatchCompiler {
     // Put everything together.
     Expression exp = DLet(scrutineeBinder, scrutinee,
         Eliminate(scrutineeVar, clo, cloResult.variables, scrutineeType));
+
+    // Store the generated closure as a module local template.
+    match.origin.addTemplate(clo);
+
     return exp;
   }
 
