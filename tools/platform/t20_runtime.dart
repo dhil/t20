@@ -84,6 +84,7 @@ import 'package:kernel/ast.dart'
         NullLiteral,
         PartialInstantiationConstant,
         Procedure,
+        ProcedureKind,
         PropertyGet,
         PropertySet,
         RedirectingFactoryConstructor,
@@ -128,6 +129,7 @@ import 'package:kernel/ast.dart'
         YieldStatement;
 import 'package:kernel/binary/ast_from_binary.dart';
 import 'package:kernel/binary/ast_to_binary.dart';
+import 'package:kernel/text/ast_to_text.dart' show componentToString;
 import 'package:kernel/visitor.dart'
     show ExpressionVisitor1, StatementVisitor1, DartTypeVisitor1, Visitor;
 
@@ -156,7 +158,8 @@ class Obvious extends Object {
 A error<A>(String message) => throw T20Error(message);
 
 // Finite iteration / corecursion.
-R iterate<R>(int n, R Function(R) f, R z) {
+R iterate<R>(int m, R Function(R) f, R z) {
+  int n = m;
   R result = z;
   for (int i = 0; i < n; i++) {
     result = f(result);
@@ -2992,7 +2995,8 @@ class CaseSplitter extends Visitor1<Node, Node> {
 
     // Should be added after the "functional" part if we may destroy the
     // original tree.
-    if (node is! Component && node != transformed) {
+
+    if (node is! Component && !identical(node, transformed)) {
       // Components don't have parents.
       node.replaceWith(transformed);
     }
@@ -3013,3 +3017,43 @@ Component transformComponentBang(Component component, Statement Function(Stateme
       new KernelBottomupFolder(new CaseSplitter(transformStatement, transformExpression), (a, b) => null, null);
   return folder.visitComponent(component);
 }
+
+
+// Expression transformLiteral(Expression node) {
+//   iterate(6, (i) => print(i.toString()), null);
+//   return node;
+// }
+
+// main() {
+//   VariableDeclaration x =
+//       new VariableDeclaration("x", type: const DynamicType());
+//   Procedure foo = new Procedure(
+//       new Name("foo"),
+//       ProcedureKind.Method,
+//       new FunctionNode(
+//           new ReturnStatement(new MethodInvocation(new VariableGet(x),
+//               new Name("+"), new Arguments([new IntLiteral(0)]))),
+//           positionalParameters: [x]),
+//       isStatic: true);
+//   Procedure entryPoint = new Procedure(
+//       new Name("main"),
+//       ProcedureKind.Method,
+//       new FunctionNode(new Block([
+//         new ExpressionStatement(
+//             new StaticInvocation(foo, new Arguments([new IntLiteral(1)])))
+//       ])),
+//       isStatic: true);
+//   Library library = new Library(new Uri(scheme: "file", path: "foo.dart"),
+//       procedures: [foo, entryPoint]);
+//   Component component = new Component(libraries: [library])
+//     ..mainMethod = entryPoint;
+
+//   print("// Before:");
+//   print(componentToString(component));
+//   print("");
+
+//   Component transformed = transformComponentBang(component, (x) => x, transformLiteral);
+
+//   print("// After:");
+//   print(componentToString(transformed));
+// }

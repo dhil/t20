@@ -1,0 +1,16 @@
+;; Demo program.
+
+(open Basics)
+
+(: transform-int-literals (-> Kernel.Expression Kernel.Expression))
+(define (transform-int-literals exp)
+  (match exp
+    [(Kernel.IntLiteral n) (Kernel.IntLiteral (if (int-less? n 100) (fact n) n))]
+    [node node]))
+
+(: main (-> Kernel.Component Kernel.Component))
+(define (main component)
+  (let* ([_ (print (show (fact 6)))]
+         [node (transform-int-literals (Kernel.IntLiteral 3))]
+         [_ (print (show node))])
+    (Kernel.transform-component! component id transform-int-literals)))

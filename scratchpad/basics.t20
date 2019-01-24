@@ -1,0 +1,22 @@
+(: id (-> 'a 'a))
+(define (id y) y)
+
+(: fact (-> Int Int))
+(define (fact n)
+  (let* ([g (lambda ([, i f])
+              (let ([_ (print (show i))]
+                    [_ (print (show f))])
+                (, [+ 1 i] [* f (+ 1 i)])))]
+         [(, _ result) (Prelude.iterate n g (, 0 1))])
+    result))
+
+; (: fib (-> Int Int))
+; (define (fib n)
+;   (let* ([g (lambda ([, a b])
+;               (, b (+ a b)))]
+;          [(, result _) (Prelude.iterate n g (, 0 1))])
+;     result))
+
+;; (: odd? (-> Int Bool))
+;; (define (odd? x)
+;;   (int-eq? (mod x 2) 1))
