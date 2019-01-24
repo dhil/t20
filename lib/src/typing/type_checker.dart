@@ -24,7 +24,6 @@ class MainTypingPolicy {
       if (environment.kernel != null) {
         Declaration component =
             environment.kernel.manifest.findByName("Component");
-        print("$component");
         Datatype componentType = component.type;
         return MainTypingPolicy._(
             ArrowType(<Datatype>[componentType], componentType));

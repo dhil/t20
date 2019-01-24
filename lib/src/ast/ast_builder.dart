@@ -617,8 +617,8 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         }
 
         TopModule module = _isVirtual
-                           ? VirtualModule(name, members: members0, location: location)
-                           : TopModule(members0, name, location);
+            ? VirtualModule(name, members: members0, location: location)
+            : TopModule(members0, name, location);
         module.main = mainCandidate;
         return Pair<BuildContext, ModuleMember>(ctxt, module);
       };
@@ -735,6 +735,18 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
       return module.manifest.findByName(name.sourceName);
     } else {
       return ctxt.getDeclaration(name);
+    }
+  }
+
+  TypeDescriptor findTypeDescriptor(Name name, BuildContext ctxt) {
+    if (name is QualifiedName) {
+      QualifiedName qname = name;
+      TopModule module = _moduleEnv.find(qname.module);
+      if (module == null) return null;
+      Object decl = module.manifest.findByName(name.sourceName);
+      return decl is TypeDescriptor ? decl : null;
+    } else {
+      return ctxt.getTypeDescriptor(name);
     }
   }
 
@@ -1190,7 +1202,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
           {Location location}) =>
       (BuildContext ctxt) {
         // Check whether the constructor name is defined.
-        TypeDescriptor desc = ctxt.getTypeDescriptor(name);
+    TypeDescriptor desc = findTypeDescriptor(name, ctxt);
         if (desc == null) {
           LocatedError err = UnboundNameError(name.sourceName, name.location);
           return typeError(err, location);
