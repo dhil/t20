@@ -579,15 +579,6 @@ class TopModule extends ModuleMember {
   }
 
   bool get isVirtual => false;
-
-  // Module-local boilerplate arising from the user's program.
-  List<BoilerplateTemplate> get templates =>
-      _templates ?? List<BoilerplateTemplate>();
-  List<BoilerplateTemplate> _templates;
-  void addTemplate(BoilerplateTemplate t) {
-    _templates ??= new List<BoilerplateTemplate>();
-    templates.add(t);
-  }
 }
 
 class VirtualModule extends TopModule {
@@ -1277,7 +1268,6 @@ class DLet extends Expression with DeclarationMixin implements Declaration {
 class LetFunction
     extends AbstractFunctionDeclaration<FormalParameter, Expression>
     implements KernelNode {
-
   Procedure _asKernelNode;
   Procedure get asKernelNode => _asKernelNode;
   void set asKernelNode(Procedure p) {
@@ -1366,8 +1356,6 @@ class DataConstructorProject extends Project {
   }
 }
 
-abstract class BoilerplateTemplate {}
-
 class MatchClosureCase extends T20Node
     with DeclarationMixin
     implements Declaration {
@@ -1399,8 +1387,7 @@ class MatchClosureDefaultCase extends T20Node
   }
 }
 
-class MatchClosure extends Expression
-    implements BoilerplateTemplate, KernelNode {
+class MatchClosure extends Expression implements KernelNode {
   TypeConstructor typeConstructor;
 
   // Binders for free variables.

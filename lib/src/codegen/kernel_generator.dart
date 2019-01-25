@@ -440,14 +440,6 @@ class MainProcedureKernelGenerator {
   }
 }
 
-class SegregationResult {
-  final List<DatatypeDeclarations> datatypes;
-  final List<Declaration> termDeclarations;
-  final List<BoilerplateTemplate> templates;
-
-  SegregationResult(this.datatypes, this.termDeclarations, this.templates);
-}
-
 class AlgebraicDatatypeKernelGenerator {
   final Platform platform;
   final ModuleEnvironment environment;

@@ -440,9 +440,6 @@ class MatchCompiler {
     Expression exp = DLet(scrutineeBinder, scrutinee,
         Eliminate(scrutineeVar, clo, cloResult.variables, scrutineeType));
 
-    // Store the generated closure as a module local template.
-    match.origin.addTemplate(clo);
-
     return exp;
   }
 
