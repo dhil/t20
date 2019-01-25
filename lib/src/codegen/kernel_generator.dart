@@ -838,7 +838,7 @@ class MatchClosureKernelGenerator {
         this.type = type,
         this.expression = expression;
 
-  Class compile(MatchClosure closure) {
+  void compile(Library target, MatchClosure closure) {
     // Generates:
     // class ConcreteMatch[closure]<A,..,R> extends [parentClass]<A,...,R>;
     DatatypeDescriptor descriptor =
@@ -920,7 +920,7 @@ class MatchClosureKernelGenerator {
       cls.method(resultType, nodeType, caseName,
           body: (VariableDeclaration node) {
         case0.binder.asKernelNode = node;
-        return ReturnStatement(expression.compile(case0.body));
+        return ReturnStatement(expression.compile(target, case0.body));
       });
     }
 
@@ -930,7 +930,7 @@ class MatchClosureKernelGenerator {
       cls.method(resultType, nodeType, "defaultCase", visitSuffix: false,
           body: (VariableDeclaration node) {
         defaultCase.binder.asKernelNode = node;
-        return ReturnStatement(expression.compile(defaultCase.body));
+        return ReturnStatement(expression.compile(target, defaultCase.body));
       });
     }
 
@@ -943,7 +943,9 @@ class MatchClosureKernelGenerator {
 
     // Store the class.
     closure.asKernelNode = closureClass;
-    return closureClass;
+
+    // Add the class to the target library.
+    target.classes.add(closureClass);
   }
 
   List<TypeParameter> typeParametersOf(List<Datatype> types) {
@@ -971,7 +973,6 @@ class ModuleKernelGenerator {
   final ModuleEnvironment environment;
   final ExpressionKernelGenerator expression;
   final KernelRepr magic;
-  MatchClosureKernelGenerator mclosure;
   final DartTypeGenerator type;
 
   ModuleKernelGenerator(Platform platform, ModuleEnvironment environment,
@@ -983,109 +984,57 @@ class ModuleKernelGenerator {
         this.expression =
             ExpressionKernelGenerator(platform, environment, magic, type),
         this.adt = AlgebraicDatatypeKernelGenerator(
-            platform, environment, magic, type) {
-    this.mclosure = MatchClosureKernelGenerator(
-        platform, environment, this.expression, magic, type);
-  }
+            platform, environment, magic, type);
 
   Library compile(TopModule module) {
-    // Do nothing for the (virtual) kernel module.
-
     // Target library.
-    Library library;
+    Library library = emptyLibrary(module);
 
-    // Segregate the module members. As a side effect [segregate] dispenses of
-    // members that have no runtime representation.
-    SegregationResult segmod = segregate(module);
-
-    // Firstly, process datatype declarations.
-    if (!environment.isKernelModule(module)) {
-      for (int i = 0; i < segmod.datatypes.length; i++) {
-        List<Class> classes = adt.compile(segmod.datatypes[i]);
-        if (classes != null) {
-          library ??= emptyLibrary(module);
-          library.classes.addAll(classes);
-        }
-      }
-    }
-
-    // Secondly, process boilerplate templates (as they depend on the datatype
-    // declarations).
-    if (!environment.isKernelModule(module)) {
-      for (int i = 0; i < segmod.templates.length; i++) {
-        BoilerplateTemplate template = segmod.templates[i];
-        // Invariant: If |templates| > 0 then the [module] must define at least
-        // one data type, and hence the [library] must be non-null.
-        library ??= emptyLibrary(module);
-        if (template is MatchClosure) {
-          Class cls = mclosure.compile(template);
-          library.classes.add(cls);
-        } else {
-          unhandled("ModuleKernelGenerator.compile", template);
-        }
-      }
-    }
-
-    // Thirdly, process term declarations (as they depend on templates).
-    for (int i = 0; i < segmod.termDeclarations.length; i++) {
-      Declaration decl = segmod.termDeclarations[i];
-
-      if (decl is DataConstructor) {
-        // Performed exclusively for its side effects. A class for the
-        // constructor has been generated earlier.
-        dataConstructor(decl);
-      } else if (decl is LetFunction) {
-        Procedure procedure = function(decl);
-        // Virtual functions may compile to [null].
-        if (procedure != null) {
-          library ??= emptyLibrary(module);
-          library.procedures.add(procedure);
-        }
-      } else if (decl is ValueDeclaration) {
-        Field field = value(decl);
-        if (field != null) {
-          library ??= emptyLibrary(module);
-          library.fields.add(field);
-        }
-      } else {
-        unhandled("ModuleKernelGenerator.compile", decl);
+    // Process module members.
+    bool isKernelModule = environment.isKernelModule(module);
+    List<ModuleMember> members = module.members;
+    for (int i = 0; i < members.length; i++) {
+      ModuleMember member = members[i];
+      switch (member.tag) {
+        case ModuleTag.DATATYPE_DEFS:
+          // Skip all data type declarations in the Kernel module.
+          if (isKernelModule) continue;
+          List<Class> classes = adt.compile(member as DatatypeDeclarations);
+          if (classes != null) {
+            library.classes.addAll(classes);
+          }
+          break;
+        // case ModuleTag.CONSTR:
+        case ModuleTag.FUNC_DEF:
+          Procedure procedure = function(library, member as LetFunction);
+          // Virtual functions may compile to [null].
+          if (procedure != null) {
+            library.procedures.add(procedure);
+          }
+          break;
+        case ModuleTag.VALUE_DEF:
+          Field field = value(library, member as ValueDeclaration);
+          if (field != null) {
+            library.fields.add(field);
+          }
+          break;
+        case ModuleTag.CONSTR:
+        case ModuleTag.TYPENAME:
+          // Ignore.
+          break;
+        default:
+          unhandled("ModuleKernelGenerator.compile", member.tag);
       }
     }
 
     return library;
   }
 
-  SegregationResult segregate(TopModule module) {
-    List<DatatypeDeclarations> datatypes = new List<DatatypeDeclarations>();
-    List<Declaration> declarations =
-        new List<Declaration>(); // term declarations.
-    for (int i = 0; i < module.members.length; i++) {
-      ModuleMember member = module.members[i];
-      switch (member.tag) {
-        case ModuleTag.DATATYPE_DEFS:
-          datatypes.add(member as DatatypeDeclarations);
-          break;
-        // case ModuleTag.CONSTR:
-        case ModuleTag.FUNC_DEF:
-        case ModuleTag.VALUE_DEF:
-          declarations.add(member as Declaration);
-          break;
-        default:
-        // Ignore.
-      }
-    }
-    return SegregationResult(datatypes, declarations, module.templates);
-  }
-
   Library emptyLibrary(TopModule module) {
     return Library(module.location.uri, name: module.name);
   }
 
-  void dataConstructor(DataConstructor constructor) {
-    // TODO.
-  }
-
-  Procedure function(LetFunction fun) {
+  Procedure function(Library target, LetFunction fun) {
     if (fun.isVirtual) {
       assert(fun is LetVirtualFunction);
       return virtualFunction(fun as LetVirtualFunction);
@@ -1093,7 +1042,7 @@ class ModuleKernelGenerator {
 
     // Build the function node.
     FunctionNode node =
-        expression.functionNode(fun.parameters, fun.body, fun.type);
+        expression.functionNode(target, fun.parameters, fun.body, fun.type);
     // Build the procedure node.
     Name name = Name(fun.binder.toString());
     Procedure procedure =
@@ -1160,7 +1109,7 @@ class ModuleKernelGenerator {
     return null;
   }
 
-  Field value(ValueDeclaration val) {
+  Field value(Library target, ValueDeclaration val) {
     if (val.isVirtual) {
       throw "Compilation of virtual values has not yet been implemented.";
     }
@@ -1168,7 +1117,7 @@ class ModuleKernelGenerator {
     // Build the [Field] node.
     DartType valueType = type.compile(val.type);
     Field node = Field(Name(val.binder.toString()),
-        initializer: expression.compile(val.body), type: valueType);
+        initializer: expression.compile(target, val.body), type: valueType);
 
     // Store the node.
     val.asKernelNode = node;
@@ -1179,6 +1128,7 @@ class ModuleKernelGenerator {
 class ExpressionKernelGenerator {
   final ModuleEnvironment environment;
   final KernelRepr magic;
+  MatchClosureKernelGenerator mclosure;
   final Platform platform;
   final InvocationKernelGenerator invoke;
   final DartTypeGenerator type;
@@ -1189,9 +1139,12 @@ class ExpressionKernelGenerator {
         this.invoke = InvocationKernelGenerator(environment, type, magic),
         this.magic = magic,
         this.platform = platform,
-        this.type = type;
+        this.type = type {
+    this.mclosure =
+        MatchClosureKernelGenerator(platform, environment, this, magic, type);
+  }
 
-  kernel.Expression compile(Expression exp) {
+  kernel.Expression compile(Library target, Expression exp) {
     switch (exp.tag) {
       // Literals.
       case ExpTag.BOOL:
@@ -1205,41 +1158,41 @@ class ExpressionKernelGenerator {
         break;
       // Local and global variables.
       case ExpTag.VAR:
-        return getVariable(exp as Variable);
+        return getVariable(target, exp as Variable);
         break;
       // Homomorphisms (more or less).
       case ExpTag.IF:
         If ifexp = exp as If;
         return ConditionalExpression(
-            compile(ifexp.condition),
-            compile(ifexp.thenBranch),
-            compile(ifexp.elseBranch),
+            compile(target, ifexp.condition),
+            compile(target, ifexp.thenBranch),
+            compile(target, ifexp.elseBranch),
             type.compile(ifexp.type));
         break;
       case ExpTag.LET:
         DLet letexp = exp as DLet;
         VariableDeclaration v = translateBinder(letexp.binder, type);
-        v.initializer = compile(letexp.body);
-        return kernel.Let(v, compile(letexp.continuation));
+        v.initializer = compile(target, letexp.body);
+        return kernel.Let(v, compile(target, letexp.continuation));
         break;
       case ExpTag.LAMBDA:
-        return lambda(exp as DLambda);
+        return lambda(target, exp as DLambda);
         break;
       case ExpTag.PROJECT:
-        return project(exp as Project);
+        return project(target, exp as Project);
         break;
       case ExpTag.TUPLE:
-        return tuple(exp as Tuple);
+        return tuple(target, exp as Tuple);
         break;
       case ExpTag.TYPE_ASCRIPTION:
-        return compile((exp as TypeAscription).exp);
+        return compile(target, (exp as TypeAscription).exp);
         break;
       // Interesting cases.
       case ExpTag.APPLY:
-        return apply(exp as Apply);
+        return apply(target, exp as Apply);
         break;
       case ExpTag.ELIM:
-        return eliminate(exp as Eliminate);
+        return eliminate(target, exp as Eliminate);
       default:
         unhandled("ExpressionKernelGenerator.compile", exp.tag);
     }
@@ -1247,7 +1200,7 @@ class ExpressionKernelGenerator {
     return null; // Impossible!
   }
 
-  kernel.Expression apply(Apply apply) {
+  kernel.Expression apply(Library target, Apply apply) {
     // There are several different kinds of applications:
     // 1) Constructor application.
     // 2) Primitive application.
@@ -1257,7 +1210,7 @@ class ExpressionKernelGenerator {
     // Compile each argument.
     List<kernel.Expression> arguments = List<kernel.Expression>();
     for (int i = 0; i < apply.arguments.length; i++) {
-      kernel.Expression exp = compile(apply.arguments[i]);
+      kernel.Expression exp = compile(target, apply.arguments[i]);
       arguments.add(exp);
     }
 
@@ -1269,7 +1222,7 @@ class ExpressionKernelGenerator {
       } else if (environment.isPrimitive(v.binder)) {
         return invoke.primitive(v.binder, arguments);
       } else if (v.declarator is! LetFunction) {
-        return invoke.dynamic$(compile(v), arguments);
+        return invoke.dynamic$(compile(target, v), arguments);
       } else {
         return invoke.static$(
             (v.declarator as LetFunction).asKernelNode, arguments);
@@ -1283,26 +1236,27 @@ class ExpressionKernelGenerator {
       // lambda abstraction. Therefore we conservatively treat it as a dynamic
       // function expression. Consequently, every data constructor and some
       // primitive function must be eta expanded when used a value.
-      return invoke.dynamic$(compile(apply.abstractor), arguments);
+      return invoke.dynamic$(compile(target, apply.abstractor), arguments);
     }
   }
 
-  FunctionExpression lambda(DLambda lambda) {
+  FunctionExpression lambda(Library target, DLambda lambda) {
     // Build the function node.
     FunctionNode node =
-        functionNode(lambda.parameters, lambda.body, lambda.type);
+        functionNode(target, lambda.parameters, lambda.body, lambda.type);
     return FunctionExpression(node);
   }
 
-  FunctionNode functionNode(
-      List<FormalParameter> parameters, Expression body, Datatype fnType) {
+  FunctionNode functionNode(Library target, List<FormalParameter> parameters,
+      Expression body, Datatype fnType) {
     // Translate each parameter.
     List<VariableDeclaration> parameters0 = parameters
         .map((FormalParameter p) => translateFormalParameter(p, type))
         .toList();
 
     // Translate the [body].
-    Statement body0 = Block(<Statement>[ReturnStatement(compile(body))]);
+    Statement body0 =
+        Block(<Statement>[ReturnStatement(compile(target, body))]);
 
     // TODO translate [fnType] to extract return type and any type parameters.
     DartType returnType = type.compile(typeUtils.codomain(fnType));
@@ -1314,16 +1268,19 @@ class ExpressionKernelGenerator {
         typeParameters: typeParameters);
   }
 
-  kernel.Expression tuple(Tuple tuple) {
+  kernel.Expression tuple(Library target, Tuple tuple) {
     if (tuple.isUnit) {
       return NullLiteral();
     }
 
-    List<kernel.Expression> components = tuple.components.map(compile).toList();
+    List<kernel.Expression> components = new List<kernel.Expression>();
+    for (int i = 0; i < tuple.components.length; i++) {
+      components.add(compile(target, tuple.components[i]));
+    }
     return ListLiteral(components, isConst: false);
   }
 
-  kernel.Expression getVariable(Variable v) {
+  kernel.Expression getVariable(Library target, Variable v) {
     // To retain soundness, some primitive must be eta expanded when used as a
     // return value or as an input to a higher-order function.
     if (environment.isPrimitive(v.binder) && requiresEtaExpansion(v.binder)) {
@@ -1354,9 +1311,9 @@ class ExpressionKernelGenerator {
     }
   }
 
-  kernel.Expression project(Project proj) {
+  kernel.Expression project(Library target, Project proj) {
     // Compile the receiver.
-    kernel.Expression receiver = compile(proj.receiver);
+    kernel.Expression receiver = compile(target, proj.receiver);
 
     // There are two kinds of projections: 1) Tuple projections, 2) Data
     // constructor projections.
@@ -1386,20 +1343,24 @@ class ExpressionKernelGenerator {
     }
   }
 
-  InvocationExpression eliminate(Eliminate elim) {
+  InvocationExpression eliminate(Library target, Eliminate elim) {
+    // First compile the closure.
+    mclosure.compile(target, elim.closure);
+
+    // Secondly, instantiate the closure.
     List<kernel.Expression> variables = List<kernel.Expression>();
     for (int i = 0; i < elim.capturedVariables.length; i++) {
-      variables.add(getVariable(elim.capturedVariables[i]));
+      variables.add(getVariable(target, elim.capturedVariables[i]));
     }
     ConstructorInvocation matchClosureInvocation = ConstructorInvocation(
         elim.closure.asKernelNode.constructors[0], Arguments(variables));
 
+    // Instantiate the eliminator.
     Constructor eliminatorConstructor;
     if (environment.originOf(elim.constructor.declarator.binder) ==
         Origin.KERNEL) {
-      Class cls = platform.getClass(PlatformPathBuilder.package("t20_runtime")
-          .target("KernelEliminator")
-          .build());
+      Class cls = platform
+          .getClass(PlatformPathBuilder.t20.target("KernelEliminator").build());
       eliminatorConstructor = cls.constructors[0];
     } else {
       eliminatorConstructor =
@@ -1411,7 +1372,8 @@ class ExpressionKernelGenerator {
     ConstructorInvocation eliminatorInvocation = ConstructorInvocation(
         eliminatorConstructor,
         Arguments(<kernel.Expression>[matchClosureInvocation]));
-    return MethodInvocation(getVariable(elim.scrutinee), Name("accept"),
+    // Run the eliminator on the scrutinee.
+    return MethodInvocation(getVariable(target, elim.scrutinee), Name("accept"),
         Arguments(<kernel.Expression>[eliminatorInvocation]));
   }
 
