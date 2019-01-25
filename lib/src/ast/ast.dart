@@ -350,8 +350,9 @@ class DataConstructor extends ModuleMember
     return binder.type;
   }
 
-  DataConstructor(Binder binder, this.parameters, Location location)
+  DataConstructor(Binder binder, List<Datatype> parameters, Location location)
       : this.binder = binder,
+        this.parameters = parameters,
         super(ModuleTag.CONSTR, location) {
     _setBindingOccurrence(binder, this);
   }
@@ -361,6 +362,7 @@ class DataConstructor extends ModuleMember
   bool get isNullary => parameters.length == 0;
 
   Class asKernelNode;
+  Procedure asProcedure; // (Named) eta expanded form.
 }
 
 class DatatypeDescriptor extends ModuleMember
@@ -380,9 +382,9 @@ class DatatypeDescriptor extends ModuleMember
 
   TypeConstructor get type {
     if (binder.type == null) {
-      List<Datatype> arguments = new List<Datatype>(parameters.length);
+      List<Datatype> arguments = new List<Datatype>();
       for (int i = 0; i < parameters.length; i++) {
-        arguments[i] = TypeVariable.bound(parameters[i]);
+        arguments.add(TypeVariable.bound(parameters[i]));
       }
       binder.type = TypeConstructor.from(this, arguments);
     }

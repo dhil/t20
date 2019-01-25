@@ -211,6 +211,44 @@ InvocationExpression subscript(kernel.Expression receiver, int index) =>
     MethodInvocation(receiver, Name("[]"),
         Arguments(<kernel.Expression>[IntLiteral(index)]));
 
+Procedure proceduralise(
+    DartTypeGenerator type,
+    kernel.Expression Function(List<kernel.Expression>) invoke,
+    Binder binder,
+    Datatype type0) {
+  // Translate the operand and return types.
+  // TODO compile any type parameters too.
+  List<TypeParameter> typeParameters;
+  List<DartType> domain;
+  DartType codomain;
+  if (typeUtils.isFunctionType(type0)) {
+    domain = typeUtils.domain(type0).map(type.compile).toList();
+    codomain = type.compile(typeUtils.codomain(type0));
+  } else {
+    domain = const <DartType>[];
+    codomain = type.compile(type0);
+  }
+
+  // Create the parameters and arguments.
+  List<VariableDeclaration> parameters = new List<VariableDeclaration>();
+  List<kernel.Expression> arguments = new List<kernel.Expression>();
+  for (int i = 0; i < domain.length; i++) {
+    DartType parameterType = domain[i];
+    VariableDeclaration parameter =
+        VariableDeclaration("#x$i", type: parameterType);
+    parameters.add(parameter);
+    arguments.add(VariableGet(parameter));
+  }
+
+  // Procedural abstraction.
+  FunctionNode funNode = FunctionNode(ReturnStatement(invoke(arguments)),
+      positionalParameters: parameters,
+      returnType: codomain,
+      typeParameters: typeParameters);
+  return Procedure(Name("${binder}_Constructor"), ProcedureKind.Method, funNode,
+      isStatic: true);
+}
+
 class KernelGenerator {
   final bool demoMode;
   final Platform platform;
@@ -445,17 +483,18 @@ class AlgebraicDatatypeKernelGenerator {
   final ModuleEnvironment environment;
   final KernelRepr magic;
   final DartTypeGenerator type;
+  InvocationKernelGenerator invoke;
 
   AlgebraicDatatypeKernelGenerator(
       Platform platform, this.environment, this.magic, this.type)
-    : this.platform = platform;
+      : this.platform = platform;
 
-  List<Class> compile(DatatypeDeclarations datatypes) {
+  List<Class> compile(Library target, DatatypeDeclarations datatypes) {
     // Process each datatype declaration.
     List<Class> classes;
     for (int i = 0; i < datatypes.declarations.length; i++) {
       DatatypeDescriptor descriptor = datatypes.declarations[i];
-      List<Class> result = datatype(descriptor);
+      List<Class> result = datatype(target, descriptor);
       if (result != null) {
         classes ??= new List<Class>();
         classes.addAll(result);
@@ -465,13 +504,21 @@ class AlgebraicDatatypeKernelGenerator {
     return classes;
   }
 
-  List<Class> datatype(DatatypeDescriptor descriptor) {
+  List<Class> datatype(Library target, DatatypeDescriptor descriptor) {
     List<Class> classes = new List<Class>();
     // 1) Generate an abstract class for the type.
     Class typeClass = typeConstructor(descriptor.binder, descriptor.parameters);
+    if (descriptor.constructors.length == 0) {
+      // Do not bother generating the visitors, if there are no data
+      // constructors (i.e. no concrete nodes to visit).
+      descriptor.asKernelNode = typeClass;
+      classes.add(typeClass);
+      return classes;
+    }
     // 2) Generate a subclass of the aforementioned class for each data constructor.
+    invoke ??= InvocationKernelGenerator(environment, type, magic);
     List<Class> dataClasses =
-        dataConstructors(descriptor.constructors, typeClass);
+        dataConstructors(target, descriptor.constructors, typeClass);
     // 3) Generate a visitor class, and attach accept methods to the interface
     // class and data classes.
     Class visitorClass = visitorInterface(typeClass, dataClasses);
@@ -594,10 +641,23 @@ class AlgebraicDatatypeKernelGenerator {
   }
 
   List<Class> dataConstructors(
-      List<DataConstructor> constructors, Class parentClass) {
+      Library target, List<DataConstructor> constructors, Class parentClass) {
     List<Class> classes = new List<Class>();
     for (int i = 0; i < constructors.length; i++) {
-      classes.add(dataConstructor(constructors[i], parentClass));
+      DataConstructor constructor = constructors[i];
+      classes.add(dataConstructor(constructor, parentClass));
+
+      // Create a "smart constructor" for when the data constructor is either
+      // used as an argument or returned from a higher-order function.
+      Procedure procedure = proceduralise(
+          type,
+          (List<kernel.Expression> args) =>
+              invoke.constructor(constructor, args),
+          constructor.binder,
+          constructor.type);
+
+      constructor.asProcedure = procedure;
+      target.procedures.add(procedure);
     }
     return classes;
   }
@@ -960,6 +1020,7 @@ class ModuleKernelGenerator {
   final ExpressionKernelGenerator expression;
   final KernelRepr magic;
   final DartTypeGenerator type;
+  InvocationKernelGenerator invoke;
 
   ModuleKernelGenerator(Platform platform, ModuleEnvironment environment,
       KernelRepr magic, DartTypeGenerator type)
@@ -985,12 +1046,17 @@ class ModuleKernelGenerator {
         case ModuleTag.DATATYPE_DEFS:
           // Skip all data type declarations in the Kernel module.
           if (isKernelModule) continue;
-          List<Class> classes = adt.compile(member as DatatypeDeclarations);
+          List<Class> classes =
+              adt.compile(library, member as DatatypeDeclarations);
           if (classes != null) {
             library.classes.addAll(classes);
           }
           break;
         // case ModuleTag.CONSTR:
+        //   // Performed only for its side-effects.
+        //   Procedure procedure = dataConstructor(member as DataConstructor);
+        //   library.procedures.add(procedure);
+        //   break;
         case ModuleTag.FUNC_DEF:
           Procedure procedure = function(library, member as LetFunction);
           // Virtual functions may compile to [null].
@@ -1004,7 +1070,6 @@ class ModuleKernelGenerator {
             library.fields.add(field);
           }
           break;
-        case ModuleTag.CONSTR:
         case ModuleTag.TYPENAME:
           // Ignore.
           break;
@@ -1039,9 +1104,33 @@ class ModuleKernelGenerator {
   }
 
   Procedure virtualFunction(LetVirtualFunction fun) {
+    Binder binder = fun.binder;
     switch (environment.originOf(fun.binder)) {
       case Origin.PRELUDE:
-        switch (fun.binder.sourceName) {
+        switch (binder.sourceName) {
+          // When used in a higher-order context, primitive binary operators
+          // need to be eta-expanded. To avoid creating closures, we implement
+          // eta expand them once at the top-level.
+          case "&&":
+          case "||":
+          case "+":
+          case "-":
+          case "*":
+          case "/":
+          case "mod":
+          case "int-eq?":
+          case "int-less?":
+          case "int-greater?":
+            // Store the node for later retrieval.
+            invoke ??= InvocationKernelGenerator(environment, type, magic);
+            fun.asKernelNode = proceduralise(
+                type,
+                (List<kernel.Expression> args) =>
+                    invoke.primitive(binder, args),
+                binder,
+                binder.type);
+            return fun.asKernelNode;
+            break;
           case "error":
             // Generate the function: A error<A>(String message) { throw message; }.
             DartType stringType =
@@ -1069,23 +1158,38 @@ class ModuleKernelGenerator {
             break;
           case "iterate":
             fun.asKernelNode = platform.getProcedure(
-                PlatformPathBuilder.package("t20_runtime")
-                    .target("iterate")
-                    .build());
+                PlatformPathBuilder.t20.target("iterate").build());
             break;
           default: // Ignore.
         }
         break;
       case Origin.STRING:
+        switch (binder.sourceName) {
+          case "concat":
+          case "eq?":
+          case "less?":
+          case "greater?":
+          case "length":
+            invoke ??= InvocationKernelGenerator(environment, type, magic);
+            fun.asKernelNode = proceduralise(
+                type,
+                (List<kernel.Expression> args) =>
+                    invoke.primitive(binder, args),
+                binder,
+                binder.type);
+            return fun.asKernelNode;
+            break;
+          default:
+          // Ignore.
+        }
+        break;
       case Origin.DART_LIST:
         // Ignore.
         break;
       case Origin.KERNEL:
         if (fun.binder.sourceName == "transform-component!") {
           fun.asKernelNode = platform.getProcedure(
-              PlatformPathBuilder.package("t20_runtime")
-                  .target("transformComponentBang")
-                  .build());
+              PlatformPathBuilder.t20.target("transformComponentBang").build());
         }
         break;
       default:
@@ -1267,12 +1371,6 @@ class ExpressionKernelGenerator {
   }
 
   kernel.Expression getVariable(Library target, Variable v) {
-    // To retain soundness, some primitive must be eta expanded when used as a
-    // return value or as an input to a higher-order function.
-    if (environment.isPrimitive(v.binder) && requiresEtaExpansion(v.binder)) {
-      return etaPrimitive(v.binder);
-    }
-
     if (v.binder.bindingOccurrence is DataConstructor) {
       DataConstructor constructor =
           v.binder.bindingOccurrence as DataConstructor;
@@ -1280,8 +1378,7 @@ class ExpressionKernelGenerator {
       if (constructor.isNullary) {
         return invoke.constructor(constructor, const <kernel.Expression>[]);
       } else {
-        // TODO, needs eta expansion.
-        unhandled("ExpressionKernelGenerator.getVariable", constructor);
+        return StaticGet(constructor.asProcedure);
       }
     }
 
@@ -1318,15 +1415,6 @@ class ExpressionKernelGenerator {
     // Tuple are implemented as heterogeneous lists, therefore we need to coerce
     // projected members.
     return AsExpression(subscript(receiver, proj.label - 1), componentType);
-  }
-
-  FunctionExpression etaPrimitive(Binder primitiveBinder) {
-    Declaration d = primitiveBinder.bindingOccurrence;
-    if (d is LetFunction) {
-      return invoke.eta(d);
-    } else {
-      throw "Logical error: Cannot eta expand primitive non-functions.";
-    }
   }
 
   InvocationExpression eliminate(Library target, Eliminate elim) {
@@ -1408,8 +1496,7 @@ class InvocationKernelGenerator {
     // Determine which kind of primitive [binder] points to.
     if (binder.bindingOccurrence is DataConstructor) {
       // Delegate to [constructor].
-      return constructor(binder.bindingOccurrence, arguments,
-          isPrimitive: true);
+      return constructor(binder.bindingOccurrence, arguments);
     }
 
     // Some primitive functions have a direct encoding into Kernel.
@@ -1520,8 +1607,7 @@ class InvocationKernelGenerator {
   }
 
   InvocationExpression constructor(
-      DataConstructor constructor, List<kernel.Expression> arguments,
-      {bool isPrimitive = false}) {
+      DataConstructor constructor, List<kernel.Expression> arguments) {
     if (environment.isPrimitive(constructor.binder)) {
       if (environment.originOf(constructor.binder) == Origin.KERNEL) {
         return magic.invoke(constructor, arguments);
