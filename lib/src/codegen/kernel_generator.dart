@@ -680,7 +680,6 @@ class AlgebraicDatatypeKernelGenerator {
     return Procedure(Name("toString"), ProcedureKind.Method, funNode);
   }
 
-
   Statement matchCaseBodyBuilder(VariableDeclaration node) {
     Class patternMatchFailure = platform.getClass(
         PlatformPathBuilder.t20.target("PatternMatchFailure").build());
@@ -801,20 +800,6 @@ class AlgebraicDatatypeKernelGenerator {
     return visitorClass;
   }
 
-  Procedure dataMethod(DartType dataNodeType, DartType resultType, String name,
-      {bool isAbstract = false}) {
-    // Create the method parameter.
-    VariableDeclaration parameter =
-        VariableDeclaration("node", type: dataNodeType);
-
-    // Create the method function node and procedure.
-    FunctionNode funNode = FunctionNode(ReturnStatement(NullLiteral()),
-        positionalParameters: <VariableDeclaration>[parameter],
-        returnType: resultType);
-    return Procedure(Name(name), ProcedureKind.Method, funNode,
-        isAbstract: isAbstract);
-  }
-
   List<TypeParameter> typeParametersOf(List<Quantifier> qs) {
     List<TypeParameter> result = new List<TypeParameter>();
     for (int i = 0; i < qs.length; i++) {
@@ -861,89 +846,175 @@ class MatchClosureKernelGenerator {
     // Setup the [supertype] of this concrete match [closure] class.
     Class parentClass;
     if (environment.originOf(descriptor.binder) == Origin.KERNEL) {
-      parentClass = platform.getClass(PlatformPathBuilder.package("t20_runtime")
-          .target("KernelMatchClosure")
-          .build());
+      parentClass = platform.getClass(
+          PlatformPathBuilder.t20.target("KernelMatchClosure").build());
     } else {
       parentClass = descriptor.matchClosureClass;
     }
-    DartType resultType = type.compile(closure.type);
 
-    // Type parameters for this class.
+    VisitorBuilder cls = VisitorBuilder(platform);
+
+    // Compute the type parameters for this class.
     List<TypeParameter> typeParameters =
         typeParametersOf(closure.typeConstructor.arguments);
-    // Type arguments for node classes in instance methods.
-    List<DartType> typeArguments =
+    // Compute the type arguments for the parent class.
+    List<DartType> parentTypeArguments =
         typeArgumentsOf(closure.typeConstructor.arguments);
-    // The type arguments for [parentClass] are [typeArguments] with
-    // [resultType] appended.
-    List<DartType> typeArguments0 = typeArguments.sublist(0)..add(resultType);
+    // If the return type of the closure is a rigid type variable, then we need
+    // to include it as a parameter too.
+    TypeParameter resultTypeParameter;
+    DartType resultType;
+    if (closure.type is TypeVariable) {
+      resultTypeParameter = type.freshTypeParameter("\$R");
+      typeParameters.add(resultTypeParameter);
+      resultType = TypeParameterType(resultTypeParameter);
+    } else {
+      resultType = type.compile(closure.type);
+    }
+    // Add the result type to the list of type arguments for the [parentClass].
+    parentTypeArguments.add(resultType);
 
-    // Construct the actual [supertype] node.
-    Supertype supertype = Supertype(parentClass, typeArguments0);
-
-    // Construct the type of the type constructor.
+    // Construct the node type.
     DartType nodeType;
     if (environment.originOf(descriptor.binder) == Origin.KERNEL) {
       nodeType = magic.typeConstructor(closure.typeConstructor);
     } else {
-      nodeType = InterfaceType(descriptor.asKernelNode, typeArguments);
+      nodeType = InterfaceType(descriptor.asKernelNode,
+          parentTypeArguments.sublist(0, parentTypeArguments.length - 1));
     }
 
     // The captured variables are compiled as instance fields.
-    List<Field> fields = new List<Field>();
-    List<Initializer> initializers = new List<Initializer>();
     List<VariableDeclaration> parameters = new List<VariableDeclaration>();
     for (int i = 0; i < closure.context.length; i++) {
       ClosureVariable cv = closure.context[i];
       DartType cvtype = type.compile(cv.type);
 
       Field field = Field(Name(cv.binder.toString()), type: cvtype);
-      fields.add(field);
+      cls.field(field);
       cv.asKernelNode = field;
 
-      VariableDeclaration parameter =
-          VariableDeclaration(cv.binder.toString(), type: cvtype);
+      VariableDeclaration parameter = VariableDeclaration("#x$i", type: cvtype);
       parameters.add(parameter);
-
-      FieldInitializer initializer =
-          FieldInitializer(field, VariableGet(parameter));
-      initializers.add(initializer);
     }
 
+    // Field initializer.
+    Initializer capturedVariableInitializer(int i, VariableDeclaration v) =>
+        FieldInitializer(cls.fields[i], VariableGet(v));
+
     // Compile the cases.
-    List<Procedure> procedures = cases(closure.cases, closure.defaultCase,
-        nodeType, typeArguments, resultType);
+    for (int i = 0; i < closure.cases.length; i++) {
+      MatchClosureCase case0 = closure.cases[i];
 
-    // Create a concrete match closure class.
-    String className = "${descriptor.binder}MatchClosure_${Gensym.freshInt()}";
-    Class cls = Class(
-        name: className,
-        fields: fields,
-        procedures: procedures,
-        typeParameters: typeParameters,
-        supertype: supertype);
+      Class dataClass;
+      String caseName;
+      if (environment.originOf(case0.constructor.binder) == Origin.KERNEL) {
+        dataClass = magic.getDataClass(case0.constructor);
+        caseName = dataClass.name;
+      } else {
+        dataClass = case0.constructor.asKernelNode;
+        caseName = case0.constructor.binder.toString();
+      }
+      DartType nodeType = InterfaceType(
+          dataClass, typeArgumentsOf(closure.typeConstructor.arguments));
 
-    // Create the constructor.
-    SuperInitializer superInitializer =
-        SuperInitializer(parentClass.constructors[0], Arguments.empty());
-    initializers.add(superInitializer);
-    FunctionNode funNode = FunctionNode(EmptyStatement(),
-        positionalParameters: parameters,
-        returnType: InterfaceType(cls, <DartType>[]));
-    Constructor cloConstructor = Constructor(funNode,
-        name: Name(""), initializers: initializers, isSynthetic: true);
+      cls.method(resultType, nodeType, caseName,
+          body: (VariableDeclaration node) {
+        case0.binder.asKernelNode = node;
+        return ReturnStatement(expression.compile(case0.body));
+      });
+    }
 
-    // Attach the constructor.
-    cls.constructors.add(cloConstructor);
+    // Compile the default case.
+    // if (closure.defaultCase != null) {
+    //   MatchClosureDefaultCase defaultCase = closure.defaultCase;
+    //   Class typeClass;
+    //   if (environment.originOf(defaultCase.constructor.binder) == Origin.KERNEL) {
+    //     // TODO translate type constructor.
+    //     typeClass = magic.getDataClass(defaultCase.constructor);
+    //   } else {
+    //     dataClass = case0.constructor.asKernelNode;
+    //   }
+    //   cls.method(resultType, nodeType, "defaultCase", visitSuffix: false, body: (VariableDeclaration node) {
+    //       closure.defaultCase0.binder.asKernelNode = node;
+    //       return ReturnStatement(expression.compile(closure.defaultCase0.body));
+    //     });
+    // }
 
-    // Store the class.
-    closure.asKernelNode = cls;
+    cls.parent(parentClass, typeArguments: parentTypeArguments);
 
-    return cls;
+    // // Type arguments for node classes in instance methods.
+    // List<DartType> typeArguments =
+    //     typeArgumentsOf(closure.typeConstructor.arguments);
+    // // The type arguments for [parentClass] are [typeArguments] with
+    // // [resultType] appended.
+    // List<DartType> typeArguments0 = typeArguments.sublist(0)..add(resultType);
+
+    // // Construct the actual [supertype] node.
+    // Supertype supertype = Supertype(parentClass, typeArguments0);
+
+    // // Construct the type of the type constructor.
+    // DartType nodeType;
+    // if (environment.originOf(descriptor.binder) == Origin.KERNEL) {
+    //   nodeType = magic.typeConstructor(closure.typeConstructor);
+    // } else {
+    //   nodeType = InterfaceType(descriptor.asKernelNode, typeArguments);
+    // }
+
+    // // The captured variables are compiled as instance fields.
+    // List<Field> fields = new List<Field>();
+    // List<Initializer> initializers = new List<Initializer>();
+    // List<VariableDeclaration> parameters = new List<VariableDeclaration>();
+    // for (int i = 0; i < closure.context.length; i++) {
+    //   ClosureVariable cv = closure.context[i];
+    //   DartType cvtype = type.compile(cv.type);
+
+    //   Field field = Field(Name(cv.binder.toString()), type: cvtype);
+    //   fields.add(field);
+    //   cv.asKernelNode = field;
+
+    //   VariableDeclaration parameter =
+    //       VariableDeclaration(cv.binder.toString(), type: cvtype);
+    //   parameters.add(parameter);
+
+    //   FieldInitializer initializer =
+    //       FieldInitializer(field, VariableGet(parameter));
+    //   initializers.add(initializer);
+    // }
+
+    // // Compile the cases.
+    // List<Procedure> procedures = cases(closure.cases, closure.defaultCase,
+    //     nodeType, typeArguments, resultType);
+
+    // // Create a concrete match closure class.
+    // String className = "${descriptor.binder}MatchClosure_${Gensym.freshInt()}";
+    // Class cls = Class(
+    //     name: className,
+    //     fields: fields,
+    //     procedures: procedures,
+    //     typeParameters: typeParameters,
+    //     supertype: supertype);
+
+    // // Create the constructor.
+    // SuperInitializer superInitializer =
+    //     SuperInitializer(parentClass.constructors[0], Arguments.empty());
+    // initializers.add(superInitializer);
+    // FunctionNode funNode = FunctionNode(EmptyStatement(),
+    //     positionalParameters: parameters,
+    //     returnType: InterfaceType(cls, <DartType>[]));
+    // Constructor cloConstructor = Constructor(funNode,
+    //     name: Name(""), initializers: initializers, isSynthetic: true);
+
+    // // Attach the constructor.
+    // cls.constructors.add(cloConstructor);
+
+    // // Store the class.
+    // closure.asKernelNode = cls;
+
+    // return cls;
   }
 
   List<Procedure> cases(
+      VisitorBuilder builder,
       List<MatchClosureCase> constructorCases,
       MatchClosureDefaultCase defaultCase0,
       DartType nodeType,
