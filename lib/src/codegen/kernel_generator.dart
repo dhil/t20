@@ -445,16 +445,10 @@ class AlgebraicDatatypeKernelGenerator {
   final ModuleEnvironment environment;
   final KernelRepr magic;
   final DartTypeGenerator type;
-  final Supertype objectType;
-  final SuperInitializer objectInitializer;
 
   AlgebraicDatatypeKernelGenerator(
       Platform platform, this.environment, this.magic, this.type)
-      : this.platform = platform,
-        this.objectType =
-            Supertype(platform.coreTypes.objectClass, const <DartType>[]),
-        this.objectInitializer = SuperInitializer(
-            platform.coreTypes.objectClass.constructors[0], Arguments.empty());
+    : this.platform = platform;
 
   List<Class> compile(DatatypeDeclarations datatypes) {
     // Process each datatype declaration.
