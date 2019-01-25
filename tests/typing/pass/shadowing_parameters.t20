@@ -1,0 +1,29 @@
+;; Shadowing parameters.
+
+(: box (-> 'a (* 'a)))
+(define (box x) (, x))
+
+(: unbox (-> (* 'a) 'a))
+(define (unbox (, x)) x)
+
+(: foo (-> (* Int Int) Bool))
+(define (foo (, i x))
+  (unbox
+   (iterate i
+            (lambda ([, x]) ;; shadows x : Int.
+              (box x))
+            (if (int-less? x 10) (box #t) (box #f)))))
+
+(: bar (-> Int String))
+(define (bar y)
+  (let ({[, x y z] (, y "Hello" #t)})
+    y))
+
+(define-datatype (Option 'a)
+  [some 'a]
+  [none])
+
+(: baz (-> (Option Int) Bool))
+(define (baz m)
+  (let ([(some m) m])
+    (if (int-eq? m 0) #t #f)))

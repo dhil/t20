@@ -934,6 +934,7 @@ class _TypeChecker {
       }
     }
 
+    print("$b");
     throw SubsumptionError(a.toString(), b.toString());
   }
 
@@ -1023,8 +1024,9 @@ class _TypeChecker {
         throw "?${b.ident} has already been solved [$exB]!";
       }
 
-      exB.equate(exA);
-      // ctxt = ctxt.update(exB.solve(a));
+      print("Equating $exB := $exA");
+      // exB.equate(exA);
+      ctxt = ctxt.update(exB.solve(a));
       return ctxt;
     }
 
@@ -1144,8 +1146,9 @@ class _TypeChecker {
         throw "$a has already been solved!";
       }
 
-      //ctxt = ctxt.update(exA.solve(b));
-      exA.equate(exB);
+      print("Equating $exA := $exB");
+      ctxt = ctxt.update(exA.solve(b));
+      // exA.equate(exB);
       return ctxt;
     }
 

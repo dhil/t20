@@ -156,17 +156,17 @@ class QuantifiedVariable extends ScopedEntry {
 
 class Existential extends ScopedEntry {
   final Skolem skolem;
-  Datatype solution;
+  Datatype get solution => skolem.type;
   // Datatype get solution => skolem.type;
   Existential(this.skolem, [Datatype solution]) {
     // if (solution != null) {
     //   skolem.solve(solution);
     // }
-    this.solution = solution;
+    //this.solution = solution;
   }
 
   int get ident => skolem.ident;
-  bool get isSolved => solution != null;
+  bool get isSolved => skolem.isSolved;
   // void solve(Datatype solution) => skolem.solve(solution);
   Existential solve(Datatype solution) {
     skolem.solve(solution);

@@ -1063,7 +1063,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         List<Name> declaredNames = new List<Name>();
         for (int i = 0; i < parameters.length; i++) {
           Triple<BuildContext, List<Name>, Pattern> result =
-              buildPattern(parameters[i], ctxt);
+              buildPattern(parameters[i], ctxt0);
           parameters0.add(result.thd);
           declaredNames.addAll(result.snd);
           // Update the context.
@@ -1095,7 +1095,7 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         List<Name> declaredNames = new List<Name>();
         for (int i = 0; i < components.length; i++) {
           Triple<BuildContext, List<Name>, Pattern> result =
-              buildPattern(components[i], ctxt)
+              buildPattern(components[i], ctxt0)
                   as Triple<BuildContext, List<Name>, Pattern>;
           components0.add(result.thd);
           declaredNames.addAll(result.snd);
