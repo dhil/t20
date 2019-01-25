@@ -1024,7 +1024,7 @@ class _TypeChecker {
         throw "?${b.ident} has already been solved [$exB]!";
       }
 
-      print("Equating $exB := $exA");
+      // print("Equating $exB := $exA");
       // exB.equate(exA);
       ctxt = ctxt.update(exB.solve(a));
       return ctxt;
@@ -1146,7 +1146,7 @@ class _TypeChecker {
         throw "$a has already been solved!";
       }
 
-      print("Equating $exA := $exB");
+      // print("Equating $exA := $exB");
       ctxt = ctxt.update(exA.solve(b));
       // exA.equate(exB);
       return ctxt;

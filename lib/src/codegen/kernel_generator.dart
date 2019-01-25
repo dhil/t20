@@ -15,15 +15,197 @@ import '../utils.dart' show Gensym;
 import 'kernel_magic.dart';
 import 'platform.dart';
 
-VariableDeclaration translateBinder(Binder binder) {
+typedef MethodBodyBuilder = Statement Function(VariableDeclaration);
+typedef SuperInitializerBuilder = SuperInitializer Function(Class);
+typedef FieldInitializerBuilder = Initializer Function(
+    int, VariableDeclaration);
+
+class VisitorBuilder {
+  final Platform platform;
+  VisitorBuilder(Platform platform) : this.platform = platform;
+
+  // Class header.
+  List<TypeParameter> typeParameters;
+  VisitorBuilder typeParameter(TypeParameter typeParameter) {
+    typeParameters ??= new List<TypeParameter>();
+    typeParameters.add(typeParameter);
+    return this;
+  }
+
+  VisitorBuilder manyTypeParameters(List<TypeParameter> typeParameters0) {
+    if (typeParameters == null)
+      typeParameters = typeParameters0;
+    else
+      typeParameters.addAll(typeParameters0);
+    return this;
+  }
+
+  Supertype supertype;
+  SuperInitializer superInitializer;
+  VisitorBuilder parent(Class parent,
+      {List<DartType> typeArguments = const <DartType>[],
+      SuperInitializerBuilder superInitializer}) {
+    if (typeArguments.length > 0 &&
+        parent.typeParameters.length != typeArguments.length) {
+      throw ArgumentError.value(typeArguments, "typeArguments",
+          "The number of provided type arguments differs from the expectation");
+    }
+
+    // If no type arguments were provided, but the parent class is
+    // parameterised, then fill the blanks with dynamic.
+    if (typeArguments.length == 0 && parent.typeParameters.length > 0) {
+      typeArguments = new List<DartType>();
+      for (int i = 0; i < parent.typeParameters.length; i++) {
+        typeArguments.add(const kernel.DynamicType());
+      }
+    }
+
+    // Construct the super type.
+    supertype = Supertype(parent, typeArguments);
+
+    // Construct a super initializer.
+    if (superInitializer == null) {
+      // If no builder was provided, then attempt to pick the default constructor.
+      SuperInitializer initializer;
+      for (int i = 0; i < parent.constructors.length; i++) {
+        Constructor constructor = parent.constructors[i];
+        if (constructor.name.name.compareTo("") == 0) {
+          if (constructor.function.requiredParameterCount == 0) {
+            initializer = SuperInitializer(constructor, Arguments.empty());
+            break;
+          }
+        }
+      }
+
+      if (initializer == null) {
+        throw ArgumentError.value(parent, "parent",
+            "The provided parent class has no default constructor with (positional) arity 0. Either provide a parent class with a default constructor or provide a super initializer builder.");
+      }
+
+      // Remember the initializer.
+      this.superInitializer = initializer;
+    } else {
+      this.superInitializer = superInitializer(parent);
+      if (this.superInitializer == null) {
+        throw ArgumentError.value(superInitializer, "superInitializer",
+            "The provided super initializer builder built a `null' initializer.");
+      }
+    }
+    return this;
+  }
+
+  List<Field> fields;
+  VisitorBuilder field(Field field, [Initializer initializer]) {
+    fields ??= new List<Field>();
+    fields.add(field);
+    return this;
+  }
+
+  Constructor clsConstructor;
+  VisitorBuilder constructor(
+      {Name name,
+      List<VariableDeclaration> parameters = const <VariableDeclaration>[],
+      FieldInitializerBuilder field}) {
+    if (name == null) name = Name("");
+    FunctionNode funNode =
+        FunctionNode(EmptyStatement(), positionalParameters: parameters);
+    // Initializer list.
+    List<Initializer> initializers;
+    if (field != null) {
+      initializers = new List<Initializer>();
+      for (int i = 0; i < parameters.length; i++) {
+        Initializer initializer = field(i, parameters[i]);
+        if (initializer == null) {
+          throw ArgumentError.value(field, "field",
+              "The provided field initializer builder built a `null' initializer.");
+        }
+        initializers.add(initializer);
+      }
+    }
+    clsConstructor = Constructor(funNode,
+        name: name, isSynthetic: true, initializers: initializers);
+    return this;
+  }
+
+  // Class body.
+  List<Procedure> procedures;
+  VisitorBuilder method(DartType returnType, DartType nodeType, String nodeName,
+      {MethodBodyBuilder body,
+      bool isAbstract = false,
+      bool visitSuffix = true}) {
+    procedures ??= new List<Procedure>();
+    // Construct the method parameter.
+    VariableDeclaration node = VariableDeclaration("node", type: nodeType);
+
+    // Construct the body of function node.
+    Statement body0;
+    if (body == null) {
+      body0 = ReturnStatement(NullLiteral());
+    } else {
+      body0 = body(node);
+      if (body0 == null) {
+        throw ArgumentError.value(body, "body",
+            "The provided method body builder built a `null' body.");
+      }
+    }
+
+    // Construct the function node and the procedure.
+    FunctionNode funNode = FunctionNode(body0,
+        positionalParameters: <VariableDeclaration>[node],
+        returnType: returnType);
+
+    String name = visitSuffix ? "visit$nodeName" : nodeName;
+    Procedure method = Procedure(Name(name), ProcedureKind.Method, funNode,
+        isAbstract: isAbstract);
+    procedures.add(method);
+    return this;
+  }
+
+  Class build(String className, {bool isAbstract = false}) {
+    // If the no parent class was provided, then assume the parent is intended
+    // to be "Object".
+    if (identical(supertype, null)) {
+      Class objectClass = platform.coreTypes.objectClass;
+      supertype = Supertype(objectClass, const <DartType>[]);
+      superInitializer =
+          SuperInitializer(objectClass.constructors[0], Arguments.empty());
+    }
+
+    // If no constructor has been specified, then attempt to build the default
+    // constructor.
+    if (identical(clsConstructor, null)) {
+      constructor();
+    }
+
+    // Build a class description.
+    Class target = Class(
+        name: className,
+        isAbstract: isAbstract,
+        typeParameters: typeParameters,
+        supertype: supertype,
+        fields: fields,
+        procedures: procedures,
+        constructors: <Constructor>[clsConstructor]);
+
+    // Retrofit the return type of the constructor.
+    DartType returnType = InterfaceType(target,
+        typeParameters.map((TypeParameter p) => TypeParameterType(p)).toList());
+    clsConstructor.function.returnType = returnType;
+
+    return target;
+  }
+}
+
+VariableDeclaration translateBinder(Binder binder, DartTypeGenerator type) {
   VariableDeclaration v =
       VariableDeclaration(binder.toString()); // TODO translate type.
   binder.asKernelNode = v;
   return v;
 }
 
-VariableDeclaration translateFormalParameter(FormalParameter parameter) =>
-    translateBinder(parameter.binder);
+VariableDeclaration translateFormalParameter(
+        FormalParameter parameter, DartTypeGenerator type) =>
+    translateBinder(parameter.binder, type);
 
 InvocationExpression subscript(kernel.Expression receiver, int index) =>
     MethodInvocation(receiver, Name("[]"),
@@ -35,11 +217,12 @@ class KernelGenerator {
   final ModuleEnvironment environment;
   ModuleKernelGenerator module;
 
-  KernelGenerator(this.platform, ModuleEnvironment environment,
+  KernelGenerator(Platform platform, ModuleEnvironment environment,
       {this.demoMode = false})
-      : this.environment = environment {
-    this.module =
-        ModuleKernelGenerator(platform, environment, new DartTypeGenerator());
+      : this.environment = environment,
+        this.platform = platform {
+    this.module = ModuleKernelGenerator(platform, environment,
+        new KernelRepr(platform), new DartTypeGenerator());
   }
 
   Component compile(List<TopModule> modules) {
@@ -268,12 +451,13 @@ class SegregationResult {
 class AlgebraicDatatypeKernelGenerator {
   final Platform platform;
   final ModuleEnvironment environment;
+  final KernelRepr magic;
   final DartTypeGenerator type;
   final Supertype objectType;
   final SuperInitializer objectInitializer;
 
   AlgebraicDatatypeKernelGenerator(
-      Platform platform, this.environment, this.type)
+      Platform platform, this.environment, this.magic, this.type)
       : this.platform = platform,
         this.objectType =
             Supertype(platform.coreTypes.objectClass, const <DartType>[]),
@@ -326,133 +510,101 @@ class AlgebraicDatatypeKernelGenerator {
 
   Class eliminator(Class typeClass, List<Class> dataClasses, Class visitor,
       Class matchClosure) {
-    // Visitor implementation.
+    VisitorBuilder elim = VisitorBuilder(platform);
+
+    // Compute the type parameters.
     List<TypeParameter> typeParameters =
         type.copyTypeParameters(visitor.typeParameters);
-    List<DartType> typeArguments = typeArgumentsOf(typeParameters);
-    Supertype supertype = Supertype(visitor, typeArguments);
 
-    // A field for storing the eliminatee.
-    DartType matchClosureType = InterfaceType(matchClosure, typeArguments);
-    Field match = Field(Name("match"), type: matchClosureType, isFinal: true);
+    // Add a field for storing the match closure.
+    Field match = Field(Name("match"),
+        type: InterfaceType(matchClosure, typeArgumentsOf(typeParameters)),
+        isFinal: true);
 
-    // Class template.
-    Class cls = Class(
-        name: "${typeClass.name}Eliminator",
-        typeParameters: typeParameters,
-        supertype: supertype,
-        fields: <Field>[match],
-        isAbstract: false);
-
-    // Create the constructor.
-    VariableDeclaration parameter =
-        VariableDeclaration("match", type: matchClosureType);
-    List<Initializer> initializers = <Initializer>[
-      FieldInitializer(match, VariableGet(parameter)),
-      SuperInitializer(visitor.constructors[0], Arguments.empty())
-    ];
-    FunctionNode funNode = FunctionNode(EmptyStatement(),
-        positionalParameters: <VariableDeclaration>[parameter],
-        returnType: InterfaceType(cls, typeArguments));
-    Constructor clsConstructor = Constructor(funNode,
-        name: Name(""), initializers: initializers, isSynthetic: true);
-
-    // Attach the constructor.
-    cls.constructors.add(clsConstructor);
+    // Constructor.
+    VariableDeclaration matchParam = VariableDeclaration("match",
+        type: InterfaceType(matchClosure, typeArgumentsOf(typeParameters)));
+    Initializer matchFieldInitializerBuilder(int _, VariableDeclaration v) =>
+        FieldInitializer(match, VariableGet(v));
 
     // Create the visit methods.
-    DartType resultType = typeArguments.last;
-    List<DartType> dataNodeTypeArguments =
-        typeArguments.sublist(0, typeArguments.length - 1);
-    for (int i = 0; i < dataClasses.length; i++) {
-      Class dataClass = dataClasses[i];
-      DartType dataNodeType = InterfaceType(dataClass, dataNodeTypeArguments);
-      Procedure visitMethod =
-          dataMethod(dataNodeType, resultType, "visit${dataClass.name}");
-      // Build the body.
-      VariableDeclaration node = visitMethod.function.positionalParameters[0];
-      VariableDeclaration result =
-          VariableDeclaration("result", type: resultType);
+    Statement visit(VariableDeclaration node) {
+      // Construct the logic for matching on the [node].
+      // try {
+      //  return node.accept(match);
+      // } on PatternMatchFailure catch (exn) {
+      //    try {
+      //      return match.defaultCase(node);
+      //    } on PatternMatchFailure catch (_) {
+      //      throw exn;
+      //    }
+      // }
 
-      // Match case invocation.
-      kernel.Expression runCase = MethodInvocation(
-          PropertyGet(ThisExpression(), match.name),
-          Name("visit${dataClass.name}"),
-          Arguments(<kernel.Expression>[VariableGet(node)]));
+      Class t20error =
+          platform.getClass(PlatformPathBuilder.t20.target("T20Error").build());
+      Class patternMatchFailure = platform.getClass(
+          PlatformPathBuilder.t20.target("PatternMatchFailure").build());
+      DartType exnType = InterfaceType(patternMatchFailure, const <DartType>[]);
+
+      kernel.Expression match = PropertyGet(ThisExpression(), Name("match"));
+      kernel.Expression runCase = MethodInvocation(VariableGet(node),
+          Name("accept"), Arguments(<kernel.Expression>[match]));
+
+      // Logic for running the default case.
       kernel.Expression runDefaultCase = MethodInvocation(
-          PropertyGet(ThisExpression(), match.name),
+          match,
           Name("defaultCase"),
           Arguments(<kernel.Expression>[VariableGet(node)]));
-
-      // Try-catch.
-      Statement tryBody = Block(<Statement>[
-        ExpressionStatement(VariableSet(result, runCase)),
-        IfStatement(
-            MethodInvocation(VariableGet(result), Name("=="),
-                Arguments(<kernel.Expression>[NullLiteral()])),
-            ExpressionStatement(VariableSet(result, runDefaultCase)),
-            EmptyStatement())
-      ]);
-      VariableDeclaration exn = VariableDeclaration("exn");
-      kernel.Expression t20error = ConstructorInvocation(
-          platform
-              .getClass(PlatformPathBuilder.package("t20_runtime")
-                  .target("T20Error")
-                  .build())
-              .constructors[0],
+      VariableDeclaration exn = VariableDeclaration("exn", type: exnType);
+      ConstructorInvocation invokeT20error = ConstructorInvocation(
+          t20error.constructors[0],
           Arguments(<kernel.Expression>[VariableGet(exn)]));
-      Statement catchBody = ExpressionStatement(Throw(t20error)); // TODO.
-      Catch catch0 = Catch(exn, catchBody);
-      TryCatch tryCatch = TryCatch(tryBody, <Catch>[catch0], isSynthetic: true);
+      Catch catchPatternMatchFailure = Catch(
+          VariableDeclaration("_", type: exnType),
+          ExpressionStatement(Throw(invokeT20error)),
+          guard: exnType);
+      TryCatch defaultGuard = TryCatch(
+          ReturnStatement(runDefaultCase), <Catch>[catchPatternMatchFailure],
+          isSynthetic: true);
 
-      // Result checking.
-      kernel.Expression patternFailure = ConstructorInvocation(
-          platform
-              .getClass(PlatformPathBuilder.package("t20_runtime")
-                  .target("PatternMatchFailure")
-                  .build())
-              .constructors[0],
-          Arguments.empty());
-      Statement checkResult = IfStatement(
-          MethodInvocation(VariableGet(result), Name("=="),
-              Arguments(<kernel.Expression>[NullLiteral()])),
-          ExpressionStatement(Throw(patternFailure)) /* TODO throw */,
-          ReturnStatement(VariableGet(result)));
+      // Logic for running the constructor case.
+      catchPatternMatchFailure = Catch(exn, defaultGuard, guard: exnType);
+      TryCatch caseGuard = TryCatch(
+          ReturnStatement(runCase), <Catch>[catchPatternMatchFailure],
+          isSynthetic: true);
 
-      Block block = Block(<Statement>[result, tryCatch, checkResult]);
-
-      // Replace the visit method's body.
-      visitMethod.function.body = block;
-
-      // Attach the method to the eliminator class.
-      cls.procedures.add(visitMethod);
+      return caseGuard;
     }
 
-    return cls;
+    List<TypeParameter> typeParameters0 =
+        typeParameters.sublist(0, typeParameters.length - 1);
+    for (int i = 0; i < dataClasses.length; i++) {
+      Class dataClass = dataClasses[i];
+      DartType nodeType =
+          InterfaceType(dataClass, typeArgumentsOf(typeParameters0));
+      DartType resultType = TypeParameterType(typeParameters.last);
+      elim.method(resultType, nodeType, "${dataClass.name}", body: visit);
+    }
+
+    // Construct the eliminator class.
+    Class eliminatorClass = elim
+        .manyTypeParameters(typeParameters)
+        .parent(visitor, typeArguments: typeArgumentsOf(typeParameters))
+        .field(match)
+        .constructor(parameters: <VariableDeclaration>[
+      matchParam
+    ], field: matchFieldInitializerBuilder).build(
+            "${typeClass.name}Eliminator");
+
+    return eliminatorClass;
   }
 
   Class typeConstructor(Binder binder, List<Quantifier> qs) {
-    // Generate type parameters.
-    List<TypeParameter> typeParameters = typeParametersOf(qs);
-    Class cls = Class(
-        name: binder.toString(),
-        isAbstract: true,
-        typeParameters: typeParameters,
-        supertype: objectType);
-
-    // Create the default class constructor.
-    DartType returnType = InterfaceType(cls, typeArgumentsOf(typeParameters));
-    FunctionNode funNode =
-        FunctionNode(EmptyStatement(), returnType: returnType);
-    Constructor clsConstructor = Constructor(funNode,
-        name: Name(""),
-        isSynthetic: true,
-        initializers: <Initializer>[objectInitializer]);
-
-    // Attach the constructor.
-    cls.constructors.add(clsConstructor);
-
-    return cls;
+    // Abuse the visitor builder to build a non-visitor class.
+    VisitorBuilder builder = VisitorBuilder(platform);
+    return builder
+        .manyTypeParameters(typeParametersOf(qs))
+        .build(binder.toString(), isAbstract: true);
   }
 
   List<Class> dataConstructors(
@@ -465,50 +617,36 @@ class AlgebraicDatatypeKernelGenerator {
   }
 
   Class dataConstructor(DataConstructor constructor, Class parentClass) {
+    // Abuse the visitor builder to build a non-visitor class.
+    VisitorBuilder dataCon = VisitorBuilder(platform);
+
     List<TypeParameter> typeParameters =
         type.copyTypeParameters(parentClass.typeParameters);
-    List<DartType> typeArguments = new List<DartType>();
-    for (int i = 0; i < typeParameters.length; i++) {
-      typeArguments.add(TypeParameterType(typeParameters[i]));
-    }
-    Supertype supertype = Supertype(parentClass, typeArguments);
 
-    // Create the class template.
-    Class cls = Class(
-        name: constructor.binder.toString(),
-        supertype: supertype,
-        typeParameters: typeParameters);
-
-    // Create class fields, field initializers, and constructor parameters.
-    List<Initializer> initializers = new List<Initializer>();
-    List<VariableDeclaration> parameters = List<VariableDeclaration>();
+    // Create class fields, and constructor parameters.
+    List<VariableDeclaration> parameters = new List<VariableDeclaration>();
     for (int i = 0; i < constructor.parameters.length; i++) {
       String name = "\$${i + 1}";
+
       DartType fieldType = type.compile(constructor.parameters[i]);
       Field field = Field(Name(name), type: fieldType, isFinal: true);
-      cls.fields.add(field);
+      dataCon.field(field);
 
       VariableDeclaration parameter =
-          VariableDeclaration(name, type: fieldType);
+          VariableDeclaration("#x$i", type: fieldType);
       parameters.add(parameter);
-
-      FieldInitializer initializer =
-          FieldInitializer(field, VariableGet(parameter));
-      initializers.add(initializer);
     }
 
-    // Create the class constructor.
-    DartType returnType = InterfaceType(cls, typeArguments);
-    FunctionNode funNode = FunctionNode(EmptyStatement(),
-        positionalParameters: parameters, returnType: returnType);
-    SuperInitializer superInitializer =
-        SuperInitializer(parentClass.constructors[0], Arguments.empty());
-    initializers.add(superInitializer);
-    Constructor clsConstructor = Constructor(funNode,
-        name: Name(""), isSynthetic: true, initializers: initializers);
+    // Utility function for initialising each class member.
+    Initializer memberInitializer(int i, VariableDeclaration v) =>
+        FieldInitializer(dataCon.fields[i], VariableGet(v));
 
-    // Attach the constructor to the class template.
-    cls.constructors.add(clsConstructor);
+    // Create the class template.
+    Class cls = dataCon
+        .manyTypeParameters(typeParameters)
+        .parent(parentClass, typeArguments: typeArgumentsOf(typeParameters))
+        .constructor(parameters: parameters, field: memberInitializer)
+        .build("${constructor.binder}", isAbstract: true);
 
     // Derive toString method.
     cls.procedures.add(deriveToString(constructor));
@@ -542,9 +680,56 @@ class AlgebraicDatatypeKernelGenerator {
     return Procedure(Name("toString"), ProcedureKind.Method, funNode);
   }
 
-  Class interfaceClassTemplate(Class typeClass, String suffix,
-      {bool isAbstract = true, Class parentClass}) {
-    // Create a fresh type parameter for the "return type" of the template.
+
+  Statement matchCaseBodyBuilder(VariableDeclaration node) {
+    Class patternMatchFailure = platform.getClass(
+        PlatformPathBuilder.t20.target("PatternMatchFailure").build());
+    ConstructorInvocation invokePatternMatchFailure = ConstructorInvocation(
+        patternMatchFailure.constructors[0], Arguments.empty());
+    return ReturnStatement(Throw(invokePatternMatchFailure));
+  }
+
+  Class matchClosureInterface(
+      Class typeClass, List<Class> dataClasses, Class visitor) {
+    // Construct the match closure interface for [typeClass].
+    VisitorBuilder matchClosure = VisitorBuilder(platform);
+
+    List<TypeParameter> typeParameters =
+        type.copyTypeParameters(visitor.typeParameters);
+    TypeParameter resultTypeParameter = typeParameters.last;
+
+    // Add a visit method for each data class.
+    DartType resultType = TypeParameterType(resultTypeParameter);
+    for (int i = 0; i < dataClasses.length; i++) {
+      Class dataClass = dataClasses[i];
+      List<DartType> nodeTypeArguments =
+          typeArgumentsOf(typeParameters.sublist(0, typeParameters.length - 1));
+      DartType nodeType = InterfaceType(dataClass, nodeTypeArguments);
+
+      matchClosure.method(resultType, nodeType, dataClass.name,
+          body: matchCaseBodyBuilder);
+    }
+
+    // Add a default case method.
+    List<DartType> nodeTypeArguments =
+        typeArgumentsOf(typeParameters.sublist(0, typeParameters.length - 1));
+    DartType nodeType = InterfaceType(typeClass, nodeTypeArguments);
+    matchClosure.method(resultType, nodeType, "defaultCase",
+        body: matchCaseBodyBuilder, visitSuffix: false);
+
+    // Generate the class.
+    Class closureClass = matchClosure
+        .manyTypeParameters(typeParameters)
+        .parent(visitor, typeArguments: typeArgumentsOf(typeParameters))
+        .constructor()
+        .build("${typeClass.name}MatchClosure", isAbstract: true);
+    return closureClass;
+  }
+
+  Class visitorInterface(Class typeClass, List<Class> dataClasses) {
+    VisitorBuilder builder = VisitorBuilder(platform);
+
+    // Create a fresh type parameter for the "return type" of the visit methods.
     TypeParameter resultTypeParameter = type.freshTypeParameter("\$R");
     // Copy the type parameters from [typeClass] and add [resultTypeParameter]
     // to the tail.
@@ -552,153 +737,68 @@ class AlgebraicDatatypeKernelGenerator {
         .copyTypeParameters(typeClass.typeParameters)
           ..add(resultTypeParameter);
 
-    SuperInitializer superInitializer;
-    Supertype supertype;
-    if (parentClass == null) {
-      supertype = objectType;
-      superInitializer = objectInitializer;
-    } else {
-      // TODO: Generalise this logic. Some questionable assumptions are made
-      // regarded the parent class's interface.
-      supertype = Supertype(parentClass, typeArgumentsOf(typeParameters));
-      superInitializer =
-          SuperInitializer(parentClass.constructors[0], Arguments.empty());
-    }
-
-    // Class template.
-    String name = "${typeClass.name}$suffix";
-    Class cls = Class(
-        name: name,
-        typeParameters: typeParameters,
-        supertype: supertype,
-        isAbstract: isAbstract);
-
-    // Create the default constructor.
-    DartType returnType = InterfaceType(cls, typeArgumentsOf(typeParameters));
-    FunctionNode funNode =
-        FunctionNode(EmptyStatement(), returnType: returnType);
-    Constructor clsConstructor = Constructor(funNode,
-        name: Name(""),
-        isSynthetic: true,
-        initializers: <Initializer>[objectInitializer]);
-
-    // Attach the default constructor.
-    cls.constructors.add(clsConstructor);
-
-    // print("Interface template: ${cls.name}<${cls.typeParameters}>");
-    return cls;
-  }
-
-  Class matchClosureInterface(
-      Class typeClass, List<Class> dataClasses, Class visitor) {
-    // Match closure interface.
-    Class matchClosure =
-        interfaceClassTemplate(typeClass, "MatchClosure", parentClass: visitor);
-    List<TypeParameter> typeParameters = matchClosure.typeParameters;
-    TypeParameter resultTypeParameter = typeParameters.last;
-    List<DartType> dataNodeTypeArguments =
+    // Add visit methods.
+    List<DartType> typeArguments =
         typeArgumentsOf(typeParameters.sublist(0, typeParameters.length - 1));
-
-    // Add a method for each data constructor.
-    DartType resultType = TypeParameterType(resultTypeParameter);
     for (int i = 0; i < dataClasses.length; i++) {
       Class dataClass = dataClasses[i];
-      DartType dataNodeType = InterfaceType(dataClass, dataNodeTypeArguments);
-      Procedure method =
-          dataMethod(dataNodeType, resultType, "visit${dataClass.name}");
-      // Modify the body.
-      ConstructorInvocation patternFailure = ConstructorInvocation(
-          platform
-              .getClass(PlatformPathBuilder.package("t20_runtime")
-                  .target("PatternMatchFailure")
-                  .build())
-              .constructors[0],
-          Arguments.empty());
-      method.function.body = ExpressionStatement(Throw(patternFailure));
+      DartType returnType = TypeParameterType(resultTypeParameter);
+      DartType nodeType = InterfaceType(dataClass, typeArguments);
 
-      matchClosure.procedures.add(method);
+      // Add an abstract "visit{dataClass.name}" method.
+      builder.method(returnType, nodeType, dataClass.name, isAbstract: true);
     }
 
-    // Add a method for default / catch-all cases.
-    DartType nodeType = InterfaceType(typeClass, dataNodeTypeArguments);
-    matchClosure.procedures.add(dataMethod(
-        nodeType, TypeParameterType(resultTypeParameter), "defaultCase"));
-    return matchClosure;
-  }
+    // Build the visitor class.
+    Class visitorClass = builder
+        .manyTypeParameters(typeParameters) // Register type parameters.
+        .constructor() // Add a default constructor.
+        .build("${typeClass.name}Visitor", isAbstract: true);
 
-  Class visitorInterface(Class typeClass, List<Class> dataClasses) {
-    // Visitor interface.
-    Class visitor = interfaceClassTemplate(typeClass, "Visitor");
-    List<TypeParameter> typeParameters = visitor.typeParameters;
-    // print("${visitor.name}<$typeParameters>");
-    TypeParameter resultTypeParameter = typeParameters.last;
-    List<DartType> dataNodeTypeArguments =
-        typeArgumentsOf(typeParameters.sublist(0, typeParameters.length - 1));
+    // Add accept methods to each data class.
+    Procedure accept(Class visitor, Class visitee, bool isAbstract) {
+      // Each accept method is parameterised by return type of the visitor.
+      TypeParameter returnTypeParameter = type.freshTypeParameter("\$R");
+      DartType returnType = TypeParameterType(returnTypeParameter);
+      List<DartType> typeArguments = typeArgumentsOf(visitee.typeParameters)
+        ..add(TypeParameterType(returnTypeParameter));
 
-    // Add an accept method to [typeClass] and [dataClasses].
-    DartType visitorResultType = TypeParameterType(resultTypeParameter);
-    for (int i = -1; i < dataClasses.length; i++) {
-      Class cls;
-      if (i < 0) {
-        cls = typeClass;
+      // Each accept method takes a single argument as input. The argument is a
+      // visitor instance.
+      VariableDeclaration v =
+          VariableDeclaration("v", type: InterfaceType(visitor, typeArguments));
+
+      Statement body;
+      if (isAbstract) {
+        body = EmptyStatement();
       } else {
-        cls = dataClasses[i];
+        MethodInvocation visitNode = MethodInvocation(
+            VariableGet(v),
+            Name("visit${visitee.name}"),
+            Arguments(<kernel.Expression>[ThisExpression()]));
+        body = ReturnStatement(visitNode);
       }
 
-      // Construct a visit method signature for [cls] (only if [cls] is a data
-      // class).
-      Procedure visitInterfaceTarget;
-      if (!identical(cls, typeClass)) {
-        // Each visit method has return type [R], where [R] is a class-wide type
-        // parameter.
-        DartType nodeType = InterfaceType(cls, dataNodeTypeArguments);
-        String name = "visit${cls.name}";
-        visitInterfaceTarget = dataMethod(nodeType, visitorResultType, name);
-        visitor.procedures.add(visitInterfaceTarget);
-      }
-
-      // Construct and attach an accept method.
-      cls.procedures.add(acceptMethod(
-          visitor, cls.typeParameters, visitInterfaceTarget, cls,
-          isAbstract: identical(cls, typeClass)));
-    }
-    return visitor;
-  }
-
-  Procedure acceptMethod(Class visitor, List<TypeParameter> typeParameters,
-      Procedure interfaceTarget, Class dataClass,
-      {bool isAbstract = false}) {
-    TypeParameter resultTypeParameter = type.freshTypeParameter("\$R");
-
-    List<DartType> typeArguments = typeArgumentsOf(typeParameters);
-    TypeParameterType visitorResultType =
-        TypeParameterType(resultTypeParameter);
-    typeArguments.add(visitorResultType);
-
-    VariableDeclaration visitorParameter =
-        VariableDeclaration("v", type: InterfaceType(visitor, typeArguments));
-
-    Statement body;
-    if (isAbstract) {
-      // R accept<R>(Visitor<A,...,R> v);
-      body = EmptyStatement();
-    } else {
-      // R accept<R>(Visitor<A,...,R> v) => v.visitNode<R>(this);
-      String targetVisitMethod = "visit${dataClass.name}";
-      body = ReturnStatement(MethodInvocation(
-          VariableGet(visitorParameter),
-          Name(targetVisitMethod),
-          Arguments(<kernel.Expression>[ThisExpression()]),
-          interfaceTarget));
+      FunctionNode funNode = FunctionNode(body,
+          positionalParameters: <VariableDeclaration>[v],
+          typeParameters: <TypeParameter>[returnTypeParameter],
+          returnType: returnType);
+      return Procedure(Name("accept"), ProcedureKind.Method, funNode,
+          isAbstract: isAbstract);
     }
 
-    FunctionNode funNode = FunctionNode(body,
-        positionalParameters: <VariableDeclaration>[visitorParameter],
-        returnType: visitorResultType,
-        typeParameters: <TypeParameter>[resultTypeParameter]);
+    for (int i = 0; i < dataClasses.length; i++) {
+      Class dataClass = dataClasses[i];
+      Procedure acceptMethod = accept(visitorClass, dataClass, false);
+      dataClass.procedures.add(acceptMethod);
+    }
 
-    return Procedure(Name("accept"), ProcedureKind.Method, funNode,
-        isAbstract: isAbstract);
+    // Add an abstract accept method to [typeClass].
+    Procedure acceptMethod = accept(visitorClass, typeClass, true);
+    typeClass.procedures.add(acceptMethod);
+
+    // Finally return the constructed visitor class.
+    return visitorClass;
   }
 
   Procedure dataMethod(DartType dataNodeType, DartType resultType, String name,
@@ -737,13 +837,19 @@ class AlgebraicDatatypeKernelGenerator {
 class MatchClosureKernelGenerator {
   final Platform platform;
   final ModuleEnvironment environment;
+  final KernelRepr magic;
   final ExpressionKernelGenerator expression;
   final DartTypeGenerator type;
 
-  MatchClosureKernelGenerator(Platform platform, ModuleEnvironment environment,
-      ExpressionKernelGenerator expression, DartTypeGenerator type)
+  MatchClosureKernelGenerator(
+      Platform platform,
+      ModuleEnvironment environment,
+      ExpressionKernelGenerator expression,
+      KernelRepr magic,
+      DartTypeGenerator type)
       : this.environment = environment,
         this.platform = platform,
+        this.magic = magic,
         this.type = type,
         this.expression = expression;
 
@@ -779,7 +885,6 @@ class MatchClosureKernelGenerator {
     // Construct the type of the type constructor.
     DartType nodeType;
     if (environment.originOf(descriptor.binder) == Origin.KERNEL) {
-      KernelRepr magic = KernelRepr(platform);
       nodeType = magic.typeConstructor(closure.typeConstructor);
     } else {
       nodeType = InterfaceType(descriptor.asKernelNode, typeArguments);
@@ -864,7 +969,6 @@ class MatchClosureKernelGenerator {
     Class dataClass;
     String caseName;
     if (environment.originOf(case0.constructor.binder) == Origin.KERNEL) {
-      KernelRepr magic = KernelRepr(platform);
       dataClass = magic.getDataClass(case0.constructor);
       caseName = dataClass.name;
     } else {
@@ -924,23 +1028,26 @@ class MatchClosureKernelGenerator {
 
 class ModuleKernelGenerator {
   final Platform platform;
+
+  final AlgebraicDatatypeKernelGenerator adt;
   final ModuleEnvironment environment;
   final ExpressionKernelGenerator expression;
-  final DartTypeGenerator type;
-  final AlgebraicDatatypeKernelGenerator adt;
+  final KernelRepr magic;
   MatchClosureKernelGenerator mclosure;
+  final DartTypeGenerator type;
 
-  ModuleKernelGenerator(
-      Platform platform, ModuleEnvironment environment, DartTypeGenerator type)
+  ModuleKernelGenerator(Platform platform, ModuleEnvironment environment,
+      KernelRepr magic, DartTypeGenerator type)
       : this.environment = environment,
         this.platform = platform,
+        this.magic = magic,
         this.type = type,
         this.expression =
-            ExpressionKernelGenerator(platform, environment, type),
-        this.adt =
-            AlgebraicDatatypeKernelGenerator(platform, environment, type) {
+            ExpressionKernelGenerator(platform, environment, magic, type),
+        this.adt = AlgebraicDatatypeKernelGenerator(
+            platform, environment, magic, type) {
     this.mclosure = MatchClosureKernelGenerator(
-        platform, environment, this.expression, type);
+        platform, environment, this.expression, magic, type);
   }
 
   Library compile(TopModule module) {
@@ -1088,67 +1195,10 @@ class ModuleKernelGenerator {
             fun.asKernelNode = platform.getProcedure(path);
             break;
           case "iterate":
-            // Generate the function:
-            // A iterate<A>(int n, A Function(A) f, A z) {
-            //   A x = z;
-            //   for (int i = 0; i < n; i++) x = f(x);
-            //   return x;
-            // }.
-
-            fun.asKernelNode = platform.getProcedure(PlatformPathBuilder.package("t20_runtime").target("iterate").build());
-            break;
-
-            // // The arguments.
-            // TypeParameter a = type.freshTypeParameter("A",
-            //     bound: InterfaceType(
-            //         platform.coreTypes.objectClass, <DartType>[]));
-            // DartType intType =
-            //     InterfaceType(platform.coreTypes.intClass, <DartType>[]);
-            // VariableDeclaration ndecl = VariableDeclaration("n", type: intType);
-            // DartType fnType = FunctionType(
-            //     <DartType>[TypeParameterType(a)], TypeParameterType(a));
-            // VariableDeclaration fdecl = VariableDeclaration("f", type: fnType);
-            // VariableDeclaration zdecl =
-            //     VariableDeclaration("z", type: TypeParameterType(a));
-
-            // // The body.
-            // VariableDeclaration xdecl = VariableDeclaration("x",
-            //     type: TypeParameterType(a), initializer: VariableGet(zdecl));
-            // VariableDeclaration idecl = VariableDeclaration("i",
-            //     type: intType, initializer: IntLiteral(0));
-            // kernel.Expression condition = MethodInvocation(VariableGet(idecl),
-            //     Name("<"), Arguments(<kernel.Expression>[VariableGet(ndecl)]));
-            // kernel.Expression update = VariableSet(
-            //     idecl,
-            //     MethodInvocation(VariableGet(idecl), Name("+"),
-            //         Arguments(<kernel.Expression>[IntLiteral(1)])));
-            // Statement loopBody = ExpressionStatement(VariableSet(
-            //     xdecl,
-            //     MethodInvocation(VariableGet(fdecl), Name("call"),
-            //         Arguments(<kernel.Expression>[VariableGet(xdecl)]))));
-            // ForStatement loop = ForStatement(<VariableDeclaration>[idecl],
-            //     condition, <kernel.Expression>[update], loopBody);
-            // Block body = Block(
-            //     <Statement>[xdecl, loop, ReturnStatement(VariableGet(xdecl))]);
-
-            // // The function node.
-            // FunctionNode funNode = FunctionNode(body,
-            //     positionalParameters: <VariableDeclaration>[
-            //       ndecl,
-            //       fdecl,
-            //       zdecl
-            //     ],
-            //     typeParameters: <TypeParameter>[a],
-            //     returnType: TypeParameterType(a));
-
-            // // The procedure node.
-            // Procedure node = Procedure(
-            //     Name(fun.binder.toString()), ProcedureKind.Method, funNode,
-            //     isStatic: true);
-
-            // // Store the node.
-            // fun.asKernelNode = node;
-            // return node;
+            fun.asKernelNode = platform.getProcedure(
+                PlatformPathBuilder.package("t20_runtime")
+                    .target("iterate")
+                    .build());
             break;
           default: // Ignore.
         }
@@ -1190,15 +1240,16 @@ class ModuleKernelGenerator {
 
 class ExpressionKernelGenerator {
   final ModuleEnvironment environment;
+  final KernelRepr magic;
   final Platform platform;
   final InvocationKernelGenerator invoke;
   final DartTypeGenerator type;
 
-  ExpressionKernelGenerator(
-      Platform platform, ModuleEnvironment environment, DartTypeGenerator type)
+  ExpressionKernelGenerator(Platform platform, ModuleEnvironment environment,
+      KernelRepr magic, DartTypeGenerator type)
       : this.environment = environment,
-        this.invoke =
-            InvocationKernelGenerator(environment, type, KernelRepr(platform)),
+        this.invoke = InvocationKernelGenerator(environment, type, magic),
+        this.magic = magic,
         this.platform = platform,
         this.type = type;
 
@@ -1229,7 +1280,7 @@ class ExpressionKernelGenerator {
         break;
       case ExpTag.LET:
         DLet letexp = exp as DLet;
-        VariableDeclaration v = translateBinder(letexp.binder);
+        VariableDeclaration v = translateBinder(letexp.binder, type);
         v.initializer = compile(letexp.body);
         return kernel.Let(v, compile(letexp.continuation));
         break;
@@ -1308,8 +1359,9 @@ class ExpressionKernelGenerator {
   FunctionNode functionNode(
       List<FormalParameter> parameters, Expression body, Datatype fnType) {
     // Translate each parameter.
-    List<VariableDeclaration> parameters0 =
-        parameters.map(translateFormalParameter).toList();
+    List<VariableDeclaration> parameters0 = parameters
+        .map((FormalParameter p) => translateFormalParameter(p, type))
+        .toList();
 
     // Translate the [body].
     Statement body0 = Block(<Statement>[ReturnStatement(compile(body))]);
@@ -1374,7 +1426,6 @@ class ExpressionKernelGenerator {
       DataConstructor constructor = proj.constructor;
       // Need to handle projections from Kernel objects specially.
       if (environment.originOf(constructor.binder) == Origin.KERNEL) {
-        KernelRepr magic = KernelRepr(platform);
         Name propertyName = magic.project(constructor, proj.label);
         return PropertyGet(receiver, propertyName);
       }

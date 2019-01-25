@@ -112,6 +112,7 @@ class PlatformPathBuilder {
       PlatformPathBuilder.dart.library("core");
   static PlatformPathBuilder get kernel =>
       PlatformPathBuilder.package("kernel");
+  static PlatformPathBuilder get t20 => PlatformPathBuilder._pkg("t20_runtime");
   static PlatformPathBuilder package(String pkgname) =>
       PlatformPathBuilder._pkg(pkgname);
 
