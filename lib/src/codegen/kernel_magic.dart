@@ -11,21 +11,18 @@ import '../errors/errors.dart' show unhandled;
 
 import 'platform.dart';
 
-abstract class _KernelNode {
+abstract class _KernelCompatNode {
   Class getClass(Platform platform);
-  Expression project(Expression receiver, int index);
-  Expression invoke(Platform platform, List<Expression> arguments);
 }
 
-// class _KernelCompatNode {
-// }
+abstract class _KernelTypeCompatNode {
+  DartType asDartType(Platform platform);
+}
 
-class _KernelNodeCompat implements _KernelNode {
+class _CompatNode {
   final String externalName;
 
-  _KernelNodeCompat(String name, List<Name> properties)
-      : externalName = name,
-        _propertyMapping = properties;
+  _CompatNode(String name) : externalName = name;
 
   Class _cls;
   Class getClass(Platform platform) {
@@ -33,6 +30,17 @@ class _KernelNodeCompat implements _KernelNode {
         PlatformPathBuilder.kernel.library("ast").target(externalName).build());
     return _cls;
   }
+}
+
+abstract class _KernelDataCompatNode implements _KernelCompatNode {
+  Expression project(Expression receiver, int index);
+  Expression invoke(Platform platform, List<Expression> arguments);
+}
+
+class _DataCompatNode extends _CompatNode implements _KernelDataCompatNode {
+  _DataCompatNode(String name, List<Name> properties)
+      : _propertyMapping = properties,
+        super(name);
 
   // Translation of properties.
   List<Name> _propertyMapping;
@@ -57,8 +65,8 @@ class _KernelNodeCompat implements _KernelNode {
   }
 }
 
-class _KernelProcedureNode extends _KernelNodeCompat {
-  _KernelProcedureNode()
+class _ProcedureCompatNode extends _DataCompatNode {
+  _ProcedureCompatNode()
       : super("Procedure", <Name>[
           Name("name"),
           Name("kind"),
@@ -78,8 +86,8 @@ class _KernelProcedureNode extends _KernelNodeCompat {
   }
 }
 
-class _KernelFieldNode extends _KernelNodeCompat {
-  _KernelFieldNode()
+class _FieldCompatNode extends _DataCompatNode {
+  _FieldCompatNode()
       : super("Field", <Name>[
           Name("name"),
           Name("initializer"),
@@ -102,8 +110,8 @@ class _KernelFieldNode extends _KernelNodeCompat {
   }
 }
 
-class _KernelVariableDeclarationNode extends _KernelNodeCompat {
-  _KernelVariableDeclarationNode()
+class _VariableDeclarationCompatNode extends _DataCompatNode {
+  _VariableDeclarationCompatNode()
       : super("Field", <Name>[
           Name("name"),
           Name("initializer"),
@@ -124,10 +132,10 @@ class _KernelVariableDeclarationNode extends _KernelNodeCompat {
   }
 }
 
-class _KernelShamNode implements _KernelNode {
-  _KernelNodeCompat actual;
+class _DataShamNode implements _KernelDataCompatNode {
+  _DataCompatNode actual;
 
-  _KernelShamNode(this.actual);
+  _DataShamNode(this.actual);
 
   Class getClass(Platform platform) => actual.getClass(platform);
 
@@ -137,64 +145,65 @@ class _KernelShamNode implements _KernelNode {
       arguments[0];
 }
 
-Map<String, _KernelNode> buildCompatibilityMap() {
-  Map<String, _KernelNode> compatMap = <String, _KernelNode>{
+Map<String, _KernelDataCompatNode> buildCompatibilityMap() {
+  Map<String, _KernelDataCompatNode> compatMap =
+      <String, _KernelDataCompatNode>{
     // Literals.
-    "BoolLiteral": _KernelNodeCompat("BoolLiteral", <Name>[Name("value")]),
-    "IntLiteral": _KernelNodeCompat("IntLiteral", <Name>[Name("value")]),
-    "StringLiteral": _KernelNodeCompat("StringLiteral", <Name>[Name("value")]),
-    "NullLiteral": _KernelNodeCompat("NullLiteral", null),
-    "ThisExpression": _KernelNodeCompat("ThisExpression", null),
-    "TypeLiteral": _KernelNodeCompat("TypeLiteral", <Name>[Name("type")]),
+    "BoolLiteral": _DataCompatNode("BoolLiteral", <Name>[Name("value")]),
+    "IntLiteral": _DataCompatNode("IntLiteral", <Name>[Name("value")]),
+    "StringLiteral": _DataCompatNode("StringLiteral", <Name>[Name("value")]),
+    "NullLiteral": _DataCompatNode("NullLiteral", null),
+    "ThisExpression": _DataCompatNode("ThisExpression", null),
+    "TypeLiteral": _DataCompatNode("TypeLiteral", <Name>[Name("type")]),
     // Logical expressions.
-    "Not": _KernelNodeCompat("Not", <Name>[Name("operand")]),
-    "LogicalExpression": _KernelNodeCompat("LogicalExpression",
+    "Not": _DataCompatNode("Not", <Name>[Name("operand")]),
+    "LogicalExpression": _DataCompatNode("LogicalExpression",
         <Name>[Name("left"), Name("operator"), Name("right")]),
     // Impure expressions.
     "InvalidExpression":
-        _KernelNodeCompat("InvalidExpression", <Name>[Name("message")]),
-    "StaticGet": _KernelNodeCompat("StaticGet", <Name>[Name("target")]),
-    "PropertyGet": _KernelNodeCompat(
-        "PropertyGet", <Name>[Name("receiver"), Name("name")]),
-    "PropertySet": _KernelNodeCompat(
+        _DataCompatNode("InvalidExpression", <Name>[Name("message")]),
+    "StaticGet": _DataCompatNode("StaticGet", <Name>[Name("target")]),
+    "PropertyGet":
+        _DataCompatNode("PropertyGet", <Name>[Name("receiver"), Name("name")]),
+    "PropertySet": _DataCompatNode(
         "PropertySet", <Name>[Name("receiver"), Name("name"), Name("value")]),
     "StaticSet":
-        _KernelNodeCompat("StaticSet", <Name>[Name("target"), Name("value")]),
-    "VariableGet": _KernelNodeCompat("VariableGet", <Name>[Name("variable")]),
-    "VariableSet": _KernelNodeCompat(
-        "VariableSet", <Name>[Name("variable"), Name("value")]),
-    "NamedExpression": _KernelNodeCompat(
-        "NamedExpression", <Name>[Name("name"), Name("value")]),
-    "MethodInvocation": _KernelNodeCompat("MethodInvocation",
+        _DataCompatNode("StaticSet", <Name>[Name("target"), Name("value")]),
+    "VariableGet": _DataCompatNode("VariableGet", <Name>[Name("variable")]),
+    "VariableSet":
+        _DataCompatNode("VariableSet", <Name>[Name("variable"), Name("value")]),
+    "NamedExpression":
+        _DataCompatNode("NamedExpression", <Name>[Name("name"), Name("value")]),
+    "MethodInvocation": _DataCompatNode("MethodInvocation",
         <Name>[Name("receiver"), Name("name"), Name("arguments")]),
-    "StaticInvocation": _KernelNodeCompat(
+    "StaticInvocation": _DataCompatNode(
         "StaticInvocation", <Name>[Name("target"), Name("arguments")]),
 
     // Statements
-    "Block": _KernelNodeCompat("Block", <Name>[Name("statements")]),
+    "Block": _DataCompatNode("Block", <Name>[Name("statements")]),
     "ExpressionStatement":
-        _KernelNodeCompat("ExpressionStatement", <Name>[Name("expression")]),
-    "IfStatement": _KernelNodeCompat("IfStatement",
+        _DataCompatNode("ExpressionStatement", <Name>[Name("expression")]),
+    "IfStatement": _DataCompatNode("IfStatement",
         <Name>[Name("condition"), Name("then"), Name("otherwise")]),
 
     // Arguments.
-    "Arguments": _KernelNodeCompat(
-        "Arguments", <Name>[Name("positional"), Name("named")]),
+    "Arguments":
+        _DataCompatNode("Arguments", <Name>[Name("positional"), Name("named")]),
 
     // Variables.
-    "VariableDeclaration": _KernelVariableDeclarationNode(),
+    "VariableDeclaration": _VariableDeclarationCompatNode(),
 
     // Members.
-    "Field": _KernelFieldNode(),
-    "Procedure": _KernelProcedureNode()
+    "Field": _FieldCompatNode(),
+    "Procedure": _ProcedureCompatNode()
   };
 
   // Add sham nodes.
-  Map<String, _KernelNode> shamMap = <String, _KernelNode>{
-    "FieldMember": _KernelShamNode(compatMap["Field"]),
-    "ProcedureMember": _KernelShamNode(compatMap["Procedure"]),
+  Map<String, _KernelDataCompatNode> shamMap = <String, _KernelDataCompatNode>{
+    "FieldMember": _DataShamNode(compatMap["Field"]),
+    "ProcedureMember": _DataShamNode(compatMap["Procedure"]),
     "VariableDeclarationStatement":
-        _KernelShamNode(compatMap["VariableDeclaration"])
+        _DataShamNode(compatMap["VariableDeclaration"])
   };
 
   // Merge.
@@ -203,12 +212,21 @@ Map<String, _KernelNode> buildCompatibilityMap() {
   return compatMap;
 }
 
-class _KernelTypeNode {
+class _TypeCompatNode extends _CompatNode implements _KernelTypeCompatNode {
+  _TypeCompatNode(String name) : super(name);
 
+  DartType asDartType(Platform platform) =>
+      InterfaceType(getClass(platform), const <DartType>[]);
 }
 
-Map<String, _KernelTypeNode> buildTypeCompabilityMap() {
-  return null;
+Map<String, _KernelTypeCompatNode> buildTypeCompabilityMap() {
+  return <String, _KernelTypeCompatNode>{
+    "Arguments": _TypeCompatNode("Arguments"),
+    "Expression": _TypeCompatNode("Expression"),
+    "Field": _TypeCompatNode("Field"),
+    "Procedure": _TypeCompatNode("Procedure"),
+    "Statement": _TypeCompatNode("Statement"),
+  }; // TODO add TypeShamNode.
 }
 
 // Provides a mapping between the internal representation of Kernel and the
@@ -216,50 +234,44 @@ Map<String, _KernelTypeNode> buildTypeCompabilityMap() {
 class KernelRepr {
   final Platform platform;
 
-  Map<String, _KernelNode> _kernelNodes;
-  Map<String, _KernelNode> get kernelNodes {
+  Map<String, _KernelDataCompatNode> _kernelNodes;
+  Map<String, _KernelDataCompatNode> get kernelNodes {
     _kernelNodes ??= buildCompatibilityMap();
     return _kernelNodes;
   }
 
-  // Map<String, _KernelTypeNode> get kernelTypeNodes {
-  //   _kernelTypeNodes ??= buildTypeCompabilityMap();
-  //   return _kernelTypeNodes;
-  // }
+  Map<String, _KernelTypeCompatNode> _kernelTypeNodes;
+  Map<String, _KernelTypeCompatNode> get kernelTypeNodes {
+    _kernelTypeNodes ??= buildTypeCompabilityMap();
+    return _kernelTypeNodes;
+  }
 
   KernelRepr(this.platform);
 
   InvocationExpression invoke(
       DataConstructor dataConstructor, List<Expression> arguments) {
-    _KernelNode compat = kernelNodes[dataConstructor.binder.sourceName];
+    _KernelDataCompatNode compat =
+        kernelNodes[dataConstructor.binder.sourceName];
     return compat.invoke(platform, arguments);
   }
 
   Expression project(
       DataConstructor dataConstructor, int label, Expression receiver) {
     assert(label > 0);
-    _KernelNode compat = kernelNodes[dataConstructor.binder.sourceName];
+    _KernelDataCompatNode compat =
+        kernelNodes[dataConstructor.binder.sourceName];
     return compat.project(receiver, label);
   }
 
   DartType getType(TypeConstructor constructor) {
-    Class cls;
-    switch (constructor.declarator.binder.sourceName) {
-      case "Expression":
-        cls = platform.getClass(PlatformPathBuilder.kernel
-            .library("ast")
-            .target("Expression")
-            .build());
-        break;
-      default:
-        unhandled("KernelRepr.typeConstructor",
-            constructor.declarator.binder.sourceName);
-    }
-    return InterfaceType(cls, <DartType>[]);
+    _KernelTypeCompatNode compat =
+        kernelTypeNodes[constructor.declarator.binder.sourceName];
+    return compat.asDartType(platform);
   }
 
   Class getDataClass(DataConstructor dataConstructor) {
-    _KernelNode compat = kernelNodes[dataConstructor.binder.sourceName];
+    _KernelDataCompatNode compat =
+        kernelNodes[dataConstructor.binder.sourceName];
     return compat.getClass(platform);
   }
 }
