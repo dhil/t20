@@ -219,14 +219,27 @@ class _TypeCompatNode extends _CompatNode implements _KernelTypeCompatNode {
       InterfaceType(getClass(platform), const <DartType>[]);
 }
 
+class _TypeShamCompatNode implements _KernelTypeCompatNode {
+  final _TypeCompatNode actual;
+
+  _TypeShamCompatNode(this.actual);
+
+  Class getClass(Platform platform) => actual.getClass(platform);
+  DartType asDartType(Platform platform) => actual.asDartType(platform);
+}
+
 Map<String, _KernelTypeCompatNode> buildTypeCompabilityMap() {
-  return <String, _KernelTypeCompatNode>{
+  Map<String, _KernelTypeCompatNode> compatMap =
+      <String, _KernelTypeCompatNode>{
     "Arguments": _TypeCompatNode("Arguments"),
     "Expression": _TypeCompatNode("Expression"),
     "Field": _TypeCompatNode("Field"),
+    "Member": _TypeCompatNode("Member"),
     "Procedure": _TypeCompatNode("Procedure"),
     "Statement": _TypeCompatNode("Statement"),
-  }; // TODO add TypeShamNode.
+    "VariableDeclaration": _TypeCompatNode("VariableDeclaration")
+  };
+  return compatMap;
 }
 
 // Provides a mapping between the internal representation of Kernel and the
