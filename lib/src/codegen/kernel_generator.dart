@@ -951,7 +951,7 @@ class MatchClosureKernelGenerator {
     // Construct the node type.
     DartType nodeType;
     if (environment.originOf(descriptor.binder) == Origin.KERNEL) {
-      nodeType = magic.typeConstructor(closure.typeConstructor);
+      nodeType = magic.getType(closure.typeConstructor);
     } else {
       nodeType = InterfaceType(descriptor.asKernelNode,
           parentTypeArguments.sublist(0, parentTypeArguments.length - 1));
@@ -1432,8 +1432,7 @@ class ExpressionKernelGenerator {
       DataConstructor constructor = proj.constructor;
       // Need to handle projections from Kernel objects specially.
       if (environment.originOf(constructor.binder) == Origin.KERNEL) {
-        Name propertyName = magic.project(constructor, proj.label);
-        return PropertyGet(receiver, propertyName);
+        return magic.project(constructor, proj.label, receiver);
       }
       return PropertyGet(receiver, Name("\$${proj.label}"));
     }
