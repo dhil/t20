@@ -249,6 +249,27 @@ Procedure proceduralise(
       isStatic: true);
 }
 
+Procedure smartConstructor(
+    DartTypeGenerator type,
+    InvocationKernelGenerator invoke,
+    DataConstructor constructor,
+    Datatype constructorType,
+    [KernelRepr magic]) {
+  if (magic != null) {
+    return proceduralise(
+        type,
+        (List<kernel.Expression> args) => magic.invoke(constructor, args),
+        constructor.binder,
+        constructorType);
+  } else {
+    return proceduralise(
+        type,
+        (List<kernel.Expression> args) => invoke.constructor(constructor, args),
+        constructor.binder,
+        constructorType);
+  }
+}
+
 class KernelGenerator {
   final bool demoMode;
   final Platform platform;
@@ -505,6 +526,15 @@ class AlgebraicDatatypeKernelGenerator {
   }
 
   List<Class> datatype(Library target, DatatypeDescriptor descriptor) {
+    // Do not generate algebraic type class hierarchy and visitors for Kernel
+    // types. We only emit "smart constructors".
+    if (environment.originOf(descriptor.binder) == Origin.KERNEL) {
+      // Slightly hacky: Exploit [dataConstructors] to add "smart constructors"
+      // for internal Kernel nodes.
+      invoke ??= InvocationKernelGenerator(environment, type, magic);
+      dataConstructors(target, descriptor.constructors, null, true);
+    }
+
     List<Class> classes = new List<Class>();
     // 1) Generate an abstract class for the type.
     Class typeClass = typeConstructor(descriptor.binder, descriptor.parameters);
@@ -641,21 +671,19 @@ class AlgebraicDatatypeKernelGenerator {
   }
 
   List<Class> dataConstructors(
-      Library target, List<DataConstructor> constructors, Class parentClass) {
+      Library target, List<DataConstructor> constructors, Class parentClass,
+      [bool isKernel = false]) {
     List<Class> classes = new List<Class>();
     for (int i = 0; i < constructors.length; i++) {
       DataConstructor constructor = constructors[i];
-      classes.add(dataConstructor(constructor, parentClass));
+      if (!isKernel) {
+        classes.add(dataConstructor(constructor, parentClass));
+      }
 
       // Create a "smart constructor" for when the data constructor is either
-      // used as an argument or returned from a higher-order function.
-      Procedure procedure = proceduralise(
-          type,
-          (List<kernel.Expression> args) =>
-              invoke.constructor(constructor, args),
-          constructor.binder,
-          constructor.type);
-
+      // used as an argument to or returned from a higher-order function.
+      Procedure procedure = smartConstructor(
+          type, invoke, constructor, constructor.type, isKernel ? magic : null);
       constructor.asProcedure = procedure;
       target.procedures.add(procedure);
     }
