@@ -486,10 +486,42 @@ class _ASTBuilder extends TAlgebra<Name, Build<ModuleMember>, Build<Expression>,
         ModuleMember member;
         if (parameters == null) {
           // Value stub.
-          member = VirtualValueDeclaration.stub(sig, binderOf(name));
+          member = VirtualValueDeclaration.stub(sig, binderOf(name),
+              location: location);
         } else {
           // Function stub.
-          member = VirtualFunctionDeclaration.stub(sig, binderOf(name));
+          member = VirtualFunctionDeclaration.stub(sig, binderOf(name),
+              location: location);
+        }
+
+        // Register [member] as a consumer of [sig].
+        sig.addDefinition(member as Declaration);
+
+        return Pair<BuildContext, ModuleMember>(ctxt, member);
+      };
+
+  Build<ModuleMember> foreign(
+          Name name, List<Build<Pattern>> parameters, String uri,
+          {Location location}) =>
+      (BuildContext ctxt) {
+        // Lookup the signature.
+        Signature sig = ctxt.getSignature(name);
+        if (sig == null) {
+          // Signal an error.
+          LocatedError err =
+              MissingAccompanyingSignatureError(name.sourceName, name.location);
+          return moduleError(err, location);
+        }
+
+        ModuleMember member;
+        if (parameters == null) {
+          // Foreign value.
+          member = VirtualValueDeclaration.foreign(sig, binderOf(name), uri,
+              location: location);
+        } else {
+          // Foreign function.
+          member = VirtualFunctionDeclaration.foreign(sig, binderOf(name), uri,
+              location: location);
         }
 
         // Register [member] as a consumer of [sig].

@@ -7,8 +7,14 @@ import 'package:kernel/ast.dart' as kernel show DynamicType, Expression, Let;
 import 'package:kernel/transformations/continuation.dart' as transform;
 
 import '../ast/ast.dart';
-import '../errors/errors.dart' show unhandled;
+import '../errors/errors.dart'
+    show
+        unhandled,
+        CannotLocateForeignFunctionError,
+        CodeGenerationError,
+        InvalidForeignUriError;
 import '../module_environment.dart';
+import '../result.dart';
 import '../typing/type_utils.dart' as typeUtils;
 import '../utils.dart' show Gensym;
 
@@ -284,25 +290,36 @@ class KernelGenerator {
         new KernelRepr(platform), new DartTypeGenerator());
   }
 
-  Component compile(List<TopModule> modules) {
+  Result<Component, CodeGenerationError> compile(List<TopModule> modules) {
     // Compile each module separately.
     List<Library> libraries = new List<Library>();
     Procedure main;
     Library mainLib;
+    List<CodeGenerationError> errors;
     for (int i = 0; i < modules.length; i++) {
-      TopModule module0 = modules[i];
-      Library library = module.compile(module0);
+      try {
+        TopModule module0 = modules[i];
+        Library library = module.compile(module0);
 
-      // Virtual modules may compile to "null".
-      if (library != null) {
-        libraries.add(library);
+        // Virtual modules may compile to "null".
+        if (library != null) {
+          libraries.add(library);
 
-        // Remember the latest main procedure and its enclosing library.
-        if (module0.hasMain) {
-          main = (module0.main as LetFunction).asKernelNode;
-          mainLib = library;
+          // Remember the latest main procedure and its enclosing library.
+          if (module0.hasMain) {
+            main = (module0.main as LetFunction).asKernelNode;
+            mainLib = library;
+          }
         }
+      } on CodeGenerationError catch (e) {
+        errors ??= new List<CodeGenerationError>();
+        errors.add(e);
       }
+    }
+
+    // Stop now, if the compilation produced any errors.
+    if (errors != null) {
+      return Result<Component, CodeGenerationError>.failure(errors);
     }
 
     // Compile the main procedure.
@@ -314,7 +331,7 @@ class KernelGenerator {
 
     // Put everything together.
     Component component = compose(main, libraries, platform.platform);
-    return component;
+    return Result<Component, CodeGenerationError>.success(component);
   }
 
   Component compose(
@@ -1013,7 +1030,7 @@ class MatchClosureKernelGenerator {
         .manyTypeParameters(typeParameters)
         .parent(parentClass, typeArguments: parentTypeArguments)
         .constructor(parameters: parameters, field: capturedVariableInitializer)
-        .build("${descriptor.binder}MatchClosure");
+        .build("${descriptor.binder}MatchClosure${Gensym.freshInt()}");
 
     // Store the class.
     closure.asKernelNode = closureClass;
@@ -1080,11 +1097,6 @@ class ModuleKernelGenerator {
             library.classes.addAll(classes);
           }
           break;
-        // case ModuleTag.CONSTR:
-        //   // Performed only for its side-effects.
-        //   Procedure procedure = dataConstructor(member as DataConstructor);
-        //   library.procedures.add(procedure);
-        //   break;
         case ModuleTag.FUNC_DEF:
           Procedure procedure = function(library, member as LetFunction);
           // Virtual functions may compile to [null].
@@ -1132,6 +1144,8 @@ class ModuleKernelGenerator {
   }
 
   Procedure virtualFunction(LetVirtualFunction fun) {
+    if (fun.isForeign) return foreignFunction(fun);
+
     Binder binder = fun.binder;
     switch (environment.originOf(fun.binder)) {
       case Origin.PRELUDE:
@@ -1158,35 +1172,6 @@ class ModuleKernelGenerator {
                 binder,
                 binder.type);
             return fun.asKernelNode;
-            break;
-          case "error":
-            // Generate the function: A error<A>(String message) { throw message; }.
-            DartType stringType =
-                InterfaceType(platform.coreTypes.stringClass, <DartType>[]);
-            VariableDeclaration parameter =
-                VariableDeclaration("message", type: stringType);
-            FunctionNode funNode = FunctionNode(
-                ExpressionStatement(Throw(VariableGet(parameter))),
-                positionalParameters: <VariableDeclaration>[parameter],
-                returnType: const kernel
-                    .DynamicType()); // TODO return TypeParameterType(A) instead.
-            Procedure node = Procedure(
-                Name(fun.binder.toString()), ProcedureKind.Method, funNode,
-                isStatic: true);
-            // Store the node.
-            fun.asKernelNode = node;
-            return node;
-            break;
-          case "print":
-            // Find the appropriate Kernel node the print function.
-            PlatformPath path =
-                PlatformPathBuilder.core.target("print").build();
-            // Store the node.
-            fun.asKernelNode = platform.getProcedure(path);
-            break;
-          case "iterate":
-            fun.asKernelNode = platform.getProcedure(
-                PlatformPathBuilder.t20.target("iterate").build());
             break;
           default: // Ignore.
         }
@@ -1224,6 +1209,27 @@ class ModuleKernelGenerator {
         unhandled("ModuleKernelGenerator.virtualFunction",
             environment.originOf(fun.binder));
     }
+    return null;
+  }
+
+  Procedure foreignFunction(LetVirtualFunction fun) {
+    List<String> parts = fun.uri.split(".");
+    if (parts.length < 2) {
+      throw InvalidForeignUriError(fun.uri, fun.location);
+    } else {
+      PlatformPathBuilder path = PlatformPathBuilder.package(parts[0]);
+      for (int i = 1; i < parts.length - 1; i++) {
+        path.library(parts[i]);
+      }
+      path.target(parts.last);
+
+      Procedure target = platform.getProcedure(path.build());
+      if (target == null) {
+        throw CannotLocateForeignFunctionError(fun.uri, fun.location);
+      }
+      fun.asKernelNode = target;
+    }
+
     return null;
   }
 
@@ -1492,7 +1498,6 @@ class ExpressionKernelGenerator {
           case "int-eq?":
           case "int-greater?":
           case "int-less?":
-          case "show":
             return true;
             break;
           default:
@@ -1570,12 +1575,6 @@ class InvocationKernelGenerator {
 
             return MethodInvocation(arguments[0], Name(operatorName),
                 Arguments(<kernel.Expression>[arguments[1]]));
-            break;
-          // Show stringifies an arbitrary object.
-          case "show":
-            assert(arguments.length == 1);
-            return MethodInvocation(
-                arguments[0], Name("toString"), Arguments.empty());
             break;
           default: // Ignore.
         }

@@ -155,8 +155,7 @@ abstract class BaseElaborator<Result, Name, Mod, Exp, Pat, Typ> {
       if (!unicode.isAsciiLetter(c) &&
           !unicode.isDigit(c) &&
           c != unicode.DASH &&
-          c != unicode.DOT)
-        return false;
+          c != unicode.DOT) return false;
     }
     return true;
   }
@@ -361,6 +360,8 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
               return datatypesDefinition(atom, list);
             case "define-stub":
               return stub(atom, list);
+            case "define-foreign":
+              return foreign(atom, list);
             case "define-typename":
               return typename(atom, list);
             case "open":
@@ -429,6 +430,60 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
     }
   }
 
+  Mod foreign(Atom head, SList list) {
+    assert(head.value == "define-foreign");
+
+    if (list.length < 3) {
+      return alg.errorModule(
+          BadSyntaxError(list.location.end, <String>["foreign definition"]));
+    }
+
+    if (list.length > 3) {
+      return alg.errorModule(
+          BadSyntaxError(list[3].location,
+              <String>["end of foreign definition '${list.closingBracket()}'"]),
+          location: list.location);
+    }
+
+    if (list[1] is Atom) {
+      // (define-foreign name platform-uri).
+      Atom atom = list[1];
+      Name ident = termName(atom);
+      String uri;
+      if (list[2] is StringLiteral) {
+        uri = (list[2] as StringLiteral).value;
+      } else {
+        return alg
+            .errorModule(BadSyntaxError(list[2].location, <String>["uri"]));
+      }
+
+      return alg.foreign(ident, null, uri, location: list.location);
+    } else if (list[1] is SList) {
+      // (define (name P*) platform-uri).
+      SList list0 = list[1]; // TODO find a better name than 'list0'.
+      if (list0.length > 0 && list0[0] is Atom) {
+        Atom atom = list0[0] as Atom;
+        Name ident = termName(atom);
+        List<Pat> parameters = expectMany<Sexp, Pat>(pattern, list0, start: 1);
+        String uri;
+        if (list[2] is StringLiteral) {
+          uri = (list[2] as StringLiteral).value;
+        } else {
+          return alg
+              .errorModule(BadSyntaxError(list[2].location, <String>["uri"]));
+        }
+
+        return alg.foreign(ident, parameters, uri, location: list.location);
+      } else {
+        return alg.errorModule(BadSyntaxError(
+            list0.location, <String>["identifier and parameter list"]));
+      }
+    } else {
+      return alg.errorModule(BadSyntaxError(list[1].location,
+          <String>["identifier", "identifier and parameter list"]));
+    }
+  }
+
   Mod stub(Atom head, SList list) {
     assert(head.value == "define-stub");
 
@@ -437,8 +492,16 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
           BadSyntaxError(list.location.end, <String>["stub definition"]));
     }
 
+    if (list.length > 2) {
+      return alg.errorModule(
+          BadSyntaxError(list[3].location, <String>[
+            "end of stub definition '${list.closingBracket()}'"
+          ]),
+          location: list.location);
+    }
+
     if (list[1] is Atom) {
-      // (define name E).
+      // (define name).
       if (list.length > 2) {
         return alg.errorModule(
             BadSyntaxError(list[2].location, <String>[list.closingBracket()]),
@@ -448,19 +511,12 @@ class ModuleElaborator<Name, Mod, Exp, Pat, Typ>
       Name ident = termName(atom);
       return alg.stub(ident, null, location: list.location);
     } else if (list[1] is SList) {
-      // (define (name P*) E).
+      // (define (name P*)).
       SList list0 = list[1]; // TODO find a better name than 'list0'.
       if (list0.length > 0 && list0[0] is Atom) {
         Atom atom = list0[0] as Atom;
         Name ident = termName(atom);
         List<Pat> parameters = expectMany<Sexp, Pat>(pattern, list0, start: 1);
-        if (list.length > 3) {
-          return alg.errorModule(
-              BadSyntaxError(list[3].location, <String>[
-                "end of stub definition '${list.closingBracket()}'"
-              ]),
-              location: list.location);
-        }
         return alg.stub(ident, parameters, location: list.location);
       } else {
         return alg.errorModule(BadSyntaxError(
@@ -1110,7 +1166,7 @@ class ExpressionElaborator<Name, Exp, Pat, Typ>
           cases[i - 2] = new Pair<Pat, Exp>(pat, null);
         } else {
           return alg.errorExp(BadSyntaxError(
-                clause[2].location, <String>[clause.closingBracket()]));
+              clause[2].location, <String>[clause.closingBracket()]));
         }
       } else {
         return alg.errorExp(BadSyntaxError(list[i].location,

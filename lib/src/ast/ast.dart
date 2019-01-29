@@ -102,6 +102,7 @@ abstract class Declaration implements Identifiable {
   Binder get binder;
   void set binder(Binder _);
   bool get isVirtual;
+  bool get isForeign;
   int get ident;
 
   // List<Variable> get uses;
@@ -112,6 +113,7 @@ abstract class DeclarationMixin implements Declaration {
   Binder binder;
   int get ident => binder.ident;
   bool get isVirtual => false;
+  bool get isForeign => false;
   Datatype get type => binder.type;
 
   // List<Variable> _uses;
@@ -220,17 +222,18 @@ class ValueDeclaration extends ModuleMember
 class VirtualValueDeclaration extends ValueDeclaration {
   bool get isVirtual => true;
 
-  VirtualValueDeclaration.stub(Signature signature, Binder binder)
-      : super(signature, binder, null, signature.location);
-  factory VirtualValueDeclaration(String name, Datatype type) {
-    Location location = Location.primitive();
-    Binder binder = Binder.primitive(name);
-    Signature signature = new Signature(binder, type, location);
-    VirtualValueDeclaration valDecl =
-        new VirtualValueDeclaration.stub(signature, binder);
-    signature.addDefinition(valDecl);
-    return valDecl;
-  }
+  String uri;
+  bool get isForeign => uri != null;
+
+  VirtualValueDeclaration.stub(Signature signature, Binder binder,
+      {Location location})
+      : super(signature, binder, null, location);
+
+  VirtualValueDeclaration.foreign(
+      Signature signature, Binder binder, String uri,
+      {Location location})
+      : this.uri = uri,
+        super(signature, binder, null, location);
 
   String toString() => "(define-stub $binder)";
 }
@@ -290,8 +293,19 @@ class FunctionDeclaration
 class VirtualFunctionDeclaration extends FunctionDeclaration {
   bool get isVirtual => true;
 
-  VirtualFunctionDeclaration.stub(Signature signature, Binder binder)
-      : super(signature, binder, null, null, signature.location);
+  String uri;
+  bool get isForeign => uri != null;
+
+  VirtualFunctionDeclaration.stub(Signature signature, Binder binder,
+      {Location location})
+      : super(signature, binder, null, null, location);
+
+  VirtualFunctionDeclaration.foreign(
+      Signature signature, Binder binder, String uri,
+      {Location location})
+      : this.uri = uri,
+        super(signature, binder, null, null, location);
+
   factory VirtualFunctionDeclaration(String name, Datatype type) {
     Location location = Location.primitive();
     Binder binder = Binder.primitive(name);
@@ -1290,8 +1304,15 @@ class LetFunction
 class LetVirtualFunction extends LetFunction {
   bool get isVirtual => true;
 
+  String uri;
+  bool get isForeign => uri != null;
+
   LetVirtualFunction(Signature signature, Binder binder, Location location)
       : super(signature, binder, null, null, location);
+  LetVirtualFunction.foreign(
+      Signature signature, Binder binder, uri, Location location)
+      : this.uri = uri,
+        super(signature, binder, null, null, location);
 }
 
 class Project extends Expression {

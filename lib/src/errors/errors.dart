@@ -501,3 +501,24 @@ class ObviousPatternError extends LocatedError implements TypeError {
 class CodeGenerationError extends T20Error {
   String toString() => "Code generation failed";
 }
+
+class CannotLocateForeignFunctionError extends LocatedError
+    implements CodeGenerationError {
+  final String uri;
+
+  CannotLocateForeignFunctionError(this.uri, Location location)
+      : super(location);
+
+  String toString() =>
+      "Failed to locate the foreign function using path `$uri'";
+}
+
+class InvalidForeignUriError extends LocatedError implements CodeGenerationError {
+  final String uri;
+
+  InvalidForeignUriError(this.uri, Location location)
+      : super(location);
+
+  String toString() =>
+      "A foreign uri must at least specify a library and a (procedure) target.";
+}

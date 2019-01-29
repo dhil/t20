@@ -12,9 +12,12 @@ import 'codegen/kernel_emitter.dart';
 import 'codegen/kernel_generator.dart';
 import 'codegen/platform.dart';
 
-import 'errors/errors.dart';
+import 'errors/errors.dart' show T20Error, CodeGenerationError;
+import 'errors/error_reporting.dart';
 
 import 'module_environment.dart';
+
+import 'result.dart';
 
 class BackendCompiler {
   Settings settings;
@@ -23,10 +26,17 @@ class BackendCompiler {
   Future<List<T20Error>> compile(
       ModuleEnvironment environment, List<TopModule> modules) async {
     // Generate code.
-    Component component = new KernelGenerator(
+    Result<Component, CodeGenerationError> codegenResult = new KernelGenerator(
             new Platform(settings.platformDill), environment,
             demoMode: settings.demoMode)
         .compile(modules);
+
+    // Check whether there were any errors.
+    if (!codegenResult.wasSuccessful) {
+      return codegenResult.errors;
+    }
+
+    Component component = codegenResult.result;
 
     // Exit now, if requested.
     if (component == null || settings.exitAfter == "codegen") {

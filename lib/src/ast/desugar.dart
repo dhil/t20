@@ -152,8 +152,13 @@ class ModuleDesugarer {
     // The declaration may be virtual.
     if (fundecl.isVirtual) {
       assert(fundecl is VirtualFunctionDeclaration);
-      return LetVirtualFunction(
-          fundecl.signature, fundecl.binder, fundecl.location);
+      VirtualFunctionDeclaration virtfun =
+          fundecl as VirtualFunctionDeclaration;
+      return virtfun.isForeign
+          ? LetVirtualFunction.foreign(
+              virtfun.signature, virtfun.binder, virtfun.uri, virtfun.location)
+          : LetVirtualFunction(
+              virtfun.signature, virtfun.binder, virtfun.location);
     }
 
     // Non-virtual declaration.
@@ -388,7 +393,9 @@ class MatchCompiler {
       Case case0 = match.cases[i];
       Pattern pat = case0.pattern;
 
-      if (pat is WildcardPattern || pat is VariablePattern || pat is ObviousPattern) {
+      if (pat is WildcardPattern ||
+          pat is VariablePattern ||
+          pat is ObviousPattern) {
         // Catch-all pattern.
         Binder xb;
         if (pat is VariablePattern) {
@@ -398,7 +405,8 @@ class MatchCompiler {
         }
         // Desugar the right hand side expression (if it is not an obvious
         // pattern).
-        Expression exp = pat is ObviousPattern ? null : expression.desugar(case0.expression);
+        Expression exp =
+            pat is ObviousPattern ? null : expression.desugar(case0.expression);
         // Compile the default case.
         defaultCase0 = defaultCase(xb, exp, resultType);
         // Monotonically increase the information about free variables.
@@ -410,7 +418,8 @@ class MatchCompiler {
           // Desugar the right hand side expression.
           Expression exp = expression.desugar(case0.expression);
           // Compile the case.
-          MatchClosureCase compiledCase = regularCase(scrutineeType, pat, exp, resultType);
+          MatchClosureCase compiledCase =
+              regularCase(scrutineeType, pat, exp, resultType);
           cases.add(compiledCase);
           // Monotonically increase the information about free variables.
           fvs.addAll(freeVariables(compiledCase));
@@ -533,8 +542,8 @@ class DecisionTreeCompiler {
     } else {
       unhandled("DecisionTreeCompiler.desugar", type);
     }
-    return compile(
-        scrutinee, result.cases, 0, result.cases.length - 1, result.defaultCase);
+    return compile(scrutinee, result.cases, 0, result.cases.length - 1,
+        result.defaultCase);
   }
 
   CaseNormalisationResult normalise<T>(List<Case> cases, Datatype type,
@@ -631,7 +640,8 @@ class DecisionTreeCompiler {
     if (start == end) {
       // Potential match.
       Expression condition = Apply(eq, <Expression>[Variable(scrutinee), w]);
-      return If(condition, expression.desugar(c.expression), immediate(defaultCase, scrutinee));
+      return If(condition, expression.desugar(c.expression),
+          immediate(defaultCase, scrutinee));
     }
 
     // Inductive case:

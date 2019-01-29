@@ -85,20 +85,23 @@ class _Prelude extends _EmbeddedModule {
 
 ;; Auxiliary.
 (: error (-> String 'a))
-(define-stub (error _ _))
+(define-foreign (error _) "t20_runtime.error")
 
 (: print (-> String (*)))
-(define-stub (print _ _))
+(define-foreign (print _) "dart.core.print")
 
 (: show (-> 'a String))
-(define-stub (show _))
+(define-foreign (show _) "t20_runtime.show")
 
 (: ignore (-> 'a (*)))
 (define (ignore _) (,))
 
+(: id (-> 'a 'a))
+(define (id x) x)
+
 ;; Iteration.
 (: iterate (-> Int [-> 'a 'a] 'a 'a))
-(define-stub (iterate _ _ _))
+(define-foreign (iterate _ _ _) "t20_runtime.iterate")
 ''';
 }
 

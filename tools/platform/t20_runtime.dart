@@ -165,6 +165,9 @@ R iterate<R>(int m, R Function(R) f, R z) {
   return result;
 }
 
+// Show.
+String show(dynamic a) => a.toString();
+
 // Main driver.
 void t20main(Component Function(Component) main, List<String> args) async {
   String file = args[0];
