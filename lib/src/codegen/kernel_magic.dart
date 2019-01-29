@@ -110,6 +110,26 @@ class _FieldCompatNode extends _DataCompatNode {
   }
 }
 
+class _FunctionCompatNode extends _DataCompatNode {
+  _FunctionCompatNode()
+      : super("FunctionNode", <Name>[
+          Name("body"),
+          Name("positionalParameters"),
+          Name("namedParameters"),
+        ]);
+
+  Expression invoke(Platform platform, List<Expression> arguments) {
+    Constructor constructor = defaultConstructor(platform);
+    Arguments args = Arguments(<Expression>[
+      arguments[0]
+    ], named: <NamedExpression>[
+      NamedExpression("positionalParameters", arguments[1]),
+      NamedExpression("namedParameters", arguments[2])
+    ]);
+    return ConstructorInvocation(constructor, args);
+  }
+}
+
 class _VariableDeclarationCompatNode extends _DataCompatNode {
   _VariableDeclarationCompatNode()
       : super("Field", <Name>[
@@ -190,6 +210,8 @@ Map<String, _KernelDataCompatNode> buildCompatibilityMap() {
     "Arguments":
         _DataCompatNode("Arguments", <Name>[Name("positional"), Name("named")]),
 
+    // Function node.
+    "FunctionNode": _FunctionCompatNode(),
     // Variables.
     "VariableDeclaration": _VariableDeclarationCompatNode(),
 
@@ -234,6 +256,7 @@ Map<String, _KernelTypeCompatNode> buildTypeCompabilityMap() {
     "Arguments": _TypeCompatNode("Arguments"),
     "Expression": _TypeCompatNode("Expression"),
     "Field": _TypeCompatNode("Field"),
+    "FunctionNode": _TypeCompatNode("FunctionNode"),
     "Member": _TypeCompatNode("Member"),
     "Procedure": _TypeCompatNode("Procedure"),
     "Statement": _TypeCompatNode("Statement"),
