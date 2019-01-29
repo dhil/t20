@@ -168,6 +168,15 @@ R iterate<R>(int m, R Function(R) f, R z) {
 // Show.
 String show(dynamic a) => a.toString();
 
+// Dart list module.
+void dart_list_add<A>(A x, List<A> xs) => xs.add(x);
+void dart_list_set<A>(int i, A x, List<A> xs) => xs[i] = x;
+A dart_list_nth<A>(int i, List<A> xs) => xs[i];
+void dart_list_length<A>(List<A> xs) => xs.length;
+List<B> dart_list_map<A,B>(B Function(A) f, List<A> xs) => xs.map(f).toList();
+B dart_list_fold<A,B>(B Function(B, A) f, B z, List<A> xs) => xs.fold(z, f);
+
+
 // Main driver.
 void t20main(Component Function(Component) main, List<String> args) async {
   String file = args[0];

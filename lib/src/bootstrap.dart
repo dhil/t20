@@ -138,19 +138,22 @@ class _DartList extends _EmbeddedModule {
 (define-typename Void (*))
 
 (: add! (=> ([Ground 'a]) [-> 'a (Dart-List 'a) Void]))
-(define-stub (add! _ _))
+(define-foreign (add! _ _) "t20_runtime.dart_list_add")
 
 (: set! (=> ([Ground 'a]) [-> Int 'a (Dart-List 'a) Void]))
-(define-stub (set! _ _ _))
+(define-foreign (set! _ _ _) "t20_runtime.dart_list_set")
 
 (: nth! (-> Int (Dart-List 'a) 'a))
-(define-stub (nth! _ _))
+(define-foreign (nth! _ _) "t20_runtime.dart_list_nth")
 
 (: length (-> (Dart-List 'a) Int))
-(define-stub (length _))
+(define-foreign (length _) "t20_runtime.dart_list_length")
 
 (: map! (=> ([Ground 'a]) (-> [-> 'a 'b] (Dart-List 'a) (Dart-List 'b))))
-(define-stub (map! _))
+(define-foreign (map! _ _) "t20_runtime.dart_list_map")
+
+(: fold (=> ([Ground 'a]) (-> [-> 'b 'a 'b] 'b (Dart-List 'a) 'b)))
+(define-foreign (fold _ _ _) "t20_runtime.dart_list_fold")
 ''';
 }
 
