@@ -4,7 +4,7 @@
 
 library t20_runtime;
 
-import 'dart:io' show exit, File, IOSink, stderr;
+import 'dart:io' show exit, File, IOSink, stderr, stdout, Platform;
 import 'package:kernel/ast.dart'
     show
         Arguments,
@@ -173,8 +173,8 @@ void dart_list_add<A>(A x, List<A> xs) => xs.add(x);
 void dart_list_set<A>(int i, A x, List<A> xs) => xs[i] = x;
 A dart_list_nth<A>(int i, List<A> xs) => xs[i];
 int dart_list_length<A>(List<A> xs) => xs.length;
-List<B> dart_list_map<A,B>(B Function(A) f, List<A> xs) => xs.map(f).toList();
-B dart_list_fold<A,B>(B Function(B, A) f, B z, List<A> xs) => xs.fold(z, f);
+List<B> dart_list_map<A, B>(B Function(A) f, List<A> xs) => xs.map(f).toList();
+B dart_list_fold<A, B>(B Function(B, A) f, B z, List<A> xs) => xs.fold(z, f);
 
 // String module.
 int string_length(String str) => str.length;
@@ -183,17 +183,100 @@ bool string_equals(String a, String b) => a.compareTo(b) == 0;
 bool string_less(String a, String b) => a.compareTo(b) < 0;
 bool string_greater(String a, String b) => a.compareTo(b) > 0;
 
+// Argument parser.
+class Settings {
+  final bool showHelp;
+  final String target;
+  final String source;
+  Settings(this.showHelp, this.source, this.target);
+}
+
+Settings parseArgs(List<String> args) {
+  bool showHelp = false;
+  String target = "a.transformed.dill";
+  String source;
+  for (int i = 0; i < args.length; i++) {
+    String arg = args[i];
+    if (arg.startsWith("-")) {
+      if (arg.compareTo("--help") == 0 || arg.compareTo("-h") == 0) {
+        showHelp = true;
+        break;
+      } else if (arg.compareTo("-o") == 0) {
+        if (i + 1 < args.length) {
+          ++i;
+          target = args[i];
+        } else {
+          stderr.writeln("error: missing filename after `-o'.");
+          exit(1);
+        }
+      } else {
+        stderr.writeln("error: Unknown option `$arg'.");
+        stderr.writeln(
+            "hint: try `${Platform.script.pathSegments.last} --help'.");
+        exit(1);
+      }
+    }
+
+    if (source == null) {
+      source = arg;
+    } else {
+      stderr.writeln("error: multiple input files given.");
+      exit(1);
+    }
+  }
+
+  if (source == null) {
+    stderr.writeln("error: no input file given.");
+    exit(1);
+  }
+
+  return Settings(showHelp, source, target);
+}
+
+void showHelp(String t20Version, String sdkVersion, String buildDate) {
+  stdout.writeln(
+      "usage: ${Platform.script.pathSegments.last} [ -h  | -o <file> ] FILE");
+  stdout.writeln("");
+  stdout.writeln(
+      "Kernel-to-Kernel transformation compiler built by T20 (version $t20Version) on Dart SDK $sdkVersion on $buildDate");
+  stdout.writeln("");
+  stdout.writeln("Options:");
+  stdout.writeln("-h, --help                      Displays this help message.");
+  stdout
+      .writeln("-o <file>                       Place the output into <file>.");
+}
 
 // Main driver.
 void t20main(Component Function(Component) main, List<String> args) async {
-  String file = args[0];
-  Component c = Component();
-  BinaryBuilder(File(file).readAsBytesSync()).readSingleFileComponent(c);
-  c = runTransformation(main, c);
-  IOSink sink = File("transformed.dill").openWrite();
-  BinaryPrinter(sink).writeComponentFile(c);
-  await sink.flush();
-  await sink.close();
+  Settings settings = parseArgs(args);
+  if (settings.showHelp) {
+    showHelp(null, null, null);
+  } else {
+    String file = settings.source;
+    Component c = Component();
+    BinaryBuilder(File(file).readAsBytesSync()).readSingleFileComponent(c);
+    c = runTransformation(main, c);
+    IOSink sink = File(settings.target).openWrite();
+    BinaryPrinter(sink).writeComponentFile(c);
+    await sink.flush();
+    await sink.close();
+  }
+}
+
+void t20mainDemo(dynamic Function() main) {
+  try {
+    main();
+  } on PatternMatchFailure catch (e) {
+    stderr.writeln(e.toString());
+    exit(1);
+  } on T20Error catch (e) {
+    stderr.writeln(e.toString());
+    exit(1);
+  } catch (e, s) {
+    stderr.writeln("fatal error: $e");
+    stderr.writeln(s.toString());
+    exit(1);
+  }
 }
 
 // void main(List<String> args) => t20main(<main_from_source>, args);
@@ -202,6 +285,9 @@ Component runTransformation(
     Component Function(Component) main, Component argument) {
   try {
     return main(argument);
+  } on PatternMatchFailure catch (e) {
+    stderr.writeln(e.toString());
+    exit(1);
   } on T20Error catch (e) {
     stderr.writeln(e.toString());
     exit(1);
