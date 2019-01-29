@@ -1176,35 +1176,6 @@ class ModuleKernelGenerator {
           default: // Ignore.
         }
         break;
-      case Origin.STRING:
-        switch (binder.sourceName) {
-          case "concat":
-          case "eq?":
-          case "less?":
-          case "greater?":
-          case "length":
-            invoke ??= InvocationKernelGenerator(environment, type, magic);
-            fun.asKernelNode = proceduralise(
-                type,
-                (List<kernel.Expression> args) =>
-                    invoke.primitive(binder, args),
-                binder,
-                binder.type);
-            return fun.asKernelNode;
-            break;
-          default:
-          // Ignore.
-        }
-        break;
-      case Origin.DART_LIST:
-        // Ignore.
-        break;
-      case Origin.KERNEL:
-        if (fun.binder.sourceName == "transform-component!") {
-          fun.asKernelNode = platform.getProcedure(
-              PlatformPathBuilder.t20.target("transformComponentBang").build());
-        }
-        break;
       default:
         unhandled("ModuleKernelGenerator.virtualFunction",
             environment.originOf(fun.binder));
@@ -1483,36 +1454,6 @@ class ExpressionKernelGenerator {
     return MethodInvocation(getVariable(target, elim.scrutinee), Name("accept"),
         Arguments(<kernel.Expression>[eliminatorInvocation]));
   }
-
-  bool requiresEtaExpansion(Binder b) {
-    switch (environment.originOf(b)) {
-      case Origin.PRELUDE:
-        switch (b.sourceName) {
-          case "&&":
-          case "||":
-          case "+":
-          case "-":
-          case "/":
-          case "*":
-          case "mod":
-          case "int-eq?":
-          case "int-greater?":
-          case "int-less?":
-            return true;
-            break;
-          default:
-            return false;
-        }
-        break;
-      // All primitive functions from the String and Dart-List modules require
-      // eta expansion when passed as an argument or returned from a function.
-      case Origin.STRING:
-      case Origin.DART_LIST:
-        return true;
-      default:
-        return false;
-    }
-  }
 }
 
 class InvocationKernelGenerator {
@@ -1580,38 +1521,7 @@ class InvocationKernelGenerator {
         }
         break;
       case Origin.STRING:
-        switch (binder.sourceName) {
-          case "concat":
-            return StringConcatenation(arguments);
-            break;
-          // Binary operations.
-          case "eq?":
-          case "less?":
-          case "greater?":
-            // Same compilation strategy as for integer operations.
-            assert(arguments.length == 2);
-            String operatorName;
-            if (binder.sourceName == "eq?") {
-              operatorName = "==";
-            } else if (binder.sourceName == "greater?") {
-              operatorName = ">";
-            } else {
-              operatorName = "<";
-            }
-
-            return MethodInvocation(arguments[0], Name(operatorName),
-                Arguments(arguments.sublist(1, 2)));
-            break;
-          case "length":
-            assert(arguments.length == 1);
-            return PropertyGet(arguments[0], Name("length"));
-            break;
-          default: // Ignore.
-        }
-        break;
       case Origin.DART_LIST:
-        throw "Not yet implemented.";
-        break;
       case Origin.KERNEL:
         // Ignore.
         break;

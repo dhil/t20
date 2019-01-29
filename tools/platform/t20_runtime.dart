@@ -172,9 +172,16 @@ String show(dynamic a) => a.toString();
 void dart_list_add<A>(A x, List<A> xs) => xs.add(x);
 void dart_list_set<A>(int i, A x, List<A> xs) => xs[i] = x;
 A dart_list_nth<A>(int i, List<A> xs) => xs[i];
-void dart_list_length<A>(List<A> xs) => xs.length;
+int dart_list_length<A>(List<A> xs) => xs.length;
 List<B> dart_list_map<A,B>(B Function(A) f, List<A> xs) => xs.map(f).toList();
 B dart_list_fold<A,B>(B Function(B, A) f, B z, List<A> xs) => xs.fold(z, f);
+
+// String module.
+int string_length(String str) => str.length;
+String string_concat(String a, String b) => "$a$b";
+bool string_equals(String a, String b) => a.compareTo(b) == 0;
+bool string_less(String a, String b) => a.compareTo(b) < 0;
+bool string_greater(String a, String b) => a.compareTo(b) > 0;
 
 
 // Main driver.

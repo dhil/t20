@@ -111,19 +111,19 @@ class _String extends _EmbeddedModule {
   String get asTextual => '''
 ;; Operations on (Dart) strings.
 (: length (-> String Int))
-(define-stub (length _ _))
+(define-foreign (length _ _) "t20_runtime.string_length")
 
 (: concat (-> String String String))
-(define-stub (concat _ _))
+(define-foreign (concat _ _) "t20_runtime.string_concat")
 
 (: eq? (-> String String Bool))
-(define-stub (eq? _ _))
+(define-foreign (eq? _ _) "t20_runtime.string_equals")
 
 (: less? (-> String String Bool))
-(define-stub (less? _ _))
+(define-foreign (less? _ _) "t20_runtime.string_less")
 
 (: greater? (-> String String Bool))
-(define-stub (greater? _ _))
+(define-foreign (greater? _ _) "t20_runtime.string_greater")
 ''';
 }
 
@@ -226,7 +226,7 @@ class _Kernel extends _EmbeddedModule {
   [Component (Dart-List Library)])
 
 (: transform-component! (-> Component [-> Statement Statement] [-> Expression Expression] Component))
-(define-stub (transform-component! _ _ _))
+(define-foreign (transform-component! _ _ _) "t20_runtime.transformComponentBang")
 ''';
 }
 
