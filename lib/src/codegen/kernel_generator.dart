@@ -5,6 +5,7 @@
 import 'package:kernel/ast.dart' hide DynamicType, Expression, Let;
 import 'package:kernel/ast.dart' as kernel show DynamicType, Expression, Let;
 import 'package:kernel/transformations/continuation.dart' as transform;
+import 'package:kernel/kernel.dart' show writeLibraryToText;
 
 import '../ast/ast.dart';
 import '../errors/errors.dart'
@@ -379,7 +380,7 @@ class MainProcedureKernelGenerator {
     //     Component c  = Component();
     //     BinaryBuilder(File(file).readAsBytesSync()).readSingleFileComponent(c);
     //     c = entryPoint(c);
-    //     IOSink sink = File("transformed.dill").openWrite();
+    //     IOSink sink = File("a.transformed.dill").openWriteSync();
     //     BinaryPrinter(sink).writeComponentFile(c);
     //     await sink.flush();
     //     await sink.close();
@@ -478,9 +479,9 @@ class MainProcedureKernelGenerator {
     return Block(<Statement>[
       file,
       component,
-      sink,
       readComponent,
       runTransformation,
+      sink,
       writeComponent,
       flush,
       close
