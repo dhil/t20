@@ -704,7 +704,9 @@ enum ExpTag {
   // SET,
   TUPLE,
   VAR,
-  TYPE_ASCRIPTION
+  TYPE_ASCRIPTION,
+  TABSTR,
+  TAPPL
 }
 
 /** Constants. **/
@@ -988,6 +990,56 @@ class ErrorExpression extends Expression {
   T accept<T>(ExpressionVisitor<T> v) => v.visitError(this);
 
   Datatype get type => typeUtils.dynamicType;
+}
+
+// Capital lambda /\qs.e.
+class TypeAbstraction extends Expression {
+  List<Quantifier> quantifiers;
+
+  Expression _expression;
+  Expression get expression => _expression;
+  void set expression(Expression exp) {
+    _setParent(exp, this);
+    _expression = exp;
+  }
+
+  TypeAbstraction(this.quantifiers, Expression exp, [Location location])
+      : super(ExpTag.TABSTR, location) {
+    expression = exp;
+  }
+
+  T accept<T>(ExpressionVisitor<T> v) => null; // TODO.
+
+  String toString() {
+    String qs = quantifiers.join(" ");
+    return "(/\[$qs] $expression";
+  }
+}
+
+// Eliminator for capital lambda.
+class TypeApplication extends Expression {
+  Expression _abstractor;
+  Expression get abstractor => _abstractor;
+  void set abstractor(Expression abs) {
+    _setParent(abs, this);
+    _abstractor = abs;
+  }
+
+  List<Datatype> arguments;
+
+  TypeApplication(Expression abstractor, List<Datatype> arguments,
+      [Location location])
+      : super(ExpTag.TAPPL, location) {
+    this.abstractor = abstractor;
+    this.arguments = arguments;
+  }
+
+  T accept<T>(ExpressionVisitor<T> v) => null; // TODO.
+
+  String toString() {
+    String args = arguments.join(" ");
+    return "(type-apply $abstractor [$args])";
+  }
 }
 
 //===== Pattern language.

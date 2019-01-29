@@ -266,23 +266,24 @@ class _TypeChecker {
     InferenceResult result = inferExpression(appl.abstractor, ctxt);
     ctxt = result.context;
     // Eliminate foralls.
-    return apply(appl, ctxt.apply(result.type), ctxt, appl.location);
+    return apply(appl, ctxt.apply(result.type), ctxt);
   }
 
   InferenceResult apply(
-      Apply appl, Datatype type, OrderedContext ctxt, Location location) {
+      Apply appl, Datatype type, OrderedContext ctxt) {
     List<Expression> arguments = appl.arguments;
     if (trace) {
       print("apply: ${arguments}, $type");
     }
+
     // apply xs* (\/qs+.t) ctxt = apply xs* (t[qs+ -> as+]) ctxt
     if (type is ForallType) {
       Triple<Existential, OrderedContext, Datatype> result =
           guessInstantiation(type.quantifiers, type.body, ctxt);
       ctxt = result.snd;
       Datatype body = result.thd;
-      // TODO store the "guessed instantiation" on the apply node.
-      return apply(appl, body, ctxt, location);
+      // TODO insert (/\qs+ . appl) @ as+.
+      return apply(appl, body, ctxt);
     }
 
     // apply xs* (ts* -> t) ctxt = (ctxt', t ctxt'), where ctxt' = check* xs* ts* ctxt
@@ -290,7 +291,7 @@ class _TypeChecker {
       ArrowType fnType = type;
       if (fnType.arity != arguments.length) {
         TypeError err =
-            ArityMismatchError(fnType.arity, arguments.length, location);
+            ArityMismatchError(fnType.arity, arguments.length, appl.location);
         errors.add(err);
         return InferenceResult(ctxt, type.codomain);
       }
