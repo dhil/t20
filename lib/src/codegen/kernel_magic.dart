@@ -152,6 +152,31 @@ class _VariableDeclarationCompatNode extends _DataCompatNode {
   }
 }
 
+class _ComponentCompatNode extends _DataCompatNode {
+  _ComponentCompatNode() : super("Component", <Name>[Name("libraries")]);
+
+  Expression invoke(Platform platform, List<Expression> arguments) {
+    Constructor constructor = defaultConstructor(platform);
+    Arguments args = Arguments(const <Expression>[],
+        named: <NamedExpression>[NamedExpression("libraries", arguments[0])]);
+    return ConstructorInvocation(constructor, args);
+  }
+}
+
+class _LibraryCompatNode extends _DataCompatNode {
+  _LibraryCompatNode()
+      : super("Library", <Name>[Name("name"), Name("procedures")]);
+
+  Expression invoke(Platform platform, List<Expression> arguments) {
+    Constructor constructor = defaultConstructor(platform);
+    Arguments args = Arguments(const <Expression>[], named: <NamedExpression>[
+      NamedExpression("name", arguments[0]),
+      NamedExpression("procedures", arguments[1]),
+    ]);
+    return ConstructorInvocation(constructor, args);
+  }
+}
+
 class _DataShamNode implements _KernelDataCompatNode {
   _DataCompatNode actual;
 
@@ -217,7 +242,13 @@ Map<String, _KernelDataCompatNode> buildCompatibilityMap() {
 
     // Members.
     "Field": _FieldCompatNode(),
-    "Procedure": _ProcedureCompatNode()
+    "Procedure": _ProcedureCompatNode(),
+
+    // Component
+    "Component": _ComponentCompatNode(),
+
+    // Library
+    "Library": _LibraryCompatNode()
   };
 
   // Add sham nodes.
@@ -254,9 +285,11 @@ Map<String, _KernelTypeCompatNode> buildTypeCompabilityMap() {
   Map<String, _KernelTypeCompatNode> compatMap =
       <String, _KernelTypeCompatNode>{
     "Arguments": _TypeCompatNode("Arguments"),
+    "Component": _TypeCompatNode("Component"),
     "Expression": _TypeCompatNode("Expression"),
     "Field": _TypeCompatNode("Field"),
     "FunctionNode": _TypeCompatNode("FunctionNode"),
+    "Library": _TypeCompatNode("Library"),
     "Member": _TypeCompatNode("Member"),
     "Procedure": _TypeCompatNode("Procedure"),
     "Statement": _TypeCompatNode("Statement"),
