@@ -47,8 +47,8 @@ class FrontendCompiler {
     Result<ModuleMember, LocatedError> elabResult =
         new ASTBuilder().build(parseResult.result, moduleEnv, isVirtual);
 
-    // Dump AST, if requested.
-    if (settings.dumpAst && elabResult.wasSuccessful) {
+    // Dump EAST, if requested.
+    if (settings.dumpEast && elabResult.wasSuccessful) {
       stderr.writeln(astUtils.stringOfNode(elabResult.result));
     }
 

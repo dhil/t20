@@ -22,8 +22,8 @@ class UnrecognisedOptionValue extends FormatException {
 
 class NamedOptions {
   static String get demo_mode => "demo-mode";
-  static String get dump_ast => "dump-ast";
   static String get dump_dast => "dump-dast";
+  static String get dump_east => "dump-east";
   static String get help => "help";
   static String get optimisation_level => "optimisation-level";
   static String get output => "output";
@@ -46,7 +46,7 @@ ArgParser _setupArgParser() {
       negatable: false,
       defaultsTo: false,
       help: "Run in demo mode (affects the typing of `main' functions).");
-  parser.addFlag(NamedOptions.dump_ast,
+  parser.addFlag(NamedOptions.dump_east,
       negatable: false,
       defaultsTo: false,
       help: "Dump the elaborated tree to stderr.");
@@ -109,8 +109,8 @@ class Settings {
 
   // Boolean flags.
   final bool demoMode;
-  final bool dumpAst;
   final bool dumpDast;
+  final bool dumpEast;
   final String exitAfter;
   final int optimisationLevel;
   final bool showHelp;
@@ -126,7 +126,7 @@ class Settings {
   factory Settings.fromCLI(List<String> args, {bool allowNoSources = false}) {
     ArgResults results = _parse(args);
     bool demoMode = results[NamedOptions.demo_mode] as bool;
-    bool dumpAst = results[NamedOptions.dump_ast] as bool;
+    bool dumpEast = results[NamedOptions.dump_east] as bool;
     bool dumpDast = results[NamedOptions.dump_dast] as bool;
     String exitAfter = results[NamedOptions.exit_after] as String;
     String optLevel = results[NamedOptions.optimisation_level] as String;
@@ -154,7 +154,7 @@ class Settings {
       throw new UsageError();
     }
 
-    return Settings._(demoMode, dumpAst, dumpDast, exitAfter, O, outputFile,
+    return Settings._(demoMode, dumpDast, dumpEast, exitAfter, O, outputFile,
         showHelp, showVersion, sourceFiles, trace, verbose, platformDill);
   }
 
@@ -162,8 +162,8 @@ class Settings {
 
   const Settings._(
       this.demoMode,
-      this.dumpAst,
       this.dumpDast,
+      this.dumpEast,
       this.exitAfter,
       this.optimisationLevel,
       this.outputFile,
