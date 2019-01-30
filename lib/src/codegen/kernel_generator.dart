@@ -2,6 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'dart:io' as sdk show Platform;
+
 import 'package:kernel/ast.dart' hide DynamicType, Expression, Let;
 import 'package:kernel/ast.dart' as kernel show DynamicType, Expression, Let;
 import 'package:kernel/transformations/continuation.dart' as transform;
@@ -279,13 +281,15 @@ Procedure smartConstructor(
 
 class KernelGenerator {
   final bool demoMode;
+  final String compilerVersion;
   final Platform platform;
   final ModuleEnvironment environment;
   ModuleKernelGenerator module;
 
   KernelGenerator(Platform platform, ModuleEnvironment environment,
-      {this.demoMode = false})
-      : this.environment = environment,
+      {this.demoMode = false, String compilerVersion = "bleeding edge"})
+      : this.compilerVersion = compilerVersion,
+        this.environment = environment,
         this.platform = platform {
     this.module = ModuleKernelGenerator(platform, environment,
         new KernelRepr(platform), new DartTypeGenerator());
@@ -325,7 +329,7 @@ class KernelGenerator {
 
     // Compile the main procedure.
     if (main != null && mainLib != null) {
-      main = new MainProcedureKernelGenerator(platform)
+      main = new MainProcedureKernelGenerator(platform, compilerVersion)
           .compile(main, demoMode: demoMode);
       mainLib.procedures.add(main);
     }
@@ -360,8 +364,9 @@ class KernelGenerator {
 
 class MainProcedureKernelGenerator {
   final Platform platform;
+  final String compilerVersion;
 
-  MainProcedureKernelGenerator(this.platform);
+  MainProcedureKernelGenerator(this.platform, this.compilerVersion);
 
   Procedure compile(Procedure mainProcedure, {bool demoMode = false}) {
     VariableDeclaration args = VariableDeclaration("args",
@@ -371,7 +376,7 @@ class MainProcedureKernelGenerator {
     if (demoMode) {
       body = demo(mainProcedure);
     } else {
-      body = transformation(mainProcedure, args);
+      body = transformation2(mainProcedure, args);
     }
 
     // Generates:
@@ -395,7 +400,7 @@ class MainProcedureKernelGenerator {
             returnType: const VoidType(),
             asyncMarker: AsyncMarker.Async),
         isStatic: true);
-    main = transform.transformProcedure(platform.coreTypes, main);
+    //main = transform.transformProcedure(platform.coreTypes, main);
 
     return main;
   }
@@ -403,6 +408,26 @@ class MainProcedureKernelGenerator {
   Statement demo(Procedure mainProcedure) {
     return ExpressionStatement(
         StaticInvocation(mainProcedure, Arguments.empty()));
+  }
+
+  Statement transformation2(Procedure mainProcedure, VariableDeclaration args) {
+    // Fetch the main driver from the platform.
+    Procedure t20main = platform
+        .getProcedure(PlatformPathBuilder.t20.target("t20main").build());
+
+    // Set-up meta information.
+    String sdkVersion = sdk.Platform.version;
+    String buildDate = DateTime.now().toUtc().toString();
+
+    return ExpressionStatement(StaticInvocation(
+        t20main,
+        Arguments(<kernel.Expression>[
+          StaticGet(mainProcedure),
+          VariableGet(args),
+          StringLiteral(compilerVersion),
+          StringLiteral(sdkVersion),
+          StringLiteral(buildDate)
+        ])));
   }
 
   Statement transformation(Procedure mainProcedure, VariableDeclaration args) {

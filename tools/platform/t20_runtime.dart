@@ -184,6 +184,11 @@ bool string_less(String a, String b) => a.compareTo(b) < 0;
 bool string_greater(String a, String b) => a.compareTo(b) > 0;
 
 // Argument parser.
+void _reportError(String message) {
+  String compilerName = Platform.script.pathSegments.last;
+  stderr.writeln("\x1B[1m${compilerName}: \x1B[31;1merror:\x1B[0m $message");
+}
+
 class Settings {
   final bool showHelp;
   final String target;
@@ -192,6 +197,7 @@ class Settings {
 }
 
 Settings parseArgs(List<String> args) {
+  bool error = false;
   bool showHelp = false;
   String target = "a.transformed.dill";
   String source;
@@ -205,28 +211,34 @@ Settings parseArgs(List<String> args) {
         if (i + 1 < args.length) {
           ++i;
           target = args[i];
+          continue;
         } else {
-          stderr.writeln("error: missing filename after `-o'.");
-          exit(1);
+          _reportError("missing filename after `\x1B[1m-o\x1B[0m'.");
+          error = true;
+          continue;
         }
       } else {
-        stderr.writeln("error: Unknown option `$arg'.");
-        stderr.writeln(
-            "hint: try `${Platform.script.pathSegments.last} --help'.");
-        exit(1);
+        _reportError("Unknown option `\x1B[1m$arg\x1B[0m'.");
+        error = true;
+        continue;
       }
     }
 
     if (source == null) {
       source = arg;
     } else {
-      stderr.writeln("error: multiple input files given.");
-      exit(1);
+      _reportError("multiple input files given.");
+      error = true;
     }
   }
 
-  if (source == null) {
-    stderr.writeln("error: no input file given.");
+  if (!showHelp && source == null) {
+    _reportError("no input file given.");
+    error = true;
+  }
+
+  if (error) {
+    stderr.writeln("compilation terminated.");
     exit(1);
   }
 
@@ -234,28 +246,50 @@ Settings parseArgs(List<String> args) {
 }
 
 void showHelp(String t20Version, String sdkVersion, String buildDate) {
-  stdout.writeln(
-      "usage: ${Platform.script.pathSegments.last} [ -h  | -o <file> ] FILE");
-  stdout.writeln("");
-  stdout.writeln(
-      "Kernel-to-Kernel transformation compiler built by T20 (version $t20Version) on Dart SDK $sdkVersion on $buildDate");
+  String compilerName = Platform.script.pathSegments.last;
+  stdout.writeln("usage: $compilerName [ -h  | -o <file> ] FILE");
+  stdout.writeln("This program is a Kernel-to-Kernel transformation compiler.");
   stdout.writeln("");
   stdout.writeln("Options:");
   stdout.writeln("-h, --help                      Displays this help message.");
   stdout
       .writeln("-o <file>                       Place the output into <file>.");
+  stdout.writeln(
+      "                                (defaults to \"a.transformed.dill\")");
+  stdout.writeln("");
+  stdout.writeln(
+      "This compiler was built by T20, version $t20Version,\nusing the Dart SDK $sdkVersion\non date $buildDate (UTC).");
 }
 
 // Main driver.
-void t20main(Component Function(Component) main, List<String> args) async {
+void t20main(Component Function(Component) main, List<String> args,
+    String t20Version, String sdkVersion, String buildDate) async {
   Settings settings = parseArgs(args);
   if (settings.showHelp) {
-    showHelp(null, null, null);
+    showHelp(t20Version, sdkVersion, buildDate);
   } else {
     String file = settings.source;
+
+    // Read the source component.
     Component c = Component();
     BinaryBuilder(File(file).readAsBytesSync()).readSingleFileComponent(c);
-    c = runTransformation(main, c);
+
+    // Run the transformation.
+    try {
+      c = main(c);
+    } on PatternMatchFailure catch (e) {
+      _reportError(e.toString());
+      exit(1);
+    } on T20Error catch (e) {
+      _reportError(e.toString());
+      exit(1);
+    } catch (e, s) {
+      stderr.writeln("fatal error: $e");
+      stderr.writeln(s.toString());
+      exit(1);
+    }
+
+    // Write the resulting component.
     IOSink sink = File(settings.target).openWrite();
     BinaryPrinter(sink).writeComponentFile(c);
     await sink.flush();
@@ -280,24 +314,6 @@ void t20mainDemo(dynamic Function() main) {
 }
 
 // void main(List<String> args) => t20main(<main_from_source>, args);
-
-Component runTransformation(
-    Component Function(Component) main, Component argument) {
-  try {
-    return main(argument);
-  } on PatternMatchFailure catch (e) {
-    stderr.writeln(e.toString());
-    exit(1);
-  } on T20Error catch (e) {
-    stderr.writeln(e.toString());
-    exit(1);
-  } catch (e, s) {
-    stderr.writeln("fatal error: $e");
-    stderr.writeln(s.toString());
-    exit(1);
-  }
-  return null; // Impossible!
-}
 
 //=== Kernel Eliminators, match closures, and recursors.
 class KernelMatchClosure<R> implements Visitor<R> {

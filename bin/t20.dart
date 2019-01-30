@@ -7,10 +7,6 @@ import 'dart:io';
 import 'package:t20/settings.dart';
 import 'package:t20/t20_api.dart';
 
-// This constant must be updated in tandem with the corresponding constant in
-// the pubspec.yaml file.
-const String _VERSION = "0.2.1-alpha.19";
-
 void reportError(String errorMsg, {kind = null}) {
   String prefix = kind == null ? "error" : "$kind error";
   stderr.writeln("$prefix: $errorMsg");
@@ -32,7 +28,7 @@ void main(List<String> args) async {
     Settings settings = Settings.fromCLI(args);
     if (settings.showHelp) throw new UsageError();
     if (settings.showVersion) {
-      stdout.writeln("Triple 20 compiler, version $_VERSION");
+      stdout.writeln("Triple 20 compiler, version ${settings.VERSION}");
       exit(0);
     }
     if (settings.sourceFiles == null) throw new UsageError();

@@ -29,7 +29,6 @@ class NamedOptions {
   static String get output => "output";
   static String get platform => "platform";
   static String get trace => "trace";
-  static String get type_check => "type-check";
   static String get verbose => "verbose";
   static String get version => "version";
   static String get exit_after => "exit-after";
@@ -77,8 +76,6 @@ ArgParser _setupArgParser() {
   parser.addMultiOption(NamedOptions.trace,
       help: "Trace the operational behaviour of a component.",
       valueHelp: "codegen,elaborator,parser,typechecker");
-  parser.addFlag(NamedOptions.type_check,
-      negatable: true, defaultsTo: true, help: "Toggle type checking.");
   parser.addFlag(NamedOptions.verbose,
       abbr: 'v',
       negatable: false,
@@ -106,6 +103,10 @@ ArgResults _parse(List<String> args) {
 }
 
 class Settings {
+  // This constant must be updated in tandem with the corresponding constant in
+  // the pubspec.yaml file.
+  final String VERSION = "0.2.1-alpha.19";
+
   // Boolean flags.
   final bool demoMode;
   final bool dumpAst;
@@ -153,8 +154,8 @@ class Settings {
       throw new UsageError();
     }
 
-    return Settings._(demoMode, dumpAst, dumpDast, exitAfter, O, outputFile, showHelp,
-        showVersion, sourceFiles, trace, verbose, platformDill);
+    return Settings._(demoMode, dumpAst, dumpDast, exitAfter, O, outputFile,
+        showHelp, showVersion, sourceFiles, trace, verbose, platformDill);
   }
 
   factory Settings() => Settings.fromCLI(<String>[], allowNoSources: true);

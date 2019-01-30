@@ -28,7 +28,7 @@ class BackendCompiler {
     // Generate code.
     Result<Component, CodeGenerationError> codegenResult = new KernelGenerator(
             new Platform(settings.platformDill), environment,
-            demoMode: settings.demoMode)
+            demoMode: settings.demoMode, compilerVersion: settings.VERSION)
         .compile(modules);
 
     // Check whether there were any errors.
